@@ -1,15 +1,15 @@
 import DataTable from "@/components/DataTable";
-import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
+import { useEmployeesStore } from "@/store/employees/employees.store";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 
-const PurchanseList = () => {
-  const { purchases, fetchPurchases, deletePurchase } = usePurchasesStore();
+const EmployeeList = () => {
+  const { employees, fetchEmployees, deleteEmployee } = useEmployeesStore();
   useEffect(() => {
-    fetchPurchases();
+    fetchEmployees();
   }, []);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper();
@@ -18,15 +18,16 @@ const PurchanseList = () => {
       header: "Id",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("nombreRazon", {
-      header: "Nombre o Razon social",
+    columnHelper.accessor((row) => `${row.nombres} ${row.apellidos}`, {
+      id: "nombreCompleto",
+      header: "Nombres",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("celular", {
+    columnHelper.accessor("telefonoMovil", {
       header: "Telefono",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("email", {
+    columnHelper.accessor("correo", {
       header: "Email",
       cell: (info) => info.getValue(),
     }),
@@ -37,7 +38,7 @@ const PurchanseList = () => {
         return (
           <div className="flex gap-2">
             <Link
-              to={`/purchanses/${id}/edit`}
+              to={`/employees/${id}/edit`}
               className="text-blue-600 hover:underline"
             >
               <Pencil color="green" />
@@ -46,7 +47,7 @@ const PurchanseList = () => {
             <button
               onClick={() => {
                 if (confirm("¿Estás seguro de eliminar este producto?")) {
-                  deletePurchase(id);
+                  deleteEmployee(id);
                   toast.success("Producto eliminado correctamente.");
                 }
               }}
@@ -65,15 +66,15 @@ const PurchanseList = () => {
         <button
           className="bg-slate-600 text-white px-4 py-2 rounded cursor-pointer"
           onClick={() => {
-            navigate(`/purchanses/create`);
+            navigate(`/employees/create`);
           }}
         >
-          Añadir
+          Añadir empleado
         </button>{" "}
       </div>{" "}
-      <DataTable columns={columns} data={purchases} />
+      <DataTable columns={columns} data={employees} />
     </div>
   );
 };
 
-export default PurchanseList;
+export default EmployeeList;

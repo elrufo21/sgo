@@ -7,12 +7,14 @@ import {
   X,
   UserCheck,
   DollarSign,
+  UserCircle,
+  Settings2,
 } from "lucide-react";
 import { useState } from "react";
 
 export default function MainLayout() {
-  const [open, setOpen] = useState(true); // Sidebar escritorio
-  const [mobileOpen, setMobileOpen] = useState(false); // Sidebar móvil
+  const [open, setOpen] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
 
   const navItems = [
@@ -21,6 +23,12 @@ export default function MainLayout() {
     { label: "Empleados", to: "/employees", icon: <Users size={18} /> },
     { label: "Clientes", to: "/customers", icon: <UserCheck size={18} /> },
     { label: "Ventas", to: "/purchanses", icon: <DollarSign size={18} /> },
+    { label: "Usuarios", to: "/users", icon: <UserCircle size={18} /> },
+    {
+      label: "Mantenimiento",
+      to: "/maintenance",
+      icon: <Settings2 />,
+    },
   ];
 
   const renderNavItem = (

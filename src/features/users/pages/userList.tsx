@@ -1,15 +1,15 @@
 import DataTable from "@/components/DataTable";
-import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
+import { useUsersStore } from "@/store/users/users.store";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 
-const PurchanseList = () => {
-  const { purchases, fetchPurchases, deletePurchase } = usePurchasesStore();
+const UserList = () => {
+  const { users, fetchUsers, deleteUser } = useUsersStore();
   useEffect(() => {
-    fetchPurchases();
+    fetchUsers();
   }, []);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper();
@@ -18,16 +18,13 @@ const PurchanseList = () => {
       header: "Id",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("nombreRazon", {
-      header: "Nombre o Razon social",
+
+    columnHelper.accessor("staff", {
+      header: "Personal",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("celular", {
-      header: "Telefono",
-      cell: (info) => info.getValue(),
-    }),
-    columnHelper.accessor("email", {
-      header: "Email",
+    columnHelper.accessor("area", {
+      header: "Area",
       cell: (info) => info.getValue(),
     }),
     columnHelper.accessor("id", {
@@ -37,7 +34,7 @@ const PurchanseList = () => {
         return (
           <div className="flex gap-2">
             <Link
-              to={`/purchanses/${id}/edit`}
+              to={`/users/${id}/edit`}
               className="text-blue-600 hover:underline"
             >
               <Pencil color="green" />
@@ -46,7 +43,7 @@ const PurchanseList = () => {
             <button
               onClick={() => {
                 if (confirm("¿Estás seguro de eliminar este producto?")) {
-                  deletePurchase(id);
+                  deleteUser(id);
                   toast.success("Producto eliminado correctamente.");
                 }
               }}
@@ -65,15 +62,15 @@ const PurchanseList = () => {
         <button
           className="bg-slate-600 text-white px-4 py-2 rounded cursor-pointer"
           onClick={() => {
-            navigate(`/purchanses/create`);
+            navigate(`/users/create`);
           }}
         >
-          Añadir
+          Añadir usuario
         </button>{" "}
       </div>{" "}
-      <DataTable columns={columns} data={purchases} />
+      <DataTable columns={columns} data={users} />
     </div>
   );
 };
 
-export default PurchanseList;
+export default UserList;

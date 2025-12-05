@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import PurchaseFormBase from "@/components/PurchaseFormBase";
-import { usePurchasesStore } from "@/store/purchanse.store";
+import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
 
 const PurchanseEdit = () => {
   const { id } = useParams<{ id: string }>();
