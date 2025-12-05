@@ -9,6 +9,7 @@ import {
   DollarSign,
   UserCircle,
   Settings2,
+  StoreIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/app/app.store";
@@ -30,6 +31,11 @@ export default function MainLayout() {
       to: "/maintenance",
       icon: <Settings2 />,
     },
+    {
+      label: "Control de flujo de caja",
+      to: "/cash_flow_control",
+      icon: <StoreIcon />,
+    },
   ];
 
   const renderNavItem = (
@@ -38,30 +44,29 @@ export default function MainLayout() {
   ) => {
     const active = pathname === item.to || pathname.startsWith(item.to + "/");
     useEffect(() => {
-      if (pathname === "/") { setBreadcrumb([]) }
-    }, [pathname])
+      if (pathname === "/") {
+        setBreadcrumb([]);
+      }
+    }, [pathname]);
     return (
       <Link
         key={item.to}
         onClick={() => {
-          console.log("item.to", item.to)
           if (item.to === "/") {
-            setBreadcrumb([])
-            return
+            setBreadcrumb([]);
+            return;
           }
-          setBreadcrumb([
-            { label: item.label, to: item.to }
-          ])
-        }
-        }
+          setBreadcrumb([{ label: item.label, to: item.to }]);
+        }}
         to={item.to}
         className={`
         flex items-center gap-3 p-3 rounded-lg transition-all duration-200
         justify-center ${!open && !alwaysShowLabel ? "" : "justify-start"}
-        ${active
+        ${
+          active
             ? "bg-slate-600 text-white shadow"
             : "text-gray-700 hover:bg-gray-200"
-          }
+        }
       `}
         title={!open && !alwaysShowLabel ? item.label : undefined}
       >
@@ -81,8 +86,9 @@ export default function MainLayout() {
       >
         <div className="relative flex items-center justify-around p-4 border-b">
           <h1
-            className={`text-lg font-semibold text-slate-600 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"
-              }`}
+            className={`text-lg font-semibold text-slate-600 transition-opacity duration-300 ${
+              open ? "opacity-100" : "opacity-0"
+            }`}
           >
             Mi Sistema
           </h1>
@@ -115,7 +121,8 @@ export default function MainLayout() {
       {/* Sidebar móvil */}
       <aside
         className={`fixed z-50 top-0 left-0 h-full bg-white shadow-xl transition-transform duration-300 md:hidden
-          ${mobileOpen ? "translate-x-0" : "-translate-x-full"
+          ${
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
           } w-64 flex flex-col`}
       >
         <div className="flex items-center justify-between p-4 border-b">
@@ -160,13 +167,17 @@ export default function MainLayout() {
           <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
             <ol className="list-reset flex">
               <li>
-                <Link to="/" className="hover:text-gray-700">Inicio</Link>
+                <Link to="/" className="hover:text-gray-700">
+                  Inicio
+                </Link>
               </li>
               {breadcrumbItems.map((item, idx) => (
                 <li key={idx} className="flex items-center">
                   <span className="mx-2">/</span>
                   {item.to ? (
-                    <Link to={item.to} className="hover:text-gray-700">{item.label}</Link>
+                    <Link to={item.to} className="hover:text-gray-700">
+                      {item.label}
+                    </Link>
                   ) : (
                     <span className="capitalize">{item.label}</span>
                   )}

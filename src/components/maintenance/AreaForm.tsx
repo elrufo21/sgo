@@ -29,7 +29,6 @@ export default function AreaForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log(form)
     if (!form.area.trim()) {
       alert("El nombre del área es obligatorio");
       return;
@@ -58,18 +57,20 @@ export default function AreaForm({
                 placeholder="Ingrese área"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                disabled
+                disabled={mode === "edit"}
               />
             </div>
 
             <div className="mt-8 flex gap-3 justify-center flex-wrap">
-              <button
-                type="submit"
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
+              {mode !== "edit" && (
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
                 font-semibold rounded-lg hover:bg-blue-700 transition"
-              >
-                <Save className="w-5 h-5" /> Guardar
-              </button>
+                >
+                  <Save className="w-5 h-5" /> Guardar
+                </button>
+              )}
 
               {mode === "edit" && (
                 <>
@@ -82,16 +83,7 @@ export default function AreaForm({
                     <Plus className="w-5 h-5" /> Nuevo
                   </button>
 
-                  {onDelete && (
-                    <button
-                      type="button"
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 border-2 border-red-600 
-                      text-red-600 rounded-lg hover:bg-red-50 transition"
-                    >
-                      <Trash2 className="w-5 h-5" /> Eliminar
-                    </button>
-                  )}
+                  {onDelete && <></>}
                 </>
               )}
             </div>

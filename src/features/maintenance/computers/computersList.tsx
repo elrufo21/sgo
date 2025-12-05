@@ -1,49 +1,60 @@
 import { createColumnHelper } from "@tanstack/react-table";
 import { Link, useNavigate } from "react-router";
-import DataTable from "../../../components/DataTable";
-import { useProductsStore } from "@/store/products/products.store";
+import DataTable from "@/components/DataTable";
+import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useEffect } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
-import type { Computer } from "@/types/maintenance";
-
-interface Product {
-  id: string;
-  codigo: string;
-  nombre: string;
-  cantidad: number;
-  preVenta: number;
-}
+import type { Computer, Area } from "@/types/maintenance";
 
 const ComputerList = () => {
   const navigate = useNavigate();
-  const { computers, fetchComputers, deleteComputer } = useMaintenanceStore();
+  const { computers, areas, fetchComputers, fetchAreas, deleteComputer } =
+    useMaintenanceStore();
 
   useEffect(() => {
     fetchComputers();
+    fetchAreas(); // para tener el listado de áreas
   }, []);
 
   const columnHelper = createColumnHelper<Computer>();
 
   const computerColumns = [
-    columnHelper.accessor("brand", {
-      header: "Marca",
+    columnHelper.accessor("maquina", {
+      header: "Máquina",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("model", {
-      header: "Modelo",
+    columnHelper.accessor("registro", {
+      header: "Registro",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("serialNumber", {
-      header: "N° de Serie",
+    columnHelper.accessor("serieFactura", {
+      header: "Serie Factura",
       cell: (info) => info.getValue() || "-",
     }),
-    columnHelper.accessor((row) => row.area?.area || "-", {
-      id: "area",
-      header: "Área",
-      cell: (info) => info.getValue(),
+    columnHelper.accessor("serieNc", {
+      header: "Serie NC",
+      cell: (info) => info.getValue() || "-",
     }),
+    columnHelper.accessor("serieBoleta", {
+      header: "Serie Boleta",
+      cell: (info) => info.getValue() || "-",
+    }),
+    columnHelper.accessor("ticketera", {
+      header: "Ticketera",
+      cell: (info) => info.getValue() || "-",
+    }),
+    columnHelper.accessor(
+      (row) => {
+        const area = areas.find((a: Area) => a.id === row.areaId);
+        return area?.area || "-";
+      },
+      {
+        id: "area",
+        header: "Área",
+        cell: (info) => info.getValue(),
+      }
+    ),
     columnHelper.accessor("id", {
       header: "Acciones",
       cell: (info) => {
@@ -77,7 +88,7 @@ const ComputerList = () => {
           className="bg-slate-600 text-white px-4 py-2 rounded cursor-pointer"
           onClick={() => navigate(`create`)}
         >
-          Añadir producto
+          Añadir computadora
         </button>
       </div>
 

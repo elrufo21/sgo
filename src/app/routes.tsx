@@ -8,6 +8,7 @@ import employeesRoutes from "../features/employees/routes";
 import Dashboard from "@/features/Dashboard/dashboard";
 import usersRoutes from "@/features/users/routes";
 import maintenanceRoutes from "@/features/maintenance/routes";
+import cashFlowRoutes from "@/features/cashFlow/routes";
 export default function Router() {
   const routes = useRoutes([
     {
@@ -22,6 +23,7 @@ export default function Router() {
         ...employeesRoutes,
         ...usersRoutes,
         ...maintenanceRoutes,
+        ...cashFlowRoutes,
       ],
     },
     { path: "*", element: <h1>404 - Not Found</h1> },

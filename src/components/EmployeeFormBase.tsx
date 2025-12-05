@@ -39,7 +39,6 @@ export default function EmployeeFormBase({
   onNew,
   onDelete,
 }: Props) {
-  console.log("initialData", initialData);
   const [form, setForm] = useState<Employee>({
     company: initialData?.company || "",
     area: initialData?.area || "",

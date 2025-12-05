@@ -11,8 +11,11 @@ export interface Area {
 
 export interface Computer {
   id: number;
-  brand: string;
-  model: string;
-  serialNumber: string;
+  maquina: string;
+  registro: string;
+  serieFactura: string;
+  serieNc: string;
+  serieBoleta: string;
+  ticketera: string;
   areaId: number;
 }

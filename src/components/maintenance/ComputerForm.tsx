@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Computer } from "@/types/maintenance";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import type { Computer } from "@/types/maintenance";
 
 interface ComputerFormProps {
   mode: "create" | "edit";
@@ -21,16 +21,25 @@ export default function ComputerForm({
   const { areas, fetchAreas } = useMaintenanceStore();
 
   const [form, setForm] = useState<Omit<Computer, "id">>({
-    brand: "",
-    model: "",
-    serialNumber: "",
+    maquina: "",
+    registro: "",
+    serieFactura: "",
+    serieNc: "",
+    serieBoleta: "",
+    ticketera: "",
     areaId: 0,
   });
-  console.log("form", initialData);
+
   // Cargar datos iniciales
   useEffect(() => {
     if (initialData) {
-      setForm((prev) => ({ ...prev, ...initialData }));
+      setForm((prev) => ({
+        ...prev,
+        ...initialData,
+        registro: initialData.registro
+          ? new Date(initialData.registro).toISOString().slice(0, 10)
+          : "",
+      }));
     }
   }, [initialData]);
 
@@ -63,14 +72,14 @@ export default function ComputerForm({
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700">
-                  Marca *
+                  Máquina *
                 </label>
                 <input
                   type="text"
-                  name="brand"
-                  value={form.brand}
+                  name="maquina"
+                  value={form.maquina}
                   onChange={handleChange}
-                  placeholder="Dell, HP, Lenovo..."
+                  placeholder="Ej: PC-001"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                     focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   required
@@ -79,14 +88,13 @@ export default function ComputerForm({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700">
-                  Modelo *
+                  Registro *
                 </label>
                 <input
-                  type="text"
-                  name="model"
-                  value={form.model}
+                  type="date"
+                  name="registro"
+                  value={form.registro}
                   onChange={handleChange}
-                  placeholder="Inspiron 3500"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                     focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   required
@@ -95,14 +103,59 @@ export default function ComputerForm({
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700">
-                  N° de Serie
+                  Serie Factura
                 </label>
                 <input
                   type="text"
-                  name="serialNumber"
-                  value={form.serialNumber}
+                  name="serieFactura"
+                  value={form.serieFactura}
                   onChange={handleChange}
-                  placeholder="SN123456"
+                  placeholder="Ej: F001-000123"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Serie NC
+                </label>
+                <input
+                  type="text"
+                  name="serieNc"
+                  value={form.serieNc}
+                  onChange={handleChange}
+                  placeholder="Ej: NC001-00001"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Serie Boleta
+                </label>
+                <input
+                  type="text"
+                  name="serieBoleta"
+                  value={form.serieBoleta}
+                  onChange={handleChange}
+                  placeholder="Ej: B001-000123"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Ticketera
+                </label>
+                <input
+                  type="text"
+                  name="ticketera"
+                  value={form.ticketera}
+                  onChange={handleChange}
+                  placeholder="Ej: TICKET-01"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                     focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                 />
