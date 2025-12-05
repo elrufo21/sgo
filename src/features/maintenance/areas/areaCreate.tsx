@@ -1,35 +1,23 @@
-import { useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
-import type { Area } from "@/types/maintenance";
 import AreaForm from "@/components/maintenance/AreaForm";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 
 export default function AreaCreate() {
   const navigate = useNavigate();
-  const { addArea, deleteArea } = useMaintenanceStore();
+  const { addArea } = useMaintenanceStore();
 
-  const [form, setForm] = useState<Omit<Area, "id">>({
-    area: "",
-  });
-
-  const handleSave = () => {
-    addArea(form);
+  const handleSave = (data: any) => {
+    addArea(data);
     toast.success("Área creada correctamente");
     navigate("/maintenance/areas");
   };
 
   const handleNew = () => {
-    setForm({ area: "" });
+    navigate("/maintenance/areas/create");
   };
 
   return (
-    <AreaForm
-      mode="create"
-      initialData={form}
-      onSave={handleSave}
-      onNew={handleNew}
-      onDelete={() => {}}
-    />
+    <AreaForm mode="create" onSave={handleSave} onNew={handleNew} />
   );
 }

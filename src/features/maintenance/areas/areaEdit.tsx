@@ -1,52 +1,45 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import type { Area } from "@/types/maintenance";
-import AreaForm from "@/components/maintenance/AreaForm";
 import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import type { Area } from "@/types/maintenance";
+import AreaForm from "@/components/maintenance/AreaForm";
 
 export default function AreaEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-
   const { areas, fetchAreas, updateArea, deleteArea } = useMaintenanceStore();
 
-  const [form, setForm] = useState<Omit<Area, "id">>({
-    area: "",
-  });
+  const [initialData, setInitialData] = useState<Area | undefined>();
 
-  // Cargar áreas si aún no están
   useEffect(() => {
     if (areas.length === 0) fetchAreas();
   }, [areas, fetchAreas]);
 
-  // Cargar datos del área a editar
   useEffect(() => {
     const area = areas.find((a) => a.id === Number(id));
-    if (area) {
-      const { id, ...rest } = area;
-      setForm(rest);
-    }
+    if (area) setInitialData(area);
   }, [areas, id]);
 
-  if (!form) return <div>Cargando área...</div>;
+  if (!initialData) return <div>Cargando área...</div>;
 
-  const handleSave = () => {
-    updateArea(Number(id), form);
+  const handleSave = (data: Area) => {
+    console.log("data",data)
+    updateArea(Number(id), data);
     toast.success("Área actualizada correctamente");
     navigate("/maintenance/areas");
   };
 
   const handleDelete = () => {
     deleteArea(Number(id));
-    toast.success("Área eliminada correctamente");
+    toast.success("Área eliminada");
     navigate("/maintenance/areas");
   };
 
   return (
     <AreaForm
       mode="edit"
-      initialData={form}
+      initialData={initialData}
       onSave={handleSave}
       onNew={() => navigate("/maintenance/areas/create")}
       onDelete={handleDelete}

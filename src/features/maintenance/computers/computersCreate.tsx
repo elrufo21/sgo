@@ -20,7 +20,7 @@ const ComputerCreate = () => {
   const handleSave = (data: Omit<Computer, "id">) => {
     addComputer(data);
     toast.success("Computadora creada correctamente");
-    navigate("/computers");
+    navigate("/maintenance/categories");
   };
 
   const handleNew = () => {

@@ -17,7 +17,7 @@ const AreaList = () => {
   }, []);
 
   const columnHelper = createColumnHelper();
-
+  console.log("area",areas)
   const areaColumns = [
     columnHelper.accessor("area", {
       header: "Área",

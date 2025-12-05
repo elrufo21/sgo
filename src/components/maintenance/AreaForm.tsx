@@ -17,19 +17,28 @@ export default function AreaForm({
   onNew,
   onDelete,
 }: AreaFormProps) {
-  const [form, setForm] = useState<Area>({
-    id: "",
-    area: "",
-  });
+  const [form, setForm] = useState<Area>({ id: 0, area: "" });
 
   useEffect(() => {
-    if (initialData) {
-      setForm((prev) => ({ ...prev, ...initialData }));
-    }
+    if (initialData) setForm((prev) => ({ ...prev, ...initialData }));
   }, [initialData]);
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log(form)
+    if (!form.area.trim()) {
+      alert("El nombre del área es obligatorio");
+      return;
+    }
+    onSave(form);
+  };
+
   return (
-    <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <form onSubmit={handleSubmit} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -45,16 +54,17 @@ export default function AreaForm({
                 type="text"
                 name="area"
                 value={form.area}
-                onChange={(e) => setForm({ ...form, area: e.target.value })}
+                onChange={handleChange}
                 placeholder="Ingrese área"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                disabled
               />
             </div>
 
             <div className="mt-8 flex gap-3 justify-center flex-wrap">
               <button
-                onClick={() => onSave(form)}
+                type="submit"
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
                 font-semibold rounded-lg hover:bg-blue-700 transition"
               >
@@ -64,6 +74,7 @@ export default function AreaForm({
               {mode === "edit" && (
                 <>
                   <button
+                    type="button"
                     onClick={onNew}
                     className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
                     text-blue-600 rounded-lg hover:bg-blue-50 transition"
@@ -73,6 +84,7 @@ export default function AreaForm({
 
                   {onDelete && (
                     <button
+                      type="button"
                       onClick={onDelete}
                       className="flex items-center gap-2 px-6 py-3 border-2 border-red-600 
                       text-red-600 rounded-lg hover:bg-red-50 transition"
@@ -86,6 +98,6 @@ export default function AreaForm({
           </div>
         </div>
       </div>
-    </div>
+    </form>
   );
 }

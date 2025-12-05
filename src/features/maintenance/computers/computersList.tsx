@@ -75,7 +75,7 @@ const ComputerList = () => {
       <div className="w-full h-16 flex mb-5">
         <button
           className="bg-slate-600 text-white px-4 py-2 rounded cursor-pointer"
-          onClick={() => navigate(`/create`)}
+          onClick={() => navigate(`create`)}
         >
           Añadir producto
         </button>
