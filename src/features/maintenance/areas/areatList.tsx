@@ -1,14 +1,17 @@
 import { createColumnHelper } from "@tanstack/react-table";
-import { Link, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import DataTable from "@/components/DataTable";
 
 import { useEffect } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import { useAppStore } from "@/store/app/app.store";
 
 const AreaList = () => {
   const navigate = useNavigate();
+
+  const { pathname } = useLocation();
 
   const { areas, fetchAreas, deleteArea } = useMaintenanceStore();
 

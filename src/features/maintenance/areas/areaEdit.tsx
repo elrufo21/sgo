@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Area } from "@/types/maintenance";
 import AreaForm from "@/components/maintenance/AreaForm";
+import { useAppStore } from "@/store/app/app.store";
 
 export default function AreaEdit() {
   const { id } = useParams<{ id: string }>();
@@ -24,7 +25,7 @@ export default function AreaEdit() {
   if (!initialData) return <div>Cargando área...</div>;
 
   const handleSave = (data: Area) => {
-    console.log("data",data)
+    console.log("data", data);
     updateArea(Number(id), data);
     toast.success("Área actualizada correctamente");
     navigate("/maintenance/areas");

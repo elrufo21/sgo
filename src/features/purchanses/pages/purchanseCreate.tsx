@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import PurchaseFormBase from "@/components/PurchaseFormBase";
-import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
+import { usePurchasesStore } from "@/store/purchanses/purchase.store";
 
 const PurchanseCreate = () => {
   const { addPurchase } = usePurchasesStore();
@@ -23,7 +23,7 @@ const PurchanseCreate = () => {
   const handleSave = (data: Omit<typeof form, "id">) => {
     addPurchase(data);
     toast.success("Se creo correctamente");
-    navigate("/purchanses");
+    navigate("/purchases");
   };
 
   const handleNew = () => {

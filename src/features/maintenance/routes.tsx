@@ -9,44 +9,111 @@ import ComputerEdit from "./computers/computersEdit";
 import ComputerList from "./computers/computersList";
 import MaintenanceDashboard from "./pages/MaintenanceDashboard";
 
-/** categorías
-import CategoryList from "./categories/pages/CategoryList";
-import CategoryCreate from "./categories/pages/CategoryCreate";
-import CategoryEdit from "./categories/pages/CategoryEdit";
-
-// áreas
-import AreaList from "./areas/pages/AreaList";
-import AreaCreate from "./areas/pages/AreaCreate";
-import AreaEdit from "./areas/pages/AreaEdit";
-
-// computadoras
-import ComputerList from "./computers/pages/ComputerList";
-import ComputerCreate from "./computers/pages/ComputerCreate";
-import ComputerEdit from "./computers/pages/ComputerEdit"; */
-
 export default [
-  // Dashboard del módulo mantenimiento
-  { path: "maintenance", element: <MaintenanceDashboard /> },
-  { path: "maintenance/areas", element: <AreaList /> },
-  { path: "maintenance/areas/create", element: <AreaCreate /> },
-  { path: "maintenance/areas/:id/edit", element: <AreaEdit /> },
-  { path: "maintenance/categories", element: <CategoryList /> },
-  { path: "maintenance/categories/create", element: <CategoryCreate /> },
-  { path: "maintenance/categories/:id/edit", element: <CategoryEdit /> },
-  { path: "maintenance/computers", element: <ComputerList /> },
-  { path: "maintenance/computers/create", element: <ComputerCreate /> },
-  { path: "maintenance/computers/:id/edit", element: <ComputerEdit /> },
+  {
+    path: "maintenance",
+    element: <MaintenanceDashboard />,
+    handle: {
+      breadcrumb: [{ label: "Mantenimiento" }],
+    },
+  },
 
-  /*
-  // Categorías
-  
+  {
+    path: "maintenance/areas",
+    element: <AreaList />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Áreas" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/areas/create",
+    element: <AreaCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Áreas", to: "/maintenance/areas" },
+        { label: "Crear área" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/areas/:id/edit",
+    element: <AreaEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Áreas", to: "/maintenance/areas" },
+        { label: "Editar área" },
+      ],
+    },
+  },
 
+  {
+    path: "maintenance/categories",
+    element: <CategoryList />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Categorías" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/categories/create",
+    element: <CategoryCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Categorías", to: "/maintenance/categories" },
+        { label: "Crear categoría" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/categories/:id/edit",
+    element: <CategoryEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Categorías", to: "/maintenance/categories" },
+        { label: "Editar categoría" },
+      ],
+    },
+  },
 
-  
-
-  // Computadoras
-  { path: "maintenance/computers", element: <ComputerList /> },
-  { path: "maintenance/computers/create", element: <ComputerCreate /> },
-  { path: "maintenance/computers/:id/edit", element: <ComputerEdit /> },
-*/
+  {
+    path: "maintenance/computers",
+    element: <ComputerList />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Computadoras" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/computers/create",
+    element: <ComputerCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Computadoras", to: "/maintenance/computers" },
+        { label: "Crear computadora" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/computers/:id/edit",
+    element: <ComputerEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Computadoras", to: "/maintenance/computers" },
+        { label: "Editar computadora" },
+      ],
+    },
+  },
 ];

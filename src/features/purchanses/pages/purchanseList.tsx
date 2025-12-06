@@ -1,5 +1,5 @@
 import DataTable from "@/components/DataTable";
-import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
+import { usePurchasesStore } from "@/store/purchanses/purchase.store";
 import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, Trash2 } from "lucide-react";
 import { useEffect } from "react";
@@ -37,7 +37,7 @@ const PurchanseList = () => {
         return (
           <div className="flex gap-2">
             <Link
-              to={`/purchanses/${id}/edit`}
+              to={`/purchases/${id}/edit`}
               className="text-blue-600 hover:underline"
             >
               <Pencil color="green" />
@@ -65,7 +65,7 @@ const PurchanseList = () => {
         <button
           className="bg-slate-600 text-white px-4 py-2 rounded cursor-pointer"
           onClick={() => {
-            navigate(`/purchanses/create`);
+            navigate(`/purchases/create`);
           }}
         >
           Añadir

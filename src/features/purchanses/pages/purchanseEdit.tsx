@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import PurchaseFormBase from "@/components/PurchaseFormBase";
-import { usePurchasesStore } from "@/store/purchanses/purchanse.store";
+import { usePurchasesStore } from "@/store/purchanses/purchase.store";
 
 const PurchanseEdit = () => {
   const { id } = useParams<{ id: string }>();
@@ -40,17 +40,17 @@ const PurchanseEdit = () => {
   const handleSave = (data: Omit<typeof form, "id">) => {
     updatePurchase(Number(id), data);
     toast.success("Cliente guardado correctamente");
-    navigate("/purchanses");
+    navigate("/purchases");
   };
 
   const handleDelete = () => {
     deletePurchase(Number(id));
     toast.success("Cliente eliminado correctamente");
-    navigate("/purchanses");
+    navigate("/purchases");
   };
 
   const handleNew = () => {
-    navigate("/purchanses/create");
+    navigate("/purchases/create");
   };
 
   return (

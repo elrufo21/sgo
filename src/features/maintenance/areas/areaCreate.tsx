@@ -2,6 +2,8 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import AreaForm from "@/components/maintenance/AreaForm";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import { useAppStore } from "@/store/app/app.store";
+import { useEffect } from "react";
 
 export default function AreaCreate() {
   const navigate = useNavigate();
@@ -17,7 +19,5 @@ export default function AreaCreate() {
     navigate("/maintenance/areas/create");
   };
 
-  return (
-    <AreaForm mode="create" onSave={handleSave} onNew={handleNew} />
-  );
+  return <AreaForm mode="create" onSave={handleSave} onNew={handleNew} />;
 }

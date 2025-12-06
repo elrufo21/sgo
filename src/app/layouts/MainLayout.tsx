@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation } from "react-router";
+import { Outlet, Link, useLocation, useMatches } from "react-router";
 import {
   Home,
   Package,
@@ -11,20 +11,29 @@ import {
   Settings2,
   StoreIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useAppStore } from "@/store/app/app.store";
+import { useState } from "react";
+
+interface BreadcrumbItem {
+  label: string;
+  to?: string;
+}
+
+interface RouteHandle {
+  breadcrumb?: BreadcrumbItem[];
+}
 
 export default function MainLayout() {
   const [open, setOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { pathname } = useLocation();
+  const matches = useMatches();
 
   const navItems = [
     { label: "Dashboard", to: "/", icon: <Home size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
     { label: "Empleados", to: "/employees", icon: <Users size={18} /> },
     { label: "Clientes", to: "/customers", icon: <UserCheck size={18} /> },
-    { label: "Ventas", to: "/purchanses", icon: <DollarSign size={18} /> },
+    { label: "Ventas", to: "/purchases", icon: <DollarSign size={18} /> },
     { label: "Usuarios", to: "/users", icon: <UserCircle size={18} /> },
     {
       label: "Mantenimiento",
@@ -38,26 +47,29 @@ export default function MainLayout() {
     },
   ];
 
+  // Obtener breadcrumb de las rutas
+  const breadcrumbItems = matches
+    .filter((match) => {
+      const handle = match.handle as RouteHandle | undefined;
+      return handle?.breadcrumb;
+    })
+    .flatMap((match) => {
+      const handle = match.handle as RouteHandle;
+      return handle.breadcrumb || [];
+    });
+
+  console.log("Matches:", matches);
+  console.log("Breadcrumb items:", breadcrumbItems);
+
   const renderNavItem = (
     item: (typeof navItems)[0],
     alwaysShowLabel = false
   ) => {
     const active = pathname === item.to || pathname.startsWith(item.to + "/");
-    useEffect(() => {
-      if (pathname === "/") {
-        setBreadcrumb([]);
-      }
-    }, [pathname]);
+
     return (
       <Link
         key={item.to}
-        onClick={() => {
-          if (item.to === "/") {
-            setBreadcrumb([]);
-            return;
-          }
-          setBreadcrumb([{ label: item.label, to: item.to }]);
-        }}
         to={item.to}
         className={`
         flex items-center gap-3 p-3 rounded-lg transition-all duration-200
@@ -77,7 +89,7 @@ export default function MainLayout() {
       </Link>
     );
   };
-  const { breadcrumb: breadcrumbItems, setBreadcrumb } = useAppStore();
+
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800">
       <aside
@@ -164,27 +176,30 @@ export default function MainLayout() {
 
         {/* Main */}
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
-            <ol className="list-reset flex">
-              <li>
-                <Link to="/" className="hover:text-gray-700">
-                  Inicio
-                </Link>
-              </li>
-              {breadcrumbItems.map((item, idx) => (
-                <li key={idx} className="flex items-center">
-                  <span className="mx-2">/</span>
-                  {item.to ? (
-                    <Link to={item.to} className="hover:text-gray-700">
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <span className="capitalize">{item.label}</span>
-                  )}
+          {/* Breadcrumb automático */}
+          {breadcrumbItems.length > 0 && (
+            <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
+              <ol className="list-reset flex">
+                <li>
+                  <Link to="/" className="hover:text-gray-700">
+                    Inicio
+                  </Link>
                 </li>
-              ))}
-            </ol>
-          </nav>
+                {breadcrumbItems.map((item, idx) => (
+                  <li key={idx} className="flex items-center">
+                    <span className="mx-2">/</span>
+                    {item.to ? (
+                      <Link to={item.to} className="hover:text-gray-700">
+                        {item.label}
+                      </Link>
+                    ) : (
+                      <span className="capitalize">{item.label}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            </nav>
+          )}
           <Outlet />
         </main>
       </div>
