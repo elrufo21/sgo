@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Category, Area, Computer } from "@/types/maintenance";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 
 interface MaintenanceState {
   categories: Category[];
@@ -11,9 +12,9 @@ interface MaintenanceState {
   fetchAreas: () => Promise<void>;
   fetchComputers: () => Promise<void>;
 
-  addCategory: (data: Omit<Category, "id">) => void;
-  updateCategory: (id: number, data: Partial<Category>) => void;
-  deleteCategory: (id: number) => void;
+  addCategory: (data: Omit<Category, "id">) => Promise<void>;
+  updateCategory: (id: number, data: Partial<Category>) => Promise<void>;
+  deleteCategory: (idSubLinea: number) => Promise<void>;
 
   addArea: (data: Omit<Area, "id">) => void;
   updateArea: (id: number, data: Partial<Area>) => void;
@@ -21,7 +22,7 @@ interface MaintenanceState {
 
   addComputer: (data: Omit<Computer, "id">) => void;
   updateComputer: (id: number, data: Partial<Computer>) => void;
-  deleteComputer: (id: number) => void;
+  deleteComputer: (id: number) => Promise<void>;
 }
 
 export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
@@ -30,24 +31,23 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   computers: [],
   loading: false,
 
-  // FETCH
   fetchCategories: async () => {
     if (get().categories.length > 0) return;
+
     set({ loading: true });
+
     try {
-      const response: Category[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              { id: 1, category: "Laptop", sunatCode: "1001" },
-              { id: 2, category: "Impresora", sunatCode: "2001" },
-            ]),
-          600
-        )
-      );
-      set({ categories: response, loading: false });
+      const response = await apiRequest<Category[]>({
+        url: "http://localhost:5000/api/v1/Linea/list",
+        method: "GET",
+        fallback: [],
+      });
+      set({
+        categories: response ?? [],
+        loading: false,
+      });
     } catch (err) {
-      console.error(err);
+      console.error("❌ Error al obtener categorías", err);
       set({ loading: false });
     }
   },
@@ -103,23 +103,84 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   },
 
   // CRUD
-  addCategory: (data) =>
-    set((state) => {
-      const newId = state.categories.length
-        ? Math.max(...state.categories.map((c) => c.id)) + 1
-        : 1;
-      return { categories: [...state.categories, { ...data, id: newId }] };
-    }),
-  updateCategory: (id, data) =>
+  addCategory: async (data) => {
+    const payload = {
+      idSubLinea: 0,
+      nombreSublinea: data.nombreSublinea,
+      codigoSunat: data.codigoSunat,
+    };
+
+    const created = await apiRequest<Category>({
+      url: "http://localhost:5000/api/v1/Linea/registerlinea",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id: Date.now() },
+    });
+
+    set((state) => ({
+      categories: [
+        ...state.categories,
+        created?.id
+          ? created
+          : { ...data, id: Date.now(), nombreSublinea: data.nombreSublinea },
+      ],
+    }));
+  },
+
+  updateCategory: async (id, data) => {
+    const payload = {
+      idSubLinea: id,
+      nombreSublinea: data.nombreSublinea ?? data.nombre ?? "",
+      codigoSunat: data.codigoSunat ?? "",
+    };
+
+    const updated = await apiRequest<Category>({
+      url: "http://localhost:5000/api/v1/Linea/registerlinea",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id },
+    });
+
     set((state) => ({
       categories: state.categories.map((c) =>
-        c.id === id ? { ...c, ...data } : c
+        String(c.id) === String(id)
+          ? updated?.id
+            ? updated
+            : { ...c, ...data, id }
+          : c
       ),
-    })),
-  deleteCategory: (id) =>
+    }));
+  },
+  deleteCategory: async (idSubLinea) => {
+    await apiRequest({
+      url: `http://localhost:5000/api/v1/Linea/${idSubLinea}`,
+      method: "DELETE",
+      config: {
+        headers: {
+          Accept: "*/*",
+        },
+      },
+      fallback: null,
+    });
+
     set((state) => ({
-      categories: state.categories.filter((c) => c.id !== id),
-    })),
+      categories: state.categories.filter(
+        (c) => String(c.id) !== String(idSubLinea)
+      ),
+    }));
+  },
 
   addArea: (data) =>
     set((state) => {
@@ -148,6 +209,20 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
         c.id === id ? { ...c, ...data } : c
       ),
     })),
-  deleteComputer: (id) =>
-    set((state) => ({ computers: state.computers.filter((c) => c.id !== id) })),
+  deleteComputer: async (id) => {
+    await apiRequest({
+      url: `http://localhost:5000/api/v1/Linea/${id}`,
+      method: "DELETE",
+      config: {
+        headers: {
+          Accept: "*/*",
+        },
+      },
+      fallback: null,
+    });
+
+    set((state) => ({
+      computers: state.computers.filter((c) => c.id !== id),
+    }));
+  },
 }));

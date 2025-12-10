@@ -19,10 +19,10 @@ export default function CategoriaForm({
 }: CategoriaFormProps) {
   const [form, setForm] = useState<Category>({
     id: 0,
-    category: "",
-    sunatCode: "",
+    nombreSublinea: "",
+    codigoSunat: null,
   });
-  console.log("initialData", initialData);
+
   useEffect(() => {
     if (initialData) {
       setForm((prev) => ({ ...prev, ...initialData }));
@@ -46,33 +46,34 @@ export default function CategoriaForm({
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Nombre de Categoría
+                  Nombre de categoría
                 </label>
                 <input
                   type="text"
-                  name="category"
-                  value={form.category}
+                  name="nombreSublinea"
+                  value={form.nombreSublinea}
                   onChange={handleChange}
                   placeholder="Ingrese nombre"
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                   focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                 />
               </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Código SUNAT
-                </label>
-                <input
-                  type="text"
-                  name="sunatCode"
-                  value={form.sunatCode}
-                  onChange={handleChange}
-                  placeholder="Ingrese código"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+              {mode === "edit" && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
+                    Código SUNAT
+                  </label>
+                  <input
+                    type="text"
+                    name="codigoSunat"
+                    value={form.codigoSunat}
+                    onChange={handleChange}
+                    placeholder="Ej: 1232"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                   focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
+                  />
+                </div>
+              )}
             </div>
 
             <div className="mt-8 flex gap-3 justify-center flex-wrap">
@@ -83,27 +84,23 @@ export default function CategoriaForm({
               >
                 <Save className="w-5 h-5" /> Guardar
               </button>
-
-              {mode === "edit" && (
-                <>
-                  <button
-                    onClick={onNew}
-                    className="flex items-center gap-2 px-6 py-3 border-2 
+              {mode === "create" && (
+                <button
+                  onClick={onNew}
+                  className="flex items-center gap-2 px-6 py-3 border-2 
                     border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    <Plus className="w-5 h-5" /> Nuevo
-                  </button>
-
-                  {onDelete && (
-                    <button
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 border-2 
-                      border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition"
-                    >
-                      <Trash2 className="w-5 h-5" /> Eliminar
-                    </button>
-                  )}
-                </>
+                >
+                  <Plus className="w-5 h-5" /> Nuevo
+                </button>
+              )}
+              {mode === "edit" && onDelete && (
+                <button
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-6 py-3 border-2 
+                  border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition"
+                >
+                  <Trash2 className="w-5 h-5" /> Eliminar
+                </button>
               )}
             </div>
           </div>

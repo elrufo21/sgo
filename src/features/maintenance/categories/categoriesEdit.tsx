@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
@@ -9,18 +9,13 @@ export default function CategoryEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const {
-    categories,
-    updateCategory,
-    deleteCategory,
-    addCategory,
-    fetchCategories,
-  } = useMaintenanceStore();
+  const { categories, fetchCategories, updateCategory, deleteCategory } =
+    useMaintenanceStore();
 
   const [category, setCategory] = useState<Category | null>(null);
 
   useEffect(() => {
-    fetchCategories(); // por si no está cargado
+    fetchCategories();
   }, []);
 
   useEffect(() => {
@@ -35,16 +30,11 @@ export default function CategoryEdit() {
 
     updateCategory(Number(id), data);
     toast.success("Categoría actualizada");
-    navigate("/categories");
+    navigate("/maintenance/categories");
   };
 
   const handleNew = () => {
-    setCategory({
-      id: "",
-      categoria: "",
-      codigoSunat: "",
-    });
-    navigate("/categories/create");
+    navigate("/maintenance/categories/create");
   };
 
   const handleDelete = () => {
@@ -52,7 +42,7 @@ export default function CategoryEdit() {
 
     deleteCategory(Number(id));
     toast.success("Categoría eliminada");
-    navigate("/categories");
+    navigate("/maintenance/categories");
   };
 
   if (!category) {

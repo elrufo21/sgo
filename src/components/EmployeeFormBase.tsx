@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Save, Plus, Trash2, Camera, Upload, X } from "lucide-react";
 
 interface Employee {
@@ -58,7 +58,10 @@ export default function EmployeeFormBase({
     estado: initialData?.estado || "activo",
     foto: initialData?.foto || "",
   });
-
+  console.log("initialData", initialData);
+  useEffect(() => {
+    setForm(initialData);
+  }, [onNew]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
 
@@ -108,6 +111,20 @@ export default function EmployeeFormBase({
   };
 
   const removePhoto = () => setForm((prev) => ({ ...prev, foto: "" }));
+  const calcularEdad = (fecha: string) => {
+    if (!fecha) return "";
+    const hoy = new Date();
+    const nacimiento = new Date(fecha);
+
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const mes = hoy.getMonth() - nacimiento.getMonth();
+
+    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+      edad--;
+    }
+
+    return edad + " años";
+  };
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8">
@@ -118,7 +135,7 @@ export default function EmployeeFormBase({
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-semibold text-gray-700">
                 Compañía
               </label>
@@ -164,21 +181,7 @@ export default function EmployeeFormBase({
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Estado
-              </label>
-              <select
-                name="estado"
-                value={form.estado}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              >
-                <option value="activo">Activo</option>
-                <option value="inactivo">Inactivo</option>
-                <option value="suspendido">Suspendido</option>
-              </select>
-            </div>
+
             {/**<div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700">
                 Password
@@ -215,17 +218,7 @@ export default function EmployeeFormBase({
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">RUC</label>
-              <input
-                name="ruc"
-                value={form.ruc}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              />
-            </div>
-
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-semibold text-gray-700">DNI</label>
               <input
                 name="dni"
@@ -259,6 +252,12 @@ export default function EmployeeFormBase({
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
               />
             </div>
+            <input
+              name="edad"
+              value={calcularEdad(form.fechaNacimiento)}
+              readOnly
+              className="w-full px-4 py-3   rounded-lg outline-none"
+            />
 
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700">
@@ -267,18 +266,6 @@ export default function EmployeeFormBase({
               <input
                 name="telefonoMovil"
                 value={form.telefonoMovil}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Teléfono asignado
-              </label>
-              <input
-                name="telefonoAsignado"
-                value={form.telefonoAsignado}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
               />
@@ -308,18 +295,22 @@ export default function EmployeeFormBase({
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
               />
             </div>
-
             <div className="space-y-2">
               <label className="text-sm font-semibold text-gray-700">
-                Fecha baja
+                Estado
               </label>
-              <input
-                type="date"
-                name="fechaBaja"
-                value={form.fechaBaja}
+              <select
+                name="estado"
+                value={form.estado}
                 onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              />
+                className={`w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none ${
+                  mode == "edit" && "cursor-pointer"
+                }`}
+                disabled={mode == "create"}
+              >
+                <option value="activo">Activo</option>
+                <option value="suspendido">Suspendido</option>
+              </select>
             </div>
           </div>
 
@@ -391,15 +382,15 @@ export default function EmployeeFormBase({
             <Save />
             Guardar
           </button>
-
-          <button
-            onClick={onNew}
-            className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-          >
-            <Plus />
-            Nuevo
-          </button>
-
+          {mode == "create" && (
+            <button
+              onClick={onNew}
+              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
+            >
+              <Plus />
+              Nuevo
+            </button>
+          )}
           {mode === "edit" && onDelete && (
             <button
               onClick={onDelete}

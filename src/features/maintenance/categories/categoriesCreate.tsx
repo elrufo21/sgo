@@ -11,20 +11,20 @@ export default function CategoryCreate() {
   const { addCategory } = useMaintenanceStore();
 
   const [form, setForm] = useState<Omit<Category, "id">>({
-    category: "",
-    sunatCode: "",
+    nombreSublinea: "",
+    codigoSunat: "",
   });
 
-  const handleSave = () => {
-    addCategory(form);
+  const handleSave = async (data: Omit<Category, "id">) => {
+    await addCategory(data);
     toast.success("Categoría creada correctamente");
     navigate("/maintenance/categories");
   };
 
   const handleNew = () => {
     setForm({
-      category: "",
-      sunatCode: "",
+      nombreSublinea: "",
+      codigoSunat: "",
     });
   };
 

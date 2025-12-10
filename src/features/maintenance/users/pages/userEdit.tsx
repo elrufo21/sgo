@@ -18,7 +18,7 @@ const UserEdit = () => {
   }, [users, fetchUsers]);
 
   useEffect(() => {
-    const user = users.find((e) => e.id === Number(id));
+    const user = users.find((e) => e.UsuarioID === Number(id));
     if (user) {
       const { id, ...rest } = user;
       setForm(rest);
@@ -30,16 +30,16 @@ const UserEdit = () => {
   const handleSave = (data: Omit<User, "id">) => {
     updateUser(Number(id), data);
     toast.success("Empleado guardado correctamente");
-    navigate("/users");
+    navigate("/maintenance/users");
   };
 
   const handleDelete = () => {
     deleteUser(Number(id));
     toast.success("Empleado eliminado correctamente");
-    navigate("/users");
+    navigate("/maintenance/users");
   };
 
-  const handleNew = () => navigate("/users/create");
+  const handleNew = () => navigate("/maintenance/users/create");
 
   return (
     <UserFormBase

@@ -91,11 +91,16 @@ export const useEmployeesStore = create<EmployeesState>((set, get) => ({
 }));
 
 export interface User {
-  id: number;
-  staff: string;
-  area: string;
-  username: string;
-  password: string;
-  confirmPassword?: string;
-  status: "activo" | "inactivo";
+  UsuarioID: number;
+  PersonalId: number;
+  UsuarioAlias: string;
+  UsuarioClave: string;
+  UsuarioFechaReg: string;
+  UsuarioEstado: string;
+  UsuarioSerie: string;
+  EnviaBoleta: number;
+  EnviarFactura: number;
+  EnviaNC: number;
+  EnviaND: number;
+  Administrador: number;
 }

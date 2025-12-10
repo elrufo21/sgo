@@ -33,13 +33,13 @@ const EmployeeEdit = () => {
   const handleSave = (data: Omit<Employee, "id">) => {
     updateEmployee(Number(id), data);
     toast.success("Empleado guardado correctamente");
-    navigate("/employees");
+    navigate("/maintenance/employees");
   };
 
   const handleDelete = () => {
     deleteEmployee(Number(id));
     toast.success("Empleado eliminado correctamente");
-    navigate("/employees");
+    navigate("/maintenance/employees");
   };
 
   const handleNew = () => navigate("/employees/create");

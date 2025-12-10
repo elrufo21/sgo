@@ -3,9 +3,12 @@ import CustomerFormBase from "@/components/CustomerFormBase";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import ProductFormBase from "@/components/ProductFormBase";
+import { useProductsStore } from "@/store/products/products.store";
+import type { Product } from "@/types/product";
 
 const CustomerCreate = () => {
-  const { addClient } = useClientsStore();
+  const { addProduct } = useProductsStore();
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -20,10 +23,10 @@ const CustomerCreate = () => {
     estado: "activo",
   });
 
-  const handleSave = (data: Omit<typeof form, "id">) => {
-    addClient(data);
-    toast.success("Cliente creado correctamente");
-    navigate("/customers");
+  const handleSave = (data: Omit<Product, "id">) => {
+    addProduct(data);
+    toast.success("Producto creado correctamente");
+    navigate("/products");
   };
 
   const handleNew = () => {
@@ -41,12 +44,7 @@ const CustomerCreate = () => {
   };
 
   return (
-    <CustomerFormBase
-      mode="create"
-      initialData={form}
-      onSave={handleSave}
-      onNew={handleNew}
-    />
+    <ProductFormBase mode="create" onSave={handleSave} onNew={handleNew} />
   );
 };
 

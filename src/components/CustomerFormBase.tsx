@@ -85,7 +85,7 @@ export default function CustomerFormBase({
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
                 <div className="space-y-2 md:col-span-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Nombre o Razón Social
@@ -207,14 +207,17 @@ export default function CustomerFormBase({
                     name="estado"
                     value={form.estado}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    className={`w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none ${
+                      mode === "edit" && "cursor-pointer"
+                    }`}
+                    disabled={mode === "create"}
                   >
                     <option value="activo">Activo</option>
                     <option value="inactivo">Inactivo</option>
                   </select>
                 </div>
               </div>
-              <div className="border-t-2 border-gray-100 pt-4">
+              <div className="border-t-2 border-gray-100 pt-4 order-1 lg:order-2">
                 <div className="space-y-4">
                   <div className="flex items-center gap-6">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -260,8 +263,7 @@ export default function CustomerFormBase({
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3">
+              <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3 order-3 lg:order-3">
                 <div className="flex flex-wrap gap-3 justify-center">
                   <button
                     onClick={handleSaveClick}

@@ -1,7 +1,8 @@
 export interface Category {
-  id: number;
-  category: string;
-  sunatCode: string;
+  id?: string | number;
+  nombreSublinea: string;
+  codigoSunat: string;
+  nombre?: string | null;
 }
 
 export interface Area {

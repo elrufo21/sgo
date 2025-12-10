@@ -2,12 +2,10 @@ import { Outlet, Link, useLocation, useMatches } from "react-router";
 import {
   Home,
   Package,
-  Users,
-  Menu,
-  X,
   UserCheck,
   DollarSign,
-  UserCircle,
+  Menu,
+  X,
   Settings2,
   StoreIcon,
 } from "lucide-react";
@@ -25,16 +23,16 @@ interface RouteHandle {
 export default function MainLayout() {
   const [open, setOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [search, setSearch] = useState(""); // 🔍 buscador
   const { pathname } = useLocation();
   const matches = useMatches();
 
+  // 📌 Items del menú
   const navItems = [
     { label: "Dashboard", to: "/", icon: <Home size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
-    { label: "Empleados", to: "/employees", icon: <Users size={18} /> },
     { label: "Clientes", to: "/customers", icon: <UserCheck size={18} /> },
     { label: "Ventas", to: "/purchases", icon: <DollarSign size={18} /> },
-    { label: "Usuarios", to: "/users", icon: <UserCircle size={18} /> },
     {
       label: "Mantenimiento",
       to: "/maintenance",
@@ -47,7 +45,12 @@ export default function MainLayout() {
     },
   ];
 
-  // Obtener breadcrumb de las rutas
+  // 🔎 Filtrar módulos
+  const filteredItems = navItems.filter((item) =>
+    item.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  // 📌 Breadcrumb automático
   const breadcrumbItems = matches
     .filter((match) => {
       const handle = match.handle as RouteHandle | undefined;
@@ -58,9 +61,7 @@ export default function MainLayout() {
       return handle.breadcrumb || [];
     });
 
-  console.log("Matches:", matches);
-  console.log("Breadcrumb items:", breadcrumbItems);
-
+  // Render de items del menú
   const renderNavItem = (
     item: (typeof navItems)[0],
     alwaysShowLabel = false
@@ -72,14 +73,14 @@ export default function MainLayout() {
         key={item.to}
         to={item.to}
         className={`
-        flex items-center gap-3 p-3 rounded-lg transition-all duration-200
-        justify-center ${!open && !alwaysShowLabel ? "" : "justify-start"}
-        ${
-          active
-            ? "bg-slate-600 text-white shadow"
-            : "text-gray-700 hover:bg-gray-200"
-        }
-      `}
+          flex items-center gap-3 p-3 rounded-lg transition-all duration-200
+          justify-center ${!open && !alwaysShowLabel ? "" : "justify-start"}
+          ${
+            active
+              ? "bg-slate-600 text-white shadow"
+              : "text-gray-700 hover:bg-gray-200"
+          }
+        `}
         title={!open && !alwaysShowLabel ? item.label : undefined}
       >
         {item.icon}
@@ -92,6 +93,7 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800">
+      {/* SIDEBAR DESKTOP */}
       <aside
         className={`hidden md:flex flex-col bg-white shadow-xl transition-all duration-300
           ${open ? "w-60" : "w-16"}`}
@@ -114,8 +116,24 @@ export default function MainLayout() {
           </button>
         </div>
 
+        {/* 🔍 BUSCADOR Desktop (solo cuando está abierto) */}
+        {open && (
+          <div className="px-3 mt-4">
+            <input
+              type="text"
+              placeholder="Buscar módulo..."
+              className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring focus:ring-slate-300"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        )}
+
+        {/* Navegación */}
         <nav className="mt-4 flex flex-col gap-1 px-2 flex-1">
-          {navItems.map((item) => renderNavItem(item))}
+          {(search ? filteredItems : navItems).map((item) =>
+            renderNavItem(item)
+          )}
         </nav>
 
         <div className="p-4 border-t text-center text-gray-400 text-xs">
@@ -123,6 +141,7 @@ export default function MainLayout() {
         </div>
       </aside>
 
+      {/* OVERLAY MÓVIL */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -130,7 +149,7 @@ export default function MainLayout() {
         />
       )}
 
-      {/* Sidebar móvil */}
+      {/* SIDEBAR MÓVIL */}
       <aside
         className={`fixed z-50 top-0 left-0 h-full bg-white shadow-xl transition-transform duration-300 md:hidden
           ${
@@ -146,17 +165,31 @@ export default function MainLayout() {
             <X size={20} />
           </button>
         </div>
+
+        {/* 🔍 BUSCADOR Móvil */}
+        <div className="px-3 mt-4">
+          <input
+            type="text"
+            placeholder="Buscar módulo..."
+            className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring focus:ring-slate-300"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
         <nav className="mt-4 flex flex-col gap-1 px-2 flex-1">
-          {navItems.map((item) => renderNavItem(item, true))}
+          {(search ? filteredItems : navItems).map((item) =>
+            renderNavItem(item, true)
+          )}
         </nav>
       </aside>
 
-      {/* Contenido principal */}
+      {/* CONTENIDO PRINCIPAL */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Header */}
+        {/* HEADER */}
         <header className="h-16 bg-slate-700 shadow px-6 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
-            {/* Botón hamburguesa móvil */}
+            {/* Botón móvil */}
             <button
               className="md:hidden p-2 rounded hover:bg-slate-500 transition-colors"
               onClick={() => setMobileOpen(true)}
@@ -166,7 +199,6 @@ export default function MainLayout() {
             <h2 className="text-xl font-semibold">Panel de Control</h2>
           </div>
 
-          {/* Perfil */}
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-slate-500 text-white flex items-center justify-center font-semibold cursor-pointer hover:bg-slate-400 transition-colors">
               R
@@ -174,9 +206,9 @@ export default function MainLayout() {
           </div>
         </header>
 
-        {/* Main */}
+        {/* MAIN */}
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          {/* Breadcrumb automático */}
+          {/* Breadcrumb */}
           {breadcrumbItems.length > 0 && (
             <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
               <ol className="list-reset flex">
@@ -200,6 +232,7 @@ export default function MainLayout() {
               </ol>
             </nav>
           )}
+
           <Outlet />
         </main>
       </div>

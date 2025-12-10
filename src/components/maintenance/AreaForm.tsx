@@ -71,21 +71,17 @@ export default function AreaForm({
                   <Save className="w-5 h-5" /> Guardar
                 </button>
               )}
-
-              {mode === "edit" && (
-                <>
-                  <button
-                    type="button"
-                    onClick={onNew}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
+              {mode === "create" && (
+                <button
+                  type="button"
+                  onClick={onNew}
+                  className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
                     text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    <Plus className="w-5 h-5" /> Nuevo
-                  </button>
-
-                  {onDelete && <></>}
-                </>
+                >
+                  <Plus className="w-5 h-5" /> Nuevo
+                </button>
               )}
+              {mode === "edit" && <>{onDelete && <></>}</>}
             </div>
           </div>
         </div>

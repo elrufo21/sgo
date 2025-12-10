@@ -85,7 +85,62 @@ export default function ComputerForm({
                   required
                 />
               </div>
-
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Serie Factura
+                </label>
+                <input
+                  type="text"
+                  name="serieFactura"
+                  value={form.serieFactura}
+                  onChange={handleChange}
+                  placeholder="Ej: F001-000123"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Serie Boleta
+                </label>
+                <input
+                  type="text"
+                  name="serieBoleta"
+                  value={form.serieBoleta}
+                  onChange={handleChange}
+                  placeholder="Ej: B001-000123"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Serie NC
+                </label>
+                <input
+                  type="text"
+                  name="serieNc"
+                  value={form.serieNc}
+                  onChange={handleChange}
+                  placeholder="Ej: NC001-00001"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700">
+                  Ticketera
+                </label>
+                <input
+                  type="text"
+                  name="ticketera"
+                  value={form.ticketera}
+                  onChange={handleChange}
+                  placeholder="Ej: TICKET-01"
+                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700">
                   Registro *
@@ -101,67 +156,7 @@ export default function ComputerForm({
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie Factura
-                </label>
-                <input
-                  type="text"
-                  name="serieFactura"
-                  value={form.serieFactura}
-                  onChange={handleChange}
-                  placeholder="Ej: F001-000123"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie NC
-                </label>
-                <input
-                  type="text"
-                  name="serieNc"
-                  value={form.serieNc}
-                  onChange={handleChange}
-                  placeholder="Ej: NC001-00001"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie Boleta
-                </label>
-                <input
-                  type="text"
-                  name="serieBoleta"
-                  value={form.serieBoleta}
-                  onChange={handleChange}
-                  placeholder="Ej: B001-000123"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Ticketera
-                </label>
-                <input
-                  type="text"
-                  name="ticketera"
-                  value={form.ticketera}
-                  onChange={handleChange}
-                  placeholder="Ej: TICKET-01"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
-
-              <div>
+              {/** <div>
                 <label className="block text-sm font-semibold text-gray-700">
                   Área asignada
                 </label>
@@ -179,7 +174,7 @@ export default function ComputerForm({
                     </option>
                   ))}
                 </select>
-              </div>
+              </div> */}
             </div>
 
             <div className="mt-8 flex gap-3 justify-center flex-wrap">
@@ -190,19 +185,17 @@ export default function ComputerForm({
               >
                 <Save className="w-5 h-5" /> Guardar
               </button>
-
+              {mode === "create" && (
+                <button
+                  onClick={onNew}
+                  className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
+                        text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                >
+                  <Plus className="w-5 h-5" /> Nuevo
+                </button>
+              )}
               {mode === "edit" && (
                 <>
-                  {onNew && (
-                    <button
-                      onClick={onNew}
-                      className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
-                        text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                    >
-                      <Plus className="w-5 h-5" /> Nuevo
-                    </button>
-                  )}
-
                   {onDelete && (
                     <button
                       onClick={onDelete}

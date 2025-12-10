@@ -332,7 +332,10 @@ export default function ProductFormBase({
                     name="estado"
                     value={form.estado}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    className={`w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none ${
+                      mode === "edit" && "cursor-pointer"
+                    } `}
+                    disabled={mode === "create"}
                   >
                     <option value="activo">Activo</option>
                     <option value="inactivo">Inactivo</option>

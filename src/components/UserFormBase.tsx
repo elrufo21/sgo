@@ -25,82 +25,92 @@ export default function UserFormBase({
   const [showPass, setShowPass] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
 
+  // FORM REAL — Basado en tu estructura SQL
   const [form, setForm] = useState({
-    staff: "",
-    area: "",
-    username: "",
-    password: "",
-    confirmPassword: "",
-    status: "activo",
+    PersonalId: "",
+    UsuarioAlias: "",
+    UsuarioClave: "",
+    ConfirmClave: "",
+    UsuarioEstado: "ACTIVO",
+    UsuarioSerie: "B001",
+    EnviaBoleta: 0,
+    EnviarFactura: 0,
+    EnviaNC: 0,
+    EnviaND: 0,
+    Administrador: 0,
   });
 
-  // CARGAR USERS SI NO ESTÁN CARGADOS
+  // Cargar usuarios solo una vez
   useEffect(() => {
     if (users.length === 0) fetchUsers();
-  }, [users, fetchUsers]);
+  }, []);
 
-  // CARGAR DATOS DE EDICIÓN
+  // Cargar datos de edición
   useEffect(() => {
     if (initialData) {
       setForm({
         ...form,
         ...initialData,
-        confirmPassword: initialData.password ?? "",
+        ConfirmClave: initialData.UsuarioClave ?? "",
       });
     }
   }, [initialData]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+  // Handler genérico
+  const handleChange = (e: any) => {
+    const { name, value, type, checked } = e.target;
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? (checked ? 1 : 0) : value,
+    }));
   };
 
   const handleSave = () => {
-    if (form.password !== form.confirmPassword) {
-      alert("Las contraseñas no coinciden");
+    if (form.UsuarioClave !== form.ConfirmClave) {
+      toast.error("Las contraseñas no coinciden");
       return;
     }
 
-    const { confirmPassword, ...data } = form;
-    onSave(data);
+    const payload = { ...form };
+    delete payload.ConfirmClave;
+
+    onSave(payload);
   };
 
   const handleNew = () => {
     setForm({
-      staff: "",
-      area: "",
-      username: "",
-      password: "",
-      confirmPassword: "",
-      status: "activo",
+      PersonalId: "",
+      UsuarioAlias: "",
+      UsuarioClave: "",
+      ConfirmClave: "",
+      UsuarioEstado: "ACTIVO",
+      UsuarioSerie: "B001",
+      EnviaBoleta: 0,
+      EnviarFactura: 0,
+      EnviaNC: 0,
+      EnviaND: 0,
+      Administrador: 0,
     });
+
     onNew?.();
   };
 
-  // TABLA DE USERS
+  const passwordsMatch = form.UsuarioClave === form.ConfirmClave;
+
+  // TABLA — Puedes retirarla luego
   const columnHelper = createColumnHelper<any>();
   const columns = [
-    columnHelper.accessor("staff", {
-      header: "Personal",
-      cell: (info) => info.getValue(),
-    }),
-    columnHelper.accessor("area", {
-      header: "Área",
-      cell: (info) => info.getValue(),
-    }),
-    columnHelper.accessor("username", {
+    columnHelper.accessor("UsuarioAlias", {
       header: "Usuario",
       cell: (info) => info.getValue(),
     }),
-    columnHelper.accessor("status", {
+    columnHelper.accessor("UsuarioEstado", {
       header: "Estado",
       cell: (info) => info.getValue(),
     }),
   ];
-  const passwordsMatch = form.password === form.confirmPassword;
-
+  console.log("users", users);
   return (
     <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -112,59 +122,36 @@ export default function UserFormBase({
 
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-[40%] space-y-4">
-                {/* PERSONAL */}
+                {/* PERSONAL */} {/* PERSONAL ID */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Personal
+                    Personal ID
                   </label>
-                  <select
-                    name="staff"
-                    value={form.staff}
+                  <input
+                    type="number"
+                    name="PersonalId"
+                    value={form.PersonalId}
                     onChange={handleChange}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                  >
-                    <option value="">Seleccione personal</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.staff}>
-                        {u.staff}
-                      </option>
-                    ))}
-                  </select>
+                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                  />
                 </div>
-
-                {/* ÁREA */}
+                {/* ALIAS */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Área
+                    Usuario / Alias
                   </label>
                   <input
                     type="text"
-                    name="area"
-                    value={form.area}
+                    name="UsuarioAlias"
+                    value={form.UsuarioAlias}
                     onChange={handleChange}
-                    placeholder="Ingrese área"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg
-                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    placeholder="ej: jramirez"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                   />
                 </div>
-
-                {/* USUARIO */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Usuario
-                  </label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={form.username}
-                    onChange={handleChange}
-                    placeholder="Nombre de usuario"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg
-                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                  />
-                </div>
-
+                {/* CONTRASEÑA */}
                 <div className="space-y-2 relative">
                   <label className="block text-sm font-semibold text-gray-700">
                     Contraseña
@@ -172,13 +159,13 @@ export default function UserFormBase({
 
                   <input
                     type={showPass ? "text" : "password"}
-                    name="password"
-                    value={form.password}
+                    name="UsuarioClave"
+                    value={form.UsuarioClave}
                     onChange={handleChange}
                     placeholder="Ingrese contraseña"
                     className={`w-full px-4 py-3 border-2 rounded-lg pr-10
-      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
-      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
+                      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
+                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
                   />
 
                   <span
@@ -188,7 +175,7 @@ export default function UserFormBase({
                     {showPass ? <EyeOff /> : <Eye />}
                   </span>
                 </div>
-
+                {/* CONFIRMAR CONTRASEÑA */}
                 <div className="space-y-2 relative">
                   <label className="block text-sm font-semibold text-gray-700">
                     Confirmar contraseña
@@ -196,13 +183,13 @@ export default function UserFormBase({
 
                   <input
                     type={showPassConfirm ? "text" : "password"}
-                    name="confirmPassword"
-                    value={form.confirmPassword}
+                    name="ConfirmClave"
+                    value={form.ConfirmClave}
                     onChange={handleChange}
                     placeholder="Repita la contraseña"
                     className={`w-full px-4 py-3 border-2 rounded-lg pr-10
-      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
-      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
+                      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
+                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
                   />
 
                   <span
@@ -211,34 +198,51 @@ export default function UserFormBase({
                   >
                     {showPassConfirm ? <EyeOff /> : <Eye />}
                   </span>
-
-                  {/* MENSAJE SUTIL */}
-                  {!passwordsMatch && (
-                    <p className="text-sm text-red-500 mt-1">
-                      Las contraseñas no coinciden
-                    </p>
-                  )}
                 </div>
-
                 {/* ESTADO */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Estado
                   </label>
-
                   <select
-                    name="status"
-                    value={form.status}
+                    name="UsuarioEstado"
+                    value={form.UsuarioEstado}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg
-                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
+                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    disabled={mode === "create"}
                   >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
+                    <option value="ACTIVO">Activo</option>
+                    <option value="INACTIVO">Inactivo</option>
                   </select>
                 </div>
+                {/* PERMISOS 
+                <div className="space-y-1 pt-1">
+                  {[
+                    ["EnviaBoleta", "Puede enviar boletas"],
+                    ["EnviarFactura", "Puede enviar facturas"],
+                    ["EnviaNC", "Puede enviar notas de crédito"],
+                    ["EnviaND", "Puede enviar notas de débito"],
+                    ["Administrador", "Administrador"],
+                  ].map(([key, label]) => (
+                    <label
+                      key={key}
+                      className="flex items-center gap-2 text-gray-700"
+                    >
+                      <input
+                        type="checkbox"
+                        name={key}
+                        checked={form[key] === 1}
+                        onChange={handleChange}
+                        className="w-4 h-4"
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>*/}
               </div>
 
+              {/* TABLA (opcional) */}
               <div className="w-full md:w-[60%] mt-6 md:mt-0">
                 <DataTable
                   columns={columns}
@@ -248,39 +252,31 @@ export default function UserFormBase({
               </div>
             </div>
 
+            {/* BOTONES */}
             <div className="mt-8 flex flex-wrap gap-3 justify-center">
               <button
-                onClick={() => {
-                  if (!passwordsMatch) {
-                    toast.error("Las contraseñas no coinciden");
-                    return;
-                  }
-
-                  handleSave();
-                }}
+                onClick={handleSave}
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <Save className="w-5 h-5" /> Guardar
               </button>
 
-              {mode === "edit" && (
-                <>
+              {mode === "edit" ? (
+                onDelete && (
                   <button
-                    onClick={handleNew}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
                   >
-                    <Plus className="w-5 h-5" /> Nuevo
+                    <Trash2 className="w-5 h-5" /> Eliminar
                   </button>
-
-                  {onDelete && (
-                    <button
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-                    >
-                      <Trash2 className="w-5 h-5" /> Eliminar
-                    </button>
-                  )}
-                </>
+                )
+              ) : (
+                <button
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
+                >
+                  <Plus className="w-5 h-5" /> Nuevo
+                </button>
               )}
             </div>
           </div>

@@ -7,7 +7,13 @@ import CategoryList from "./categories/categoriesList";
 import ComputerCreate from "./computers/computersCreate";
 import ComputerEdit from "./computers/computersEdit";
 import ComputerList from "./computers/computersList";
+import EmployeeCreate from "./employees/pages/employeeCreate";
+import EmployeeEdit from "./employees/pages/employeeEdit";
+import EmployeeList from "./employees/pages/employeeList";
 import MaintenanceDashboard from "./pages/MaintenanceDashboard";
+import UserCreate from "./users/pages/userCreate";
+import UserEdit from "./users/pages/userEdit";
+import UserList from "./users/pages/userList";
 
 export default [
   {
@@ -113,6 +119,72 @@ export default [
         { label: "Mantenimiento", to: "/maintenance" },
         { label: "Computadoras", to: "/maintenance/computers" },
         { label: "Editar computadora" },
+      ],
+    },
+  },
+
+  {
+    path: "maintenance/employees",
+    element: <EmployeeList />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Empleados" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/employees/create",
+    element: <EmployeeCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Empleados", to: "/maintenance/employees" },
+        { label: "Crear empleados" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/employees/:id/edit",
+    element: <EmployeeEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Empleados", to: "/maintenance/employees" },
+        { label: "Editar empleados" },
+      ],
+    },
+  },
+
+  {
+    path: "maintenance/users",
+    element: <UserList />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Usuarios" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/users/create",
+    element: <UserCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Usuarios", to: "/maintenance/users" },
+        { label: "Crear usuario" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/users/:id/edit",
+    element: <UserEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Usuarios", to: "/maintenance/users" },
+        { label: "Editar usuario" },
       ],
     },
   },

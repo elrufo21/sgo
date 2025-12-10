@@ -1,75 +1,93 @@
 import { create } from "zustand";
 import type { User } from "../employees/employees.store";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 
 interface UsersState {
   users: User[];
   loading: boolean;
 
   fetchUsers: () => Promise<void>;
-  addUser: (user: Omit<User, "id">) => void;
+  addUser: (user: Omit<User, "UsuarioID">) => void;
   updateUser: (id: number, data: Partial<User>) => void;
   deleteUser: (id: number) => void;
 }
+
+const LOCAL_MOCK_USERS: User[] = [
+  {
+    UsuarioID: 1,
+    PersonalId: 1,
+    UsuarioAlias: "andre",
+    UsuarioClave: "HASH123...",
+    UsuarioFechaReg: "2021-08-01 12:49:45.833",
+    UsuarioEstado: "ACTIVO",
+    UsuarioSerie: "B001",
+    EnviaBoleta: 1,
+    EnviarFactura: 1,
+    EnviaNC: 0,
+    EnviaND: 0,
+    Administrador: 1,
+  },
+  {
+    UsuarioID: 2,
+    PersonalId: 2,
+    UsuarioAlias: "joaquin",
+    UsuarioClave: "HASH456...",
+    UsuarioFechaReg: "2022-07-15 13:52:09.447",
+    UsuarioEstado: "ACTIVO",
+    UsuarioSerie: "B001",
+    EnviaBoleta: 1,
+    EnviarFactura: 1,
+    EnviaNC: 0,
+    EnviaND: 0,
+    Administrador: 0,
+  },
+];
 
 export const useUsersStore = create<UsersState>((set, get) => ({
   users: [],
   loading: false,
 
   fetchUsers: async () => {
-    if (get().users.length > 0) return;
-
     set({ loading: true });
 
     try {
-      const response: User[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 1,
-                staff: "Jose Migue",
-                area: "Human Resources",
-                username: "jdoe",
-                password: "123456",
-                status: "activo",
-              },
-              {
-                id: 2,
-                staff: "Gustavo Cerati",
-                area: "Logistics",
-                username: "asmith",
-                password: "qwerty",
-                status: "inactivo",
-              },
-            ]),
-          500
-        )
-      );
+      const response = await apiRequest<User[]>({
+        url: "/users",
+        method: "GET",
+        fallback: LOCAL_MOCK_USERS,
+      });
 
-      set({ users: response, loading: false });
-    } catch (error) {
-      console.error("Error loading users", error);
-      set({ loading: false });
+      console.log("Users loaded:", response);
+
+      set({ users: response.data, loading: false });
+    } catch (err) {
+      console.warn("⚠️ Error inesperado → fallback", err);
+
+      set({ users: LOCAL_MOCK_USERS, loading: false });
     }
   },
 
-  addUser: (user) =>
+  addUser: (newUser) =>
     set((state) => {
       const newId =
         state.users.length > 0
-          ? Math.max(...state.users.map((u) => u.id)) + 1
+          ? Math.max(...state.users.map((u) => u.UsuarioID)) + 1
           : 1;
 
-      return { users: [...state.users, { ...user, id: newId }] };
+      return {
+        users: [...state.users, { ...newUser, UsuarioID: newId }],
+      };
     }),
 
   updateUser: (id, data) =>
     set((state) => ({
-      users: state.users.map((u) => (u.id === id ? { ...u, ...data } : u)),
+      users: state.users.map((u) =>
+        u.UsuarioID === id ? { ...u, ...data } : u
+      ),
     })),
 
   deleteUser: (id) =>
     set((state) => ({
-      users: state.users.filter((u) => u.id !== id),
+      users: state.users.filter((u) => u.UsuarioID !== id),
     })),
 }));

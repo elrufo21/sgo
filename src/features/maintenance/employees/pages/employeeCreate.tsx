@@ -15,27 +15,39 @@ const EmployeeCreate = () => {
   const handleSave = (data: Omit<typeof form, "id">) => {
     addEmployee(data);
     toast.success("Empleado creado correctamente");
-    navigate("/employees");
+    navigate("/maintenance/employees");
+  };
+  const hoy = () => {
+    return new Date().toISOString().split("T")[0];
   };
 
   const handleNew = () => {
+    console.log("nuevo");
     setForm({
-      nombreRazon: "",
+      company: "",
+      area: "",
+      code: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+      password: "",
+      nombres: "",
+      apellidos: "",
       ruc: "",
       dni: "",
-      direccionFiscal: "",
-      direccionDespacho: "",
+      direccion: "",
+      fechaNacimiento: "",
       telefonoMovil: "",
-      email: "",
-      registradoPor: "Admin",
+      telefonoAsignado: "",
+      correo: "",
+      fechaBaja: "",
       estado: "activo",
+      foto: "",
+      fechaIngreso: hoy(),
     });
   };
 
   return (
     <EmployeeFormBase
       mode="create"
-      initialData={form}
+      initialData={{ ...form, fechaIngreso: hoy() }}
       onSave={handleSave}
       onNew={handleNew}
     />

@@ -4,9 +4,7 @@ import MainLayout from "./layouts/MainLayout";
 import productRoutes from "../features/products/routes";
 import customerRoutes from "../features/customers/routes";
 import purchansesRoutes from "../features/purchanses/routes";
-import employeesRoutes from "../features/employees/routes";
 import Dashboard from "@/features/Dashboard/dashboard";
-import usersRoutes from "@/features/users/routes";
 import maintenanceRoutes from "@/features/maintenance/routes";
 import cashFlowRoutes from "@/features/cashFlow/routes";
 
@@ -19,8 +17,6 @@ const router = createBrowserRouter([
       ...productRoutes,
       ...customerRoutes,
       ...purchansesRoutes,
-      ...employeesRoutes,
-      ...usersRoutes,
       ...maintenanceRoutes,
       ...cashFlowRoutes,
     ],

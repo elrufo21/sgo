@@ -1,4 +1,11 @@
-import { Layers, Laptop, Grid3X3 } from "lucide-react";
+import {
+  Layers,
+  Laptop,
+  Grid3X3,
+  Users2,
+  UserCheck2Icon,
+  Icon,
+} from "lucide-react";
 import { useNavigate } from "react-router";
 
 export default function MaintenanceDashboard() {
@@ -22,6 +29,18 @@ export default function MaintenanceDashboard() {
       desc: "Registra y controla los equipos.",
       icon: <Laptop className="w-10 h-10 text-purple-600" />,
       route: "/maintenance/computers",
+    },
+    {
+      title: "Empleados",
+      desc: "Registra y controla los empleados",
+      icon: <Users2 className="w-10 h-10 text-slate-700" />,
+      route: "/maintenance/employees",
+    },
+    {
+      title: "Usuarios",
+      desc: "Registra y controla los usuarios",
+      icon: <UserCheck2Icon className="w-10 h-10 text-shadow-rose-600" />,
+      route: "/maintenance/users",
     },
   ];
 
