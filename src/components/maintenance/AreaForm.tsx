@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import type { Area } from "@/types/maintenance";
 
@@ -19,21 +19,44 @@ export default function AreaForm({
 }: AreaFormProps) {
   const [form, setForm] = useState<Area>({ id: 0, area: "" });
 
+  // 👇 referencia al input
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (initialData) setForm((prev) => ({ ...prev, ...initialData }));
   }, [initialData]);
+
+  // 👉 Enfocar automáticamente cuando esté en modo "create"
+  useEffect(() => {
+    if (mode === "create") {
+      inputRef.current?.focus();
+    }
+  }, [mode]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleClickNew = () => {
+    setForm({ id: 0, area: "" });
+
+    // 🔥 AutoFocus al hacer clic en Nuevo
+    setTimeout(() => inputRef.current?.focus(), 0);
+
+    onNew?.();
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.area.trim()) {
       alert("El nombre del área es obligatorio");
       return;
     }
-    onSave(form);
+    await onSave(form);
+    if (mode === "create") {
+      setForm({ id: 0, area: "" });
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
   };
 
   return (
@@ -50,6 +73,7 @@ export default function AreaForm({
                 Nombre del Área
               </label>
               <input
+                ref={inputRef}
                 type="text"
                 name="area"
                 value={form.area}
@@ -71,17 +95,17 @@ export default function AreaForm({
                   <Save className="w-5 h-5" /> Guardar
                 </button>
               )}
+
               {mode === "create" && (
                 <button
                   type="button"
-                  onClick={onNew}
+                  onClick={handleClickNew}
                   className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
                     text-blue-600 rounded-lg hover:bg-blue-50 transition"
                 >
                   <Plus className="w-5 h-5" /> Nuevo
                 </button>
               )}
-              {mode === "edit" && <>{onDelete && <></>}</>}
             </div>
           </div>
         </div>

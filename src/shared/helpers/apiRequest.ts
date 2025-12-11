@@ -26,17 +26,17 @@ export async function apiRequest<
       data,
       ...config,
     });
-    console.log("response", response);
     let result = response.data;
 
     if (typeof result === "string" && result.includes("<!doctype html")) {
       console.warn("⚠️ El api no existe");
       return fallback as TFallback;
     }
+    console.log("response", result);
 
-    return result as TResponse;
+    return result;
   } catch (err) {
     console.error("⚠️ Error del api", err);
-    return fallback as TFallback;
+    return err;
   }
 }

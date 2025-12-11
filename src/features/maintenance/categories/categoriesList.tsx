@@ -1,8 +1,10 @@
 import { CrudList } from "@/components/ListView";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import { useCategoriesQuery } from "./useCategoriesQuery";
 
 const CategoryList = () => {
-  const { categories, fetchCategories, deleteCategory } = useMaintenanceStore();
+  const { deleteCategory } = useMaintenanceStore();
+  const { data = [], refetch } = useCategoriesQuery();
 
   const categoryColumns = [
     { key: "nombreSublinea", header: "Nombre sublínea" },
@@ -11,8 +13,8 @@ const CategoryList = () => {
 
   return (
     <CrudList
-      data={categories}
-      fetchData={fetchCategories}
+      data={data}
+      fetchData={refetch}
       deleteItem={deleteCategory}
       columns={categoryColumns}
       basePath="/maintenance/categories"

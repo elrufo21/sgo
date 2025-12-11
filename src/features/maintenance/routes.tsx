@@ -1,6 +1,6 @@
 import AreaCreate from "./areas/areaCreate";
 import AreaEdit from "./areas/areaEdit";
-import AreaList from "./areas/areatList";
+import AreaList from "./areas/areaList";
 import CategoryCreate from "./categories/categoriesCreate";
 import CategoryEdit from "./categories/categoriesEdit";
 import CategoryList from "./categories/categoriesList";

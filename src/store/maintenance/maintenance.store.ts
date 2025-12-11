@@ -1,12 +1,29 @@
 import { create } from "zustand";
 import type { Category, Area, Computer } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { toast } from "sonner";
+import { queryClient } from "@/shared/queryClient";
+import {
+  categoriesQueryKey,
+  fetchCategoriesApi,
+} from "@/features/maintenance/categories/categories.api";
+import {
+  areasQueryKey,
+  fetchAreasApi,
+} from "@/features/maintenance/areas/areas.api";
+import {
+  computersQueryKey,
+  fetchComputersApi,
+} from "@/features/maintenance/computers/computers.api";
 
 interface MaintenanceState {
   categories: Category[];
   areas: Area[];
   computers: Computer[];
   loading: boolean;
+  setCategories: (items: Category[]) => void;
+  setAreas: (items: Area[]) => void;
+  setComputers: (items: Computer[]) => void;
 
   fetchCategories: () => Promise<void>;
   fetchAreas: () => Promise<void>;
@@ -14,15 +31,15 @@ interface MaintenanceState {
 
   addCategory: (data: Omit<Category, "id">) => Promise<void>;
   updateCategory: (id: number, data: Partial<Category>) => Promise<void>;
-  deleteCategory: (idSubLinea: number) => Promise<void>;
+  deleteCategory: (idSubLinea: number) => Promise<boolean>;
 
-  addArea: (data: Omit<Area, "id">) => void;
-  updateArea: (id: number, data: Partial<Area>) => void;
-  deleteArea: (id: number) => void;
+  addArea: (data: Omit<Area, "id">) => Promise<void>;
+  updateArea: (id: number, data: Partial<Area>) => Promise<void>;
+  deleteArea: (id: number) => Promise<boolean>;
 
-  addComputer: (data: Omit<Computer, "id">) => void;
-  updateComputer: (id: number, data: Partial<Computer>) => void;
-  deleteComputer: (id: number) => Promise<void>;
+  addComputer: (data: Omit<Computer, "id">) => Promise<void>;
+  updateComputer: (id: number, data: Partial<Computer>) => Promise<void>;
+  deleteComputer: (id: number) => Promise<boolean>;
 }
 
 export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
@@ -30,17 +47,17 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   areas: [],
   computers: [],
   loading: false,
+  setCategories: (items) => set({ categories: items }),
+  setAreas: (items) => set({ areas: items }),
+  setComputers: (items) => set({ computers: items }),
 
   fetchCategories: async () => {
-    if (get().categories.length > 0) return;
-
     set({ loading: true });
 
     try {
-      const response = await apiRequest<Category[]>({
-        url: "http://localhost:5000/api/v1/Linea/list",
-        method: "GET",
-        fallback: [],
+      const response = await queryClient.fetchQuery({
+        queryKey: categoriesQueryKey,
+        queryFn: fetchCategoriesApi,
       });
       set({
         categories: response ?? [],
@@ -53,49 +70,27 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   },
 
   fetchAreas: async () => {
-    if (get().areas.length > 0) return;
     set({ loading: true });
     try {
-      const response: Area[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              { id: 1, area: "Sistemas" },
-              { id: 2, area: "Administración" },
-            ]),
-          600
-        )
-      );
-      set({ areas: response, loading: false });
+      const response = await queryClient.fetchQuery({
+        queryKey: areasQueryKey,
+        queryFn: fetchAreasApi,
+      });
+      set({ areas: response ?? [], loading: false });
     } catch (err) {
-      console.error(err);
+      console.error("Error al obtener áreas", err);
       set({ loading: false });
     }
   },
 
   fetchComputers: async () => {
-    if (get().computers.length > 0) return;
     set({ loading: true });
     try {
-      const response: Computer[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 1,
-                maquina: "PC-01",
-                registro: "2025-12-05",
-                serieFactura: "F001-123",
-                serieNc: "NC001-001",
-                serieBoleta: "B001-001",
-                ticketera: "TKT01",
-                areaId: 1,
-              },
-            ]),
-          600
-        )
-      );
-      set({ computers: response, loading: false });
+      const response = await queryClient.fetchQuery({
+        queryKey: computersQueryKey,
+        queryFn: fetchComputersApi,
+      });
+      set({ computers: response ?? [], loading: false });
     } catch (err) {
       console.error(err);
       set({ loading: false });
@@ -131,6 +126,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
           : { ...data, id: Date.now(), nombreSublinea: data.nombreSublinea },
       ],
     }));
+
+    await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
   },
 
   updateCategory: async (id, data) => {
@@ -141,8 +138,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     };
 
     const updated = await apiRequest<Category>({
-      url: "http://localhost:5000/api/v1/Linea/registerlinea",
-      method: "POST",
+      url: `http://localhost:5000/api/v1/Linea/${id}`,
+      method: "PUT",
       data: payload,
       config: {
         headers: {
@@ -162,9 +159,12 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
           : c
       ),
     }));
+
+    await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
   },
+
   deleteCategory: async (idSubLinea) => {
-    await apiRequest({
+    const result = await apiRequest({
       url: `http://localhost:5000/api/v1/Linea/${idSubLinea}`,
       method: "DELETE",
       config: {
@@ -174,44 +174,112 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       },
       fallback: null,
     });
+    console.log("result", result);
+    if (result.status === 500) {
+      toast.error(result.message);
+      return false;
+    } else {
+      set((state) => ({
+        categories: state.categories.filter(
+          (c) => String(c.id) !== String(idSubLinea)
+        ),
+      }));
 
-    set((state) => ({
-      categories: state.categories.filter(
-        (c) => String(c.id) !== String(idSubLinea)
-      ),
-    }));
+      await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+      return true;
+    }
   },
 
-  addArea: (data) =>
-    set((state) => {
-      const newId = state.areas.length
-        ? Math.max(...state.areas.map((a) => a.id)) + 1
-        : 1;
-      return { areas: [...state.areas, { ...data, id: newId }] };
-    }),
-  updateArea: (id, data) =>
-    set((state) => ({
-      areas: state.areas.map((a) => (a.id === id ? { ...a, ...data } : a)),
-    })),
-  deleteArea: (id) =>
-    set((state) => ({ areas: state.areas.filter((a) => a.id !== id) })),
+  addArea: async (data) => {
+    const payload = {
+      areaId: 0,
+      areaNombre: data.area,
+    };
 
-  addComputer: (data) =>
-    set((state) => {
-      const newId = state.computers.length
-        ? Math.max(...state.computers.map((c) => c.id)) + 1
-        : 1;
-      return { computers: [...state.computers, { ...data, id: newId }] };
-    }),
-  updateComputer: (id, data) =>
+    const created = await apiRequest<{
+      areaId?: number;
+      areaNombre?: string;
+    }>({
+      url: "http://localhost:5000/api/v1/Area/registerarea",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id: Date.now() },
+    });
+
+    const hasCreatedId =
+      created &&
+      typeof created === "object" &&
+      ("areaId" in (created as any) || "id" in (created as any));
+
+    if (hasCreatedId) {
+      const idValue = (created as any).id ?? (created as any).areaId;
+      const areaValue =
+        (created as any).nombre ?? (created as any).areaNombre ?? data.area;
+      set((state) => ({
+        areas: [...state.areas, { id: idValue, area: areaValue }],
+      }));
+    } else {
+      set((state) => ({
+        areas: [...state.areas, { ...data, id: Date.now() }],
+      }));
+    }
+    console.log("created", created);
+    await queryClient.invalidateQueries({ queryKey: areasQueryKey });
+  },
+  updateArea: async (id, data) => {
+    const payload = {
+      areaId: id,
+      areaNombre: data.area ?? "",
+    };
+
+    const updated = await apiRequest<{
+      areaId?: number;
+      areaNombre?: string;
+    }>({
+      url: `http://localhost:5000/api/v1/Area/${id}`,
+      method: "PUT",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id },
+    });
+
     set((state) => ({
-      computers: state.computers.map((c) =>
-        c.id === id ? { ...c, ...data } : c
-      ),
-    })),
-  deleteComputer: async (id) => {
-    await apiRequest({
-      url: `http://localhost:5000/api/v1/Linea/${id}`,
+      areas: state.areas.map((a) => {
+        if (a.id !== id) return a;
+        const hasUpdatedId =
+          updated &&
+          typeof updated === "object" &&
+          ("areaId" in (updated as any) || "id" in (updated as any));
+        if (hasUpdatedId) {
+          return {
+            id: (updated as any).id ?? (updated as any).areaId ?? id,
+            area:
+              (updated as any).nombre ??
+              (updated as any).areaNombre ??
+              data.area ??
+              a.area,
+          };
+        }
+        return { ...a, ...data };
+      }),
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: areasQueryKey });
+  },
+  deleteArea: async (id) => {
+    const result = await apiRequest({
+      url: `http://localhost:5000/api/v1/Area/${id}`,
       method: "DELETE",
       config: {
         headers: {
@@ -221,8 +289,165 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: null,
     });
 
+    if ((result as any)?.status === 500) {
+      toast.error((result as any)?.message);
+      return false;
+    }
+
+    set((state) => ({ areas: state.areas.filter((a) => a.id !== id) }));
+    await queryClient.invalidateQueries({ queryKey: areasQueryKey });
+    return true;
+  },
+
+  addComputer: async (data) => {
+    const payload = {
+      idMaquina: 0,
+      nombreMaquina: data.maquina,
+      registro: data.registro,
+      serieFactura: data.serieFactura,
+      serieNC: data.serieNc,
+      serieBoleta: data.serieBoleta,
+      tiketera: data.ticketera,
+    };
+
+    const created = await apiRequest<{
+      idMaquina?: number;
+      nombreMaquina?: string;
+      registro?: string;
+      serieFactura?: string;
+      serieNC?: string;
+      serieBoleta?: string;
+      tiketera?: string;
+    }>({
+      url: "http://localhost:5000/api/v1/Maquina/registermaquina",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id: Date.now() },
+    });
+
+    if (created && typeof created === "object" && ("idMaquina" in created || "id" in created)) {
+      set((state) => ({
+        computers: [
+          ...state.computers,
+          {
+            id: (created as any).id ?? (created as any).idMaquina,
+            maquina: (created as any).nombreMaquina ?? data.maquina,
+            registro: (created as any).registro ?? data.registro,
+            serieFactura: (created as any).serieFactura ?? data.serieFactura,
+            serieNc: (created as any).serieNC ?? data.serieNc,
+            serieBoleta: (created as any).serieBoleta ?? data.serieBoleta,
+            ticketera: (created as any).tiketera ?? data.ticketera,
+            areaId: data.areaId ?? 0,
+          },
+        ],
+      }));
+    } else {
+      set((state) => ({
+        computers: [
+          ...state.computers,
+          { ...data, id: Date.now() },
+        ],
+      }));
+    }
+
+    await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+  },
+  updateComputer: async (id, data) => {
+    const payload = {
+      idMaquina: id,
+      nombreMaquina: data.maquina ?? "",
+      registro: data.registro ?? "",
+      serieFactura: data.serieFactura ?? "",
+      serieNC: data.serieNc ?? "",
+      serieBoleta: data.serieBoleta ?? "",
+      tiketera: data.ticketera ?? "",
+    };
+
+    const updated = await apiRequest<{
+      idMaquina?: number;
+      nombreMaquina?: string;
+      registro?: string;
+      serieFactura?: string;
+      serieNC?: string;
+      serieBoleta?: string;
+      tiketera?: string;
+    }>({
+      url: `http://localhost:5000/api/v1/Maquina/${id}`,
+      method: "PUT",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id },
+    });
+
+    set((state) => ({
+      computers: state.computers.map((c) => {
+        if (c.id !== id) return c;
+        if (
+          updated &&
+          typeof updated === "object" &&
+          ("idMaquina" in (updated as any) || "id" in (updated as any))
+        ) {
+          return {
+            id: (updated as any).id ?? (updated as any).idMaquina ?? id,
+            maquina:
+              (updated as any).nombreMaquina ??
+              data.maquina ??
+              c.maquina,
+            registro:
+              (updated as any).registro ?? data.registro ?? c.registro,
+            serieFactura:
+              (updated as any).serieFactura ??
+              data.serieFactura ??
+              c.serieFactura,
+            serieNc:
+              (updated as any).serieNC ?? data.serieNc ?? c.serieNc,
+            serieBoleta:
+              (updated as any).serieBoleta ??
+              data.serieBoleta ??
+              c.serieBoleta,
+            ticketera:
+              (updated as any).tiketera ?? data.ticketera ?? c.ticketera,
+            areaId: c.areaId,
+          };
+        }
+        return { ...c, ...data };
+      }),
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+  },
+  deleteComputer: async (id) => {
+    const result = await apiRequest({
+      url: `http://localhost:5000/api/v1/Maquina/${id}`,
+      method: "DELETE",
+      config: {
+        headers: {
+          Accept: "*/*",
+        },
+      },
+      fallback: null,
+    });
+
+    if ((result as any)?.status === 500) {
+      toast.error((result as any)?.message);
+      return false;
+    }
+
     set((state) => ({
       computers: state.computers.filter((c) => c.id !== id),
     }));
+    await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+    return true;
   },
 }));

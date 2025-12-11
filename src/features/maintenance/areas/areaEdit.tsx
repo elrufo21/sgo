@@ -1,38 +1,38 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Area } from "@/types/maintenance";
 import AreaForm from "@/components/maintenance/AreaForm";
-import { useAppStore } from "@/store/app/app.store";
+import { useAreasQuery } from "./useAreasQuery";
 
 export default function AreaEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { areas, fetchAreas, updateArea, deleteArea } = useMaintenanceStore();
+  const { updateArea, deleteArea, areas } = useMaintenanceStore();
+  const { data = [] } = useAreasQuery();
 
   const [initialData, setInitialData] = useState<Area | undefined>();
 
   useEffect(() => {
-    if (areas.length === 0) fetchAreas();
-  }, [areas, fetchAreas]);
-
-  useEffect(() => {
-    const area = areas.find((a) => a.id === Number(id));
+    const source = areas.length ? areas : data;
+    console.log("idid", id, areas);
+    const area = source.find((a) => Number(a.id) === Number(id));
     if (area) setInitialData(area);
-  }, [areas, id]);
+  }, [areas, data, id]);
 
   if (!initialData) return <div>Cargando área...</div>;
 
-  const handleSave = (data: Area) => {
-    console.log("data", data);
-    updateArea(Number(id), data);
+  const handleSave = async (data: Area) => {
+    if (!id) return;
+    await updateArea(Number(id), data);
     toast.success("Área actualizada correctamente");
     navigate("/maintenance/areas");
   };
 
-  const handleDelete = () => {
-    deleteArea(Number(id));
+  const handleDelete = async () => {
+    if (!id) return;
+    await deleteArea(Number(id));
     toast.success("Área eliminada");
     navigate("/maintenance/areas");
   };

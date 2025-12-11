@@ -1,7 +1,35 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { useForm } from "react-hook-form";
 import { Save, Plus, Trash2 } from "lucide-react";
+
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer } from "@/types/maintenance";
+
+type ComputerFormValues = Omit<Computer, "id">;
+
+const formatDateInput = (value?: string, fallback?: string) => {
+  if (!value) return fallback ?? new Date().toISOString().slice(0, 10);
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? fallback ?? new Date().toISOString().slice(0, 10)
+    : parsed.toISOString().slice(0, 10);
+};
+
+const normalizeSerie = (
+  value: string | undefined,
+  prefix: string,
+  fallback: string
+) => {
+  const fallbackMatch = fallback.match(/^([A-Za-z]*)(\d+)$/);
+  const fallbackNum = fallbackMatch?.[2] || "01";
+  const digits = value?.match(/(\d+)/)?.[1] ?? fallbackNum;
+  const numeric = digits
+    .slice(-fallbackNum.length)
+    .padStart(fallbackNum.length, "0");
+  return `${prefix}${numeric}`.slice(0, prefix.length + fallbackNum.length);
+};
 
 interface ComputerFormProps {
   mode: "create" | "edit";
@@ -18,44 +46,122 @@ export default function ComputerForm({
   onNew,
   onDelete,
 }: ComputerFormProps) {
-  const { areas, fetchAreas } = useMaintenanceStore();
+  const { fetchAreas, computers, fetchComputers } = useMaintenanceStore();
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const [form, setForm] = useState<Omit<Computer, "id">>({
-    maquina: "",
-    registro: "",
-    serieFactura: "",
-    serieNc: "",
-    serieBoleta: "",
-    ticketera: "",
-    areaId: 0,
-  });
-
-  // Cargar datos iniciales
-  useEffect(() => {
-    if (initialData) {
-      setForm((prev) => ({
-        ...prev,
-        ...initialData,
-        registro: initialData.registro
-          ? new Date(initialData.registro).toISOString().slice(0, 10)
-          : "",
-      }));
-    }
-  }, [initialData]);
-
-  // Cargar áreas
   useEffect(() => {
     fetchAreas();
-  }, [fetchAreas]);
+    fetchComputers();
+  }, [fetchAreas, fetchComputers]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: name === "areaId" ? Number(value) : value,
-    }));
+  const computeNextSerie = useCallback(
+    (
+      selector: (item: Computer) => string | undefined,
+      fallback: string,
+      forcedPrefix?: string
+    ): string => {
+      const fallbackMatch = fallback.match(/^([A-Za-z]*)(\d+)$/);
+      const fallbackPrefix = forcedPrefix || fallbackMatch?.[1] || "FA";
+      const fallbackNum = fallbackMatch?.[2] || "01";
+      const digitLength = fallbackNum.length;
+
+      if (!computers || computers.length === 0) {
+        return `${fallbackPrefix}${fallbackNum}`.slice(
+          0,
+          fallbackPrefix.length + digitLength
+        );
+      }
+
+      const parsed = computers
+        .map(selector)
+        .filter((s): s is string => Boolean(s))
+        .map((serie) => {
+          const match = serie.match(/^([A-Za-z]*)(\d+)$/);
+          if (!match) return null;
+          const num = match[2];
+          return {
+            prefix: fallbackPrefix,
+            num,
+            numeric: parseInt(num, 10),
+          };
+        })
+        .filter(Boolean) as { prefix: string; num: string; numeric: number }[];
+
+      if (parsed.length === 0)
+        return `${fallbackPrefix}${fallbackNum}`.slice(
+          0,
+          fallbackPrefix.length + digitLength
+        );
+
+      const max = parsed.reduce((prev, curr) =>
+        curr.numeric > prev.numeric ? curr : prev
+      );
+      const nextNum = String(max.numeric + 1).padStart(digitLength, "0");
+      const trimmedNum = nextNum.slice(-digitLength);
+      return `${fallbackPrefix}${trimmedNum}`.slice(
+        0,
+        fallbackPrefix.length + digitLength
+      );
+    },
+    [computers]
+  );
+
+  const nextSerieFactura = useMemo(
+    () => computeNextSerie((c) => c.serieFactura, "FA01", "FA"),
+    [computeNextSerie]
+  );
+
+  const nextSerieBoleta = useMemo(
+    () => computeNextSerie((c) => c.serieBoleta, "BA05", "BA"),
+    [computeNextSerie]
+  );
+
+  const buildValues = useCallback(
+    (data?: Partial<Computer>): ComputerFormValues => ({
+      maquina: data?.maquina ?? "",
+      registro: formatDateInput(data?.registro, today),
+      serieFactura: data?.serieFactura
+        ? normalizeSerie(data.serieFactura, "FA", "FA01")
+        : nextSerieFactura,
+      serieNc: data?.serieNc
+        ? normalizeSerie(data.serieNc, "NC", "NC01")
+        : "NC",
+      serieBoleta: data?.serieBoleta
+        ? normalizeSerie(data.serieBoleta, "BA", "BA05")
+        : nextSerieBoleta,
+      ticketera: data?.ticketera ?? "",
+      areaId: data?.areaId ?? 0,
+    }),
+    [nextSerieBoleta, nextSerieFactura, today]
+  );
+
+  const formMethods = useForm<ComputerFormValues>({
+    defaultValues:
+      mode === "edit" && initialData ? buildValues(initialData) : buildValues(),
+  });
+
+  const {
+    reset,
+    formState: { isSubmitting },
+  } = formMethods;
+
+  useEffect(() => {
+    if (mode !== "edit" || !initialData) return;
+    reset(buildValues(initialData));
+  }, [buildValues, initialData, mode, reset]);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    reset(buildValues(), { keepDirtyValues: true });
+  }, [buildValues, mode, reset]);
+
+  const handleSubmit = async (values: ComputerFormValues) => {
+    await onSave(values);
+  };
+
+  const handleNew = () => {
+    reset(buildValues());
+    onNew?.();
   };
 
   return (
@@ -69,145 +175,115 @@ export default function ComputerForm({
                 : "Editar Computadora"}
             </h2>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Máquina *
-                </label>
-                <input
-                  type="text"
+            <HookForm methods={formMethods} onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <HookFormInput<ComputerFormValues>
                   name="maquina"
-                  value={form.maquina}
-                  onChange={handleChange}
+                  label="Maquina *"
                   placeholder="Ej: PC-001"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                  required
+                  rules={{ required: "La maquina es obligatoria" }}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie Factura
-                </label>
-                <input
-                  type="text"
+                <HookFormInput<ComputerFormValues>
                   name="serieFactura"
-                  value={form.serieFactura}
-                  onChange={handleChange}
-                  placeholder="Ej: F001-000123"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  label="Serie Factura"
+                  placeholder="Ej: FA05"
+                  maxLength={4}
+                  rules={{
+                    required: "La serie de factura es obligatoria",
+                    pattern: {
+                      value: /^FA/i,
+                      message: "Debe iniciar con FA",
+                    },
+                    maxLength: {
+                      value: 4,
+                      message: "Maximo 4 caracteres",
+                    },
+                    minLength: {
+                      value: 4,
+                      message: "Debe tener 4 caracteres",
+                    },
+                  }}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie Boleta
-                </label>
-                <input
-                  type="text"
+                <HookFormInput<ComputerFormValues>
                   name="serieBoleta"
-                  value={form.serieBoleta}
-                  onChange={handleChange}
-                  placeholder="Ej: B001-000123"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  label="Serie Boleta"
+                  placeholder="Ej: BA05"
+                  maxLength={4}
+                  rules={{
+                    required: "La serie de boleta es obligatoria",
+                    pattern: {
+                      value: /^BA/i,
+                      message: "Debe iniciar con BA",
+                    },
+                    maxLength: {
+                      value: 4,
+                      message: "Maximo 4 caracteres",
+                    },
+                    minLength: {
+                      value: 4,
+                      message: "Debe tener 4 caracteres",
+                    },
+                  }}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Serie NC
-                </label>
-                <input
-                  type="text"
+                <HookFormInput<ComputerFormValues>
                   name="serieNc"
-                  value={form.serieNc}
-                  onChange={handleChange}
-                  placeholder="Ej: NC001-00001"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  label="Serie NC"
+                  placeholder="Ej: NC01"
+                  maxLength={4}
+                  rules={{
+                    required: "La serie de NC es obligatoria",
+                    pattern: {
+                      value: /^NC/i,
+                      message: "Debe iniciar con NC",
+                    },
+                    maxLength: {
+                      value: 4,
+                      message: "Maximo 4 caracteres",
+                    },
+                    minLength: {
+                      value: 4,
+                      message: "Debe tener 4 caracteres",
+                    },
+                  }}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Ticketera
-                </label>
-                <input
-                  type="text"
+                <HookFormInput<ComputerFormValues>
                   name="ticketera"
-                  value={form.ticketera}
-                  onChange={handleChange}
+                  label="Ticketera"
                   placeholder="Ej: TICKET-01"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Registro *
-                </label>
-                <input
-                  type="date"
-                  name="registro"
-                  value={form.registro}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                  required
                 />
               </div>
 
-              {/** <div>
-                <label className="block text-sm font-semibold text-gray-700">
-                  Área asignada
-                </label>
-                <select
-                  name="areaId"
-                  value={form.areaId}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
-                >
-                  <option value={0}>Seleccione área</option>
-                  {areas.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.area}
-                    </option>
-                  ))}
-                </select>
-              </div> */}
-            </div>
-
-            <div className="mt-8 flex gap-3 justify-center flex-wrap">
-              <button
-                onClick={() => onSave(form)}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
-                  font-semibold rounded-lg hover:bg-blue-700 transition"
-              >
-                <Save className="w-5 h-5" /> Guardar
-              </button>
-              {mode === "create" && (
+              <div className="mt-8 flex gap-3 justify-center flex-wrap">
                 <button
-                  onClick={onNew}
-                  className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
-                        text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
+                  font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  <Plus className="w-5 h-5" /> Nuevo
+                  <Save className="w-5 h-5" /> Guardar
                 </button>
-              )}
-              {mode === "edit" && (
-                <>
-                  {onDelete && (
-                    <button
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 border-2 border-red-600 
+                {mode === "create" && (
+                  <button
+                    type="button"
+                    onClick={handleNew}
+                    className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
+                        text-blue-600 rounded-lg hover:bg-blue-50 transition"
+                  >
+                    <Plus className="w-5 h-5" /> Nuevo
+                  </button>
+                )}
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-6 py-3 border-2 border-red-600 
                         text-red-600 rounded-lg hover:bg-red-50 transition"
-                    >
-                      <Trash2 className="w-5 h-5" /> Eliminar
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
+                  >
+                    <Trash2 className="w-5 h-5" /> Eliminar
+                  </button>
+                )}
+              </div>
+            </HookForm>
           </div>
         </div>
       </div>

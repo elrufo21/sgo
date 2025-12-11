@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Category } from "@/types/maintenance";
 import CategoriaForm from "@/components/maintenance/CategoriaForm";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 export default function CategoryEdit() {
+  const openDialog = useDialogStore((s) => s.openDialog);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -39,10 +41,17 @@ export default function CategoryEdit() {
 
   const handleDelete = () => {
     if (!id) return;
-
-    deleteCategory(Number(id));
-    toast.success("Categoría eliminada");
-    navigate("/maintenance/categories");
+    openDialog({
+      title: "Eliminar",
+      content: <p>¿Esta seguro que decea eliminar esta categoria?</p>,
+      onConfirm: async () => {
+        const result = await deleteCategory(Number(id));
+        if (result) {
+          toast.success("Elemento eliminado.");
+          navigate("/maintenance/categories");
+        }
+      },
+    });
   };
 
   if (!category) {

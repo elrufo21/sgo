@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { CrudList } from "@/components/ListView";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer, Area } from "@/types/maintenance";
@@ -6,10 +7,10 @@ const ComputerList = () => {
   const { computers, areas, fetchComputers, fetchAreas, deleteComputer } =
     useMaintenanceStore();
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     fetchComputers();
-    fetchAreas(); // para tener el listado de Áreas
-  };
+    fetchAreas();
+  }, [fetchComputers, fetchAreas]);
 
   const computerColumns = [
     { key: "maquina", header: "Máquina" },
@@ -33,14 +34,6 @@ const ComputerList = () => {
       key: "ticketera",
       header: "Ticketera",
       render: (row: Computer) => row.ticketera || "-",
-    },
-    {
-      id: "area",
-      header: "Área",
-      render: (row: Computer) => {
-        const area = areas.find((a: Area) => a.id === row.areaId);
-        return area?.area || "-";
-      },
     },
   ];
 

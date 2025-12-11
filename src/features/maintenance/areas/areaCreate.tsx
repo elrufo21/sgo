@@ -2,17 +2,15 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import AreaForm from "@/components/maintenance/AreaForm";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
-import { useAppStore } from "@/store/app/app.store";
-import { useEffect } from "react";
 
 export default function AreaCreate() {
   const navigate = useNavigate();
   const { addArea } = useMaintenanceStore();
 
-  const handleSave = (data: any) => {
-    addArea(data);
+  const handleSave = async (data: any) => {
+    await addArea(data);
     toast.success("Área creada correctamente");
-    navigate("/maintenance/areas");
+    navigate("/maintenance/areas/create");
   };
 
   const handleNew = () => {

@@ -1,53 +1,57 @@
 import React, { useState } from "react";
-import CustomerFormBase from "@/components/CustomerFormBase";
-import { useClientsStore } from "@/store/customers/customers.store";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+
 import EmployeeFormBase from "@/components/EmployeeFormBase";
 import { useEmployeesStore } from "@/store/employees/employees.store";
+import type { Personal } from "@/types/employees";
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 const EmployeeCreate = () => {
   const { addEmployee } = useEmployeesStore();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({});
+  const [form, setForm] = useState<Partial<Personal>>({
+    personalEstado: "activo",
+    personalIngreso: today(),
+  });
 
-  const handleSave = (data: Omit<typeof form, "id">) => {
-    addEmployee(data);
+  const handleSave = async (data: Personal) => {
+    const { personalId, ...rest } = data;
+    await addEmployee(rest);
     toast.success("Empleado creado correctamente");
     navigate("/maintenance/employees");
   };
-  const hoy = () => {
-    return new Date().toISOString().split("T")[0];
-  };
 
   const handleNew = () => {
-    console.log("nuevo");
     setForm({
-      company: "",
-      area: "",
-      code: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-      password: "",
-      nombres: "",
-      apellidos: "",
-      ruc: "",
-      dni: "",
-      direccion: "",
-      fechaNacimiento: "",
-      telefonoMovil: "",
-      telefonoAsignado: "",
-      correo: "",
-      fechaBaja: "",
-      estado: "activo",
-      foto: "",
-      fechaIngreso: hoy(),
+      personalEstado: "activo",
+      personalIngreso: today(),
+      personalCodigo: "",
+      personalNombres: "",
+      personalApellidos: "",
+      personalDni: "",
+      personalTelefono: "",
+      personalTelefonoAsi: "",
+      personalEmail: "",
+      personalDireccion: "",
+      personalNacimiento: "",
+      personalBajaFecha: "",
+      personalRuc: "",
+      personalLicencia: "",
+      personalImagen: "",
+      companiaId: null,
+      areaId: null,
+      personalSueldo: null,
+      gerencia: null,
     });
   };
 
   return (
     <EmployeeFormBase
       mode="create"
-      initialData={{ ...form, fechaIngreso: hoy() }}
+      initialData={form}
       onSave={handleSave}
       onNew={handleNew}
     />

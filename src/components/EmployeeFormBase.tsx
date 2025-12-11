@@ -1,36 +1,62 @@
-import React, { useState, useRef, useEffect } from "react";
-import { Save, Plus, Trash2, Camera, Upload, X } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { Camera, Plus, Save, Trash2, Upload, X } from "lucide-react";
 
-interface Employee {
-  company: string;
-  area: string;
-  code: string;
-  password: string;
-  nombres: string;
-  apellidos: string;
-  ruc: string;
-  dni: string;
-  direccion: string;
-  fechaNacimiento: string;
-  telefonoMovil: string;
-  telefonoAsignado: string;
-  correo: string;
-  fechaIngreso: string;
-  fechaBaja: string;
-  estado: string;
-  foto?: string;
-}
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
+import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import type { Personal } from "@/types/employees";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 
 interface Props {
-  initialData?: Partial<Employee>;
+  initialData?: Partial<Personal>;
   mode: "create" | "edit";
-  onSave: (data: Employee) => void;
+  onSave: (data: Personal) => void;
   onNew?: () => void;
   onDelete?: () => void;
 }
 
-const companies = ["Empresa A", "Empresa B", "Empresa C"];
-const areas = ["Administración", "Ventas", "Soporte", "Almacén"];
+const formatDateForInput = (value?: string | null) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? ""
+    : parsed.toISOString().slice(0, 10);
+};
+
+const normalizeDateForApi = (value?: string | null): string | null => {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return `${trimmed}T00:00:00`;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return trimmed;
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const buildDefaults = (initialData?: Partial<Personal>): Personal => ({
+  personalId: initialData?.personalId ?? 0,
+  personalNombres: initialData?.personalNombres ?? "",
+  personalApellidos: initialData?.personalApellidos ?? "",
+  areaId: initialData?.areaId ?? 0,
+  personalCodigo: initialData?.personalCodigo ?? "",
+  personalNacimiento:
+    initialData?.personalNacimiento !== undefined
+      ? formatDateForInput(initialData?.personalNacimiento)
+      : today(),
+  personalIngreso: initialData?.personalIngreso ?? "",
+  personalDni: initialData?.personalDni ?? "",
+  personalDireccion: initialData?.personalDireccion ?? "",
+  personalTelefono: initialData?.personalTelefono ?? "",
+  personalEmail: initialData?.personalEmail ?? "",
+  personalEstado: initialData?.personalEstado ?? "activo",
+  personalImagen: initialData?.personalImagen ?? "",
+  companiaId: initialData?.companiaId ?? 1,
+});
 
 export default function EmployeeFormBase({
   initialData,
@@ -39,45 +65,80 @@ export default function EmployeeFormBase({
   onNew,
   onDelete,
 }: Props) {
-  const [form, setForm] = useState<Employee>({
-    company: initialData?.company || "",
-    area: initialData?.area || "",
-    code: initialData?.code || `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-    password: initialData?.password || "",
-    nombres: initialData?.nombres || "",
-    apellidos: initialData?.apellidos || "",
-    ruc: initialData?.ruc || "",
-    dni: initialData?.dni || "",
-    direccion: initialData?.direccion || "",
-    fechaNacimiento: initialData?.fechaNacimiento || "",
-    telefonoMovil: initialData?.telefonoMovil || "",
-    telefonoAsignado: initialData?.telefonoAsignado || "",
-    correo: initialData?.correo || "",
-    fechaIngreso: initialData?.fechaIngreso || "",
-    fechaBaja: initialData?.fechaBaja || "",
-    estado: initialData?.estado || "activo",
-    foto: initialData?.foto || "",
+  const { areas, fetchAreas } = useMaintenanceStore();
+  const [companias, setCompanias] = useState<{ id: string; nombre: string }[]>(
+    []
+  );
+
+  const formMethods = useForm<Personal>({
+    defaultValues: buildDefaults(initialData),
   });
-  console.log("initialData", initialData);
-  useEffect(() => {
-    setForm(initialData);
-  }, [onNew]);
+
+  const {
+    reset,
+    watch,
+    setValue,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = formMethods;
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
+  useEffect(() => {
+    fetchAreas();
+  }, [fetchAreas]);
+
+  useEffect(() => {
+    const loadCompanias = async () => {
+      const cached = localStorage.getItem("companiaMap");
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed.options)) {
+            setCompanias(parsed.options);
+          }
+        } catch (err) {
+          console.error("Error parsing companiaMap", err);
+        }
+      }
+      const response = await apiRequest<{ id: string; nombre: string }[]>({
+        url: "http://localhost:5000/api/v1/Compania/combo",
+        method: "GET",
+        fallback: [],
+      });
+      const options =
+        response?.map((item) => ({
+          id: String(item.id),
+          nombre: item.nombre,
+        })) ?? [];
+      setCompanias(options);
+      localStorage.setItem(
+        "companiaMap",
+        JSON.stringify({
+          options,
+          map: Object.fromEntries(options.map((c) => [c.id, c.nombre])),
+        })
+      );
+      if (!formMethods.getValues("companiaId") && options.length > 0) {
+        formMethods.setValue("companiaId", Number(options[0].id));
+      }
+    };
+    loadCompanias();
+  }, [formMethods]);
+
+  useEffect(() => {
+    reset(buildDefaults(initialData));
+  }, [initialData, reset]);
 
   const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
     const reader = new FileReader();
     reader.onloadend = () => {
-      setForm((prev) => ({ ...prev, foto: reader.result as string }));
+      setValue("personalImagen", reader.result as string, {
+        shouldDirty: true,
+      });
     };
     reader.readAsDataURL(file);
   };
@@ -102,7 +163,7 @@ export default function EmployeeFormBase({
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = canvas.toDataURL("image/png");
-      setForm((prev) => ({ ...prev, foto: imageData }));
+      setValue("personalImagen", imageData, { shouldDirty: true });
     }
 
     const stream = video.srcObject as MediaStream;
@@ -110,297 +171,237 @@ export default function EmployeeFormBase({
     setTakingPhoto(false);
   };
 
-  const removePhoto = () => setForm((prev) => ({ ...prev, foto: "" }));
-  const calcularEdad = (fecha: string) => {
+  const removePhoto = () =>
+    setValue("personalImagen", "", { shouldDirty: true });
+
+  const calcularEdad = (fecha: string | null | undefined) => {
     if (!fecha) return "";
     const hoy = new Date();
     const nacimiento = new Date(fecha);
+    if (Number.isNaN(nacimiento.getTime())) return "";
 
     let edad = hoy.getFullYear() - nacimiento.getFullYear();
     const mes = hoy.getMonth() - nacimiento.getMonth();
-
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
       edad--;
     }
+    return `${edad} anos`;
+  };
 
-    return edad + " años";
+  const watchedNacimiento = watch("personalNacimiento");
+  const watchedImagen = watch("personalImagen");
+
+  const companyOptions =
+    companias.length > 0
+      ? companias.map((c) => ({ value: Number(c.id), label: c.nombre }))
+      : [{ value: 1, label: "Compania 1" }];
+
+  const handleNew = () => {
+    const defaults = buildDefaults({
+      personalEstado: "activo",
+      companiaId: companyOptions[0]?.value ?? 1,
+    });
+    reset(defaults);
+    onNew?.();
+  };
+
+  const onSubmit = (values: Personal) => {
+    onSave({
+      ...values,
+      personalNacimiento: normalizeDateForApi(values.personalNacimiento),
+      personalIngreso: values.personalIngreso?.trim() || null,
+    });
   };
 
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl p-8">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          {mode === "create" ? "Registrar Empleado" : "Editar Empleado"}
+          {mode === "create" ? "Registrar Personal" : "Editar Personal"}
         </h2>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Compañía
-              </label>
-              <select
-                name="company"
-                value={form.company}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              >
-                <option value="">Seleccionar...</option>
-                {companies.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </div>
+        <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-2">
+                <HookFormSelect<Personal>
+                  name="companiaId"
+                  label="Compania"
+                  options={companyOptions}
+                  rules={{ setValueAs: (val) => Number(val) || 1 }}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Área
-              </label>
-              <select
-                name="area"
-                value={form.area}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              >
-                <option value="">Seleccionar...</option>
-                {areas.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Código
-              </label>
-              <input
-                type="text"
-                name="code"
-                value={form.code}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormInput<Personal>
+                name="personalCodigo"
+                label="Codigo Personal"
+                placeholder="Codigo"
+                rules={{ required: "El codigo de personal es obligatorio" }}
               />
-            </div>
 
-            {/**<div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormSelect<Personal>
+                name="areaId"
+                label="Area"
+                options={[
+                  { value: 0, label: "Seleccione area" },
+                  ...areas.map((a) => ({ value: a.id, label: a.area })),
+                ]}
+                rules={{ setValueAs: (val) => Number(val) || null }}
               />
-            </div> */}
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Nombres
-              </label>
-              <input
-                name="nombres"
-                value={form.nombres}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-              />
-            </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Apellidos
-              </label>
-              <input
-                name="apellidos"
-                value={form.apellidos}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormInput<Personal>
+                name="personalNombres"
+                label="Nombres"
+                rules={{ required: "El nombre es obligatorio" }}
               />
-            </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">DNI</label>
-              <input
-                name="dni"
-                value={form.dni}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormInput<Personal>
+                name="personalApellidos"
+                label="Apellidos"
+                rules={{ required: "El apellido es obligatorio" }}
               />
-            </div>
 
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Dirección
-              </label>
-              <input
-                name="direccion"
-                value={form.direccion}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormInput<Personal> name="personalDni" label="DNI" />
+
+              <HookFormInput<Personal>
+                name="personalDireccion"
+                label="Direccion"
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Fecha nacimiento
-              </label>
-              <input
+              <HookFormInput<Personal>
+                name="personalNacimiento"
+                label="Fecha nacimiento"
                 type="date"
-                name="fechaNacimiento"
-                value={form.fechaNacimiento}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
               />
-            </div>
-            <input
-              name="edad"
-              value={calcularEdad(form.fechaNacimiento)}
-              readOnly
-              className="w-full px-4 py-3   rounded-lg outline-none"
-            />
-
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Teléfono móvil
-              </label>
               <input
-                name="telefonoMovil"
-                value={form.telefonoMovil}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                name="edad"
+                value={calcularEdad(watchedNacimiento)}
+                readOnly
+                className="w-full px-4 py-3 rounded-lg outline-none"
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Correo
-              </label>
-              <input
-                name="correo"
-                value={form.correo}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              <HookFormInput<Personal>
+                name="personalTelefono"
+                label="Telefono"
               />
-            </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Fecha ingreso
-              </label>
-              <input
+              <HookFormInput<Personal>
+                name="personalEmail"
+                label="Correo"
+                type="email"
+              />
+
+              <HookFormInput<Personal>
+                name="personalIngreso"
+                label="Fecha ingreso"
                 type="date"
-                name="fechaIngreso"
-                value={form.fechaIngreso}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+              />
+
+              <HookFormSelect<Personal>
+                name="personalEstado"
+                label="Estado"
+                disabled={mode === "create"}
+                options={[
+                  { value: "activo", label: "Activo" },
+                  { value: "inactivo", label: "Inactivo" },
+                ]}
               />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700">
-                Estado
-              </label>
-              <select
-                name="estado"
-                value={form.estado}
-                onChange={handleChange}
-                className={`w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none ${
-                  mode == "edit" && "cursor-pointer"
-                }`}
-                disabled={mode == "create"}
-              >
-                <option value="activo">Activo</option>
-                <option value="suspendido">Suspendido</option>
-              </select>
-            </div>
-          </div>
 
-          <div className="space-y-5">
-            <h3 className="text-lg font-semibold">Foto del empleado</h3>
+            <div className="space-y-5">
+              <h3 className="text-lg font-semibold">Foto del empleado</h3>
 
-            {form.foto ? (
               <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
                 <img
-                  src={form.foto}
+                  src={
+                    watchedImagen && watchedImagen.trim() !== ""
+                      ? watchedImagen
+                      : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>"
+                  }
                   className="w-full h-full object-cover"
                   alt="Foto empleado"
                 />
+                {watchedImagen && watchedImagen.trim() !== "" && (
+                  <button
+                    type="button"
+                    onClick={removePhoto}
+                    className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
+                  >
+                    <X />
+                  </button>
+                )}
+              </div>
+
+              <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                <Upload className="w-5 h-5" />
+                Subir Foto
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleUploadPhoto}
+                  className="hidden"
+                />
+              </label>
+
+              {!takingPhoto ? (
                 <button
-                  onClick={removePhoto}
-                  className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
+                  type="button"
+                  onClick={startCamera}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                 >
-                  <X />
+                  <Camera className="w-5 h-5" />
+                  Tomar Foto
                 </button>
-              </div>
-            ) : (
-              <div className="w-full h-64 border-2 border-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                Sin foto
-              </div>
-            )}
+              ) : (
+                <div className="space-y-3">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    className="w-full h-64 bg-black rounded-lg"
+                  ></video>
+                  <button
+                    type="button"
+                    onClick={takePhoto}
+                    className="w-full py-3 bg-green-600 text-white rounded-lg"
+                  >
+                    Capturar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
 
-            <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              <Upload className="w-5 h-5" />
-              Subir Foto
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleUploadPhoto}
-                className="hidden"
-              />
-            </label>
-
-            {!takingPhoto ? (
+          <div className="mt-8 flex flex-wrap gap-3 justify-center">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-70"
+            >
+              <Save />
+              Guardar
+            </button>
+            {mode === "create" && (
               <button
-                onClick={startCamera}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
               >
-                <Camera className="w-5 h-5" />
-                Tomar Foto
+                <Plus />
+                Nuevo
               </button>
-            ) : (
-              <div className="space-y-3">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  className="w-full h-64 bg-black rounded-lg"
-                ></video>
-                <button
-                  onClick={takePhoto}
-                  className="w-full py-3 bg-green-600 text-white rounded-lg"
-                >
-                  Capturar
-                </button>
-              </div>
+            )}
+            {mode === "edit" && onDelete && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
+              >
+                <Trash2 />
+                Eliminar
+              </button>
             )}
           </div>
-        </div>
-
-        <div className="mt-8 flex flex-wrap gap-3 justify-center">
-          <button
-            onClick={() => onSave(form)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg"
-          >
-            <Save />
-            Guardar
-          </button>
-          {mode == "create" && (
-            <button
-              onClick={onNew}
-              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-            >
-              <Plus />
-              Nuevo
-            </button>
-          )}
-          {mode === "edit" && onDelete && (
-            <button
-              onClick={onDelete}
-              className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-            >
-              <Trash2 />
-              Eliminar
-            </button>
-          )}
-        </div>
+        </HookForm>
       </div>
     </div>
   );

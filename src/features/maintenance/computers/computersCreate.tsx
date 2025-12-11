@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
@@ -9,33 +9,22 @@ import ComputerForm from "@/components/maintenance/ComputerForm";
 const ComputerCreate = () => {
   const { addComputer } = useMaintenanceStore();
   const navigate = useNavigate();
+  const [resetKey, setResetKey] = useState(() => Date.now());
 
-  const [form, setForm] = useState<Omit<Computer, "id">>({
-    brand: "",
-    model: "",
-    serialNumber: "",
-    areaId: 0,
-  });
-
-  const handleSave = (data: Omit<Computer, "id">) => {
-    addComputer(data);
+  const handleSave = async (data: Omit<Computer, "id">) => {
+    await addComputer(data);
     toast.success("Computadora creada correctamente");
-    navigate("/maintenance/categories");
+    navigate("/maintenance/computers");
   };
 
   const handleNew = () => {
-    setForm({
-      brand: "",
-      model: "",
-      serialNumber: "",
-      areaId: 0,
-    });
+    setResetKey(Date.now());
   };
 
   return (
     <ComputerForm
+      key={resetKey}
       mode="create"
-      initialData={form}
       onSave={handleSave}
       onNew={handleNew}
     />

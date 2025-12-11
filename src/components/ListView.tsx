@@ -5,6 +5,7 @@ import { Pencil, PlusIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createColumnHelper } from "@tanstack/react-table";
 import ButtonComponent from "./inputs/addButton";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 interface ColumnConfig<T> {
   key?: keyof T;
@@ -34,12 +35,13 @@ export function CrudList<T>({
   createLabel = "+ Nuevo",
   deleteMessage = "¿Seguro que deseas eliminar este elemento?",
 }: CrudListProps<T>) {
+  const openDialog = useDialogStore((s) => s.openDialog);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper<T>();
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const tableColumns = [
     ...columns.map((col) => {
@@ -79,20 +81,23 @@ export function CrudList<T>({
             : undefined;
         if (typeof id !== "number" || Number.isNaN(id)) return null;
 
+        const askDelete = () =>
+          openDialog({
+            title: "Eliminar",
+            content: <p>{deleteMessage}</p>,
+            onConfirm: async () => {
+              const result = await deleteItem(id);
+              if (result) toast.success("Elemento eliminado.");
+            },
+          });
+
         return (
           <div className="flex gap-3">
             <Link to={`${basePath}/${id}/edit`}>
               <Pencil className="text-green-600" />
             </Link>
 
-            <button
-              onClick={() => {
-                if (confirm(deleteMessage)) {
-                  deleteItem(id);
-                  toast.success("Elemento eliminado.");
-                }
-              }}
-            >
+            <button onClick={askDelete}>
               <Trash2 className="text-red-600 hover:text-red-800" />
             </button>
           </div>
@@ -103,7 +108,7 @@ export function CrudList<T>({
 
   return (
     <div>
-      <div className="w-full  flex mb-5">
+      <div className="w-full flex mb-5">
         <ButtonComponent
           icon={<PlusIcon />}
           onClick={() => navigate(`${basePath}/create`)}

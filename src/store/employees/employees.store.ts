@@ -1,93 +1,169 @@
-import type { Employee } from "@/types/employees";
 import { create } from "zustand";
+
+import { apiRequest } from "@/shared/helpers/apiRequest";
+import { queryClient } from "@/shared/queryClient";
+import type { Employee, Personal } from "@/types/employees";
+
+export const employeesQueryKey = ["employees"] as const;
 
 interface EmployeesState {
   employees: Employee[];
   loading: boolean;
 
   fetchEmployees: () => Promise<void>;
-  addEmployee: (employee: Omit<Employee, "id">) => void;
-  updateEmployee: (id: number, data: Partial<Employee>) => void;
-  deleteEmployee: (id: number) => void;
+  addEmployee: (employee: Omit<Employee, "personalId">) => Promise<void>;
+  updateEmployee: (id: number, data: Partial<Employee>) => Promise<void>;
+  deleteEmployee: (id: number) => Promise<boolean>;
 }
 
-export const useEmployeesStore = create<EmployeesState>((set, get) => ({
+const mapApiToEmployee = (item: any): Personal => ({
+  personalId: item?.personalId ?? item?.id ?? item?.PersonalId ?? 0,
+  personalNombres: item?.personalNombres ?? item?.PersonalNombres ?? item?.nombres ?? "",
+  personalApellidos: item?.personalApellidos ?? item?.PersonalApellidos ?? item?.apellidos ?? "",
+  areaId: item?.areaId ?? item?.AreaId ?? null,
+  personalCodigo: item?.personalCodigo ?? item?.PersonalCodigo ?? item?.codigo ?? "",
+  personalNacimiento: item?.personalNacimiento ?? item?.PersonalNacimiento ?? null,
+  personalIngreso: item?.personalIngreso ?? item?.PersonalIngreso ?? null,
+  personalDni: item?.personalDni ?? item?.personalDNI ?? item?.PersonalDNI ?? item?.dni ?? "",
+  personalDireccion: item?.personalDireccion ?? item?.PersonalDireccion ?? item?.direccion ?? "",
+  personalTelefono: item?.personalTelefono ?? item?.PersonalTelefono ?? item?.telefono ?? "",
+  personalEmail: item?.personalEmail ?? item?.PersonalEmail ?? item?.correo ?? "",
+  personalEstado: item?.personalEstado ?? item?.PersonalEstado ?? item?.estado ?? "activo",
+  personalImagen: item?.personalImagen ?? item?.PersonalImagen ?? item?.foto ?? null,
+  companiaId: item?.companiaId ?? item?.CompaniaId ?? null,
+});
+
+export const useEmployeesStore = create<EmployeesState>((set) => ({
   employees: [],
   loading: false,
 
   fetchEmployees: async () => {
-    if (get().employees.length > 0) return;
-
     set({ loading: true });
-
     try {
-      const response: Employee[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 1,
-                company: "Empresa A",
-                area: "Administración",
-                code: "EMP001",
-                password: "123456",
-
-                nombres: "Carlos",
-                apellidos: "Ramírez",
-
-                ruc: "20123456789",
-                dni: "87654321",
-
-                direccion: "Av. Arequipa 123",
-                fechaNacimiento: "1990-05-12",
-
-                telefonoMovil: "987654321",
-                telefonoAsignado: "912345678",
-
-                correo: "carlos@empresa.com",
-
-                fechaIngreso: "2024-01-01",
-                fechaBaja: "",
-
-                estado: "activo",
-
-                foto: "",
-              },
-            ]),
-          600
-        )
-      );
-
-      set({ employees: response, loading: false });
+      const response = await queryClient.fetchQuery({
+        queryKey: employeesQueryKey,
+        queryFn: async () => {
+          const data = await apiRequest<Personal[]>({
+            url: "http://localhost:5000/api/v1/Personal/list",
+            method: "GET",
+            fallback: [],
+          });
+          return data ?? [];
+        },
+      });
+      set({
+        employees: (response ?? []).map(mapApiToEmployee),
+        loading: false,
+      });
     } catch (error) {
       console.error("Error loading employees", error);
       set({ loading: false });
     }
   },
 
-  addEmployee: (employee) =>
-    set((state) => {
-      const newId =
-        state.employees.length > 0
-          ? Math.max(...state.employees.map((e) => e.id)) + 1
-          : 1;
+  addEmployee: async (employee) => {
+    const payload = {
+      personalId: 0,
+      personalNombres: employee.personalNombres ?? "",
+      personalApellidos: employee.personalApellidos ?? "",
+      areaId: employee.areaId ?? 0,
+      personalCodigo: employee.personalCodigo ?? "",
+      personalNacimiento: employee.personalNacimiento ?? null,
+      personalIngreso: employee.personalIngreso ?? null,
+      personalDNI: employee.personalDni ?? "",
+      personalDireccion: employee.personalDireccion ?? "",
+      personalTelefono: employee.personalTelefono ?? "",
+      personalEstado: employee.personalEstado ?? "activo",
+      personalEmail: employee.personalEmail ?? "",
+      personalImagen: employee.personalImagen ?? "",
+      companiaId: employee.companiaId ?? 1,
+    };
 
-      return {
-        employees: [...state.employees, { ...employee, id: newId }],
-      };
-    }),
+    const created = await apiRequest<Personal>({
+      url: "http://localhost:5000/api/v1/Personal/registerpersonal",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...payload, personalId: Date.now() },
+    });
 
-  updateEmployee: (id, data) =>
+    set((state) => ({
+      employees: [...state.employees, mapApiToEmployee(created ?? payload)],
+    }));
+    await queryClient.invalidateQueries({ queryKey: employeesQueryKey });
+  },
+
+  updateEmployee: async (id, data) => {
+    const payload = {
+      personalId: id,
+      personalNombres: data.personalNombres ?? "",
+      personalApellidos: data.personalApellidos ?? "",
+      areaId: data.areaId ?? 0,
+      personalCodigo: data.personalCodigo ?? "",
+      personalNacimiento: data.personalNacimiento ?? null,
+      personalIngreso: data.personalIngreso ?? null,
+      personalDNI: data.personalDni ?? "",
+      personalDireccion: data.personalDireccion ?? "",
+      personalTelefono: data.personalTelefono ?? "",
+      personalEmail: data.personalEmail ?? "",
+      personalEstado: data.personalEstado ?? "activo",
+      personalImagen: data.personalImagen ?? "",
+      companiaId: data.companiaId ?? 1,
+    };
+
+    const updated = await apiRequest<Personal>({
+      url: `http://localhost:5000/api/v1/Personal/${id}`,
+      method: "PUT",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...payload },
+    });
+
     set((state) => ({
       employees: state.employees.map((e) =>
-        e.id === id ? { ...e, ...data } : e
+        String(e.personalId) === String(id)
+          ? mapApiToEmployee(updated ?? payload)
+          : e
       ),
-    })),
+    }));
+    await queryClient.invalidateQueries({ queryKey: employeesQueryKey });
+  },
 
-  deleteEmployee: (id) =>
+  deleteEmployee: async (id) => {
+    const result = await apiRequest({
+      url: `http://localhost:5000/api/v1/Personal/${id}`,
+      method: "DELETE",
+      config: {
+        headers: {
+          Accept: "*/*",
+        },
+      },
+      fallback: null,
+    });
+
+    if ((result as any)?.status === 500) {
+      return false;
+    }
+
     set((state) => ({
-      employees: state.employees.filter((e) => e.id !== id),
-    })),
+      employees: state.employees.filter(
+        (e) => String(e.personalId) !== String(id)
+      ),
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: employeesQueryKey });
+    return true;
+  },
 }));
 
 export interface User {

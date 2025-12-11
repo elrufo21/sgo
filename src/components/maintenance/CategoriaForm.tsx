@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import type { Category } from "@/types/maintenance";
 
@@ -23,11 +23,31 @@ export default function CategoriaForm({
     codigoSunat: null,
   });
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (initialData) {
       setForm((prev) => ({ ...prev, ...initialData }));
     }
   }, [initialData]);
+
+  useEffect(() => {
+    if (mode === "create") {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
+  }, [mode]);
+
+  const handleNew = () => {
+    setForm({ id: 0, nombreSublinea: "", codigoSunat: null });
+
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+
+    onNew?.();
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -49,6 +69,7 @@ export default function CategoriaForm({
                   Nombre de categoría
                 </label>
                 <input
+                  ref={inputRef}
                   type="text"
                   name="nombreSublinea"
                   value={form.nombreSublinea}
@@ -58,6 +79,7 @@ export default function CategoriaForm({
                   focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                 />
               </div>
+
               {mode === "edit" && (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
@@ -66,11 +88,11 @@ export default function CategoriaForm({
                   <input
                     type="text"
                     name="codigoSunat"
-                    value={form.codigoSunat}
+                    value={form.codigoSunat ?? ""}
                     onChange={handleChange}
                     placeholder="Ej: 1232"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                  focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   />
                 </div>
               )}
@@ -84,15 +106,17 @@ export default function CategoriaForm({
               >
                 <Save className="w-5 h-5" /> Guardar
               </button>
+
               {mode === "create" && (
                 <button
-                  onClick={onNew}
+                  onClick={handleNew}
                   className="flex items-center gap-2 px-6 py-3 border-2 
                     border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
                 >
                   <Plus className="w-5 h-5" /> Nuevo
                 </button>
               )}
+
               {mode === "edit" && onDelete && (
                 <button
                   onClick={onDelete}

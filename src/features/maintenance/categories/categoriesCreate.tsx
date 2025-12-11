@@ -18,7 +18,10 @@ export default function CategoryCreate() {
   const handleSave = async (data: Omit<Category, "id">) => {
     await addCategory(data);
     toast.success("Categoría creada correctamente");
-    navigate("/maintenance/categories");
+    setForm({
+      nombreSublinea: "",
+      codigoSunat: "",
+    });
   };
 
   const handleNew = () => {

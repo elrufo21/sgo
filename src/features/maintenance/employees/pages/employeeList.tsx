@@ -6,14 +6,15 @@ const EmployeeList = () => {
   const { employees, fetchEmployees, deleteEmployee } = useEmployeesStore();
 
   const columns = [
-    { key: "id", header: "Id" },
+    { key: "personalId", header: "Id" },
     {
       id: "nombreCompleto",
       header: "Nombres",
-      render: (row: Employee) => `${row.nombres} ${row.apellidos}`,
+      render: (row: Employee) =>
+        `${row.personalNombres ?? ""} ${row.personalApellidos ?? ""}`.trim(),
     },
-    { key: "telefonoMovil", header: "Telefono" },
-    { key: "correo", header: "Email" },
+    { key: "personalTelefono", header: "Telefono" },
+    { key: "personalEmail", header: "Email" },
   ];
 
   return (
@@ -25,6 +26,7 @@ const EmployeeList = () => {
       basePath="/maintenance/employees"
       createLabel="+ Añadir empleado"
       deleteMessage="¿Estás seguro de eliminar este empleado?"
+      idKey="personalId"
     />
   );
 };
