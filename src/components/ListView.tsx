@@ -14,6 +14,14 @@ interface ColumnConfig<T> {
   render?: (row: T) => ReactNode;
 }
 
+export interface CrudListConfig<T> {
+  basePath: string;
+  columns: ColumnConfig<T>[];
+  idKey?: keyof T & string;
+  createLabel?: string;
+  deleteMessage?: string;
+}
+
 interface CrudListProps<T> {
   data: T[];
   fetchData: () => Promise<void> | void;

@@ -1,19 +1,17 @@
 import AreaCreate from "./areas/areaCreate";
 import AreaEdit from "./areas/areaEdit";
-import AreaList from "./areas/areaList";
-import CategoryCreate from "./categories/categoriesCreate";
-import CategoryEdit from "./categories/categoriesEdit";
-import CategoryList from "./categories/categoriesList";
 import ComputerCreate from "./computers/computersCreate";
 import ComputerEdit from "./computers/computersEdit";
 import ComputerList from "./computers/computersList";
 import EmployeeCreate from "./employees/pages/employeeCreate";
 import EmployeeEdit from "./employees/pages/employeeEdit";
-import EmployeeList from "./employees/pages/employeeList";
 import MaintenanceDashboard from "./pages/MaintenanceDashboard";
 import UserCreate from "./users/pages/userCreate";
 import UserEdit from "./users/pages/userEdit";
 import UserList from "./users/pages/userList";
+import CategoryCreate from "./categories/categoriesCreate";
+import CategoryEdit from "./categories/categoriesEdit";
+import { GenericList } from "@/shared/listing/GenericList";
 
 export default [
   {
@@ -26,7 +24,7 @@ export default [
 
   {
     path: "maintenance/areas",
-    element: <AreaList />,
+    element: <GenericList moduleKey="areas" />,
     handle: {
       breadcrumb: [
         { label: "Mantenimiento", to: "/maintenance" },
@@ -59,7 +57,7 @@ export default [
 
   {
     path: "maintenance/categories",
-    element: <CategoryList />,
+    element: <GenericList moduleKey="categories" />,
     handle: {
       breadcrumb: [
         { label: "Mantenimiento", to: "/maintenance" },
@@ -125,7 +123,7 @@ export default [
 
   {
     path: "maintenance/employees",
-    element: <EmployeeList />,
+    element: <GenericList moduleKey="employees" />,
     handle: {
       breadcrumb: [
         { label: "Mantenimiento", to: "/maintenance" },

@@ -8,7 +8,7 @@ export function useAreasQuery() {
   return useQuery({
     queryKey: areasQueryKey,
     queryFn: fetchAreasApi,
-    staleTime: 1000 * 60, // 1 minuto
+    staleTime: 1000 * 60,
     onSuccess: (data) => setAreas(data ?? []),
   });
 }
