@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Save, Plus, Trash2 } from "lucide-react";
 
@@ -6,6 +6,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer } from "@/types/maintenance";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 type ComputerFormValues = Omit<Computer, "id">;
 
@@ -47,6 +48,7 @@ export default function ComputerForm({
   onDelete,
 }: ComputerFormProps) {
   const { fetchAreas, computers, fetchComputers } = useMaintenanceStore();
+  const containerRef = useRef<HTMLDivElement>(null);
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
@@ -146,6 +148,10 @@ export default function ComputerForm({
   } = formMethods;
 
   useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
+
+  useEffect(() => {
     if (mode !== "edit" || !initialData) return;
     reset(buildValues(initialData));
   }, [buildValues, initialData, mode, reset]);
@@ -156,16 +162,26 @@ export default function ComputerForm({
   }, [buildValues, mode, reset]);
 
   const handleSubmit = async (values: ComputerFormValues) => {
-    await onSave(values);
+    const payload: ComputerFormValues = {
+      ...values,
+      maquina: values.maquina?.toUpperCase() ?? "",
+      ticketera: values.ticketera?.toUpperCase() ?? "",
+    };
+    await onSave(payload);
+    focusFirstInput(containerRef.current);
   };
 
   const handleNew = () => {
     reset(buildValues());
     onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   return (
-    <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -178,6 +194,7 @@ export default function ComputerForm({
             <HookForm methods={formMethods} onSubmit={handleSubmit}>
               <div className="space-y-4">
                 <HookFormInput<ComputerFormValues>
+                  data-focus-first="true"
                   name="maquina"
                   label="Maquina *"
                   placeholder="Ej: PC-001"

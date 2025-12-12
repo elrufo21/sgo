@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { queryClient } from "@/shared/queryClient";
 import type { Employee, Personal } from "@/types/employees";
+import { toast } from "sonner";
 
 export const employeesQueryKey = ["employees"] as const;
 
@@ -18,18 +19,32 @@ interface EmployeesState {
 
 const mapApiToEmployee = (item: any): Personal => ({
   personalId: item?.personalId ?? item?.id ?? item?.PersonalId ?? 0,
-  personalNombres: item?.personalNombres ?? item?.PersonalNombres ?? item?.nombres ?? "",
-  personalApellidos: item?.personalApellidos ?? item?.PersonalApellidos ?? item?.apellidos ?? "",
+  personalNombres:
+    item?.personalNombres ?? item?.PersonalNombres ?? item?.nombres ?? "",
+  personalApellidos:
+    item?.personalApellidos ?? item?.PersonalApellidos ?? item?.apellidos ?? "",
   areaId: item?.areaId ?? item?.AreaId ?? null,
-  personalCodigo: item?.personalCodigo ?? item?.PersonalCodigo ?? item?.codigo ?? "",
-  personalNacimiento: item?.personalNacimiento ?? item?.PersonalNacimiento ?? null,
+  personalCodigo:
+    item?.personalCodigo ?? item?.PersonalCodigo ?? item?.codigo ?? "",
+  personalNacimiento:
+    item?.personalNacimiento ?? item?.PersonalNacimiento ?? null,
   personalIngreso: item?.personalIngreso ?? item?.PersonalIngreso ?? null,
-  personalDni: item?.personalDni ?? item?.personalDNI ?? item?.PersonalDNI ?? item?.dni ?? "",
-  personalDireccion: item?.personalDireccion ?? item?.PersonalDireccion ?? item?.direccion ?? "",
-  personalTelefono: item?.personalTelefono ?? item?.PersonalTelefono ?? item?.telefono ?? "",
-  personalEmail: item?.personalEmail ?? item?.PersonalEmail ?? item?.correo ?? "",
-  personalEstado: item?.personalEstado ?? item?.PersonalEstado ?? item?.estado ?? "activo",
-  personalImagen: item?.personalImagen ?? item?.PersonalImagen ?? item?.foto ?? null,
+  personalDni:
+    item?.personalDni ??
+    item?.personalDNI ??
+    item?.PersonalDNI ??
+    item?.dni ??
+    "",
+  personalDireccion:
+    item?.personalDireccion ?? item?.PersonalDireccion ?? item?.direccion ?? "",
+  personalTelefono:
+    item?.personalTelefono ?? item?.PersonalTelefono ?? item?.telefono ?? "",
+  personalEmail:
+    item?.personalEmail ?? item?.PersonalEmail ?? item?.correo ?? "",
+  personalEstado:
+    item?.personalEstado ?? item?.PersonalEstado ?? item?.estado ?? "activo",
+  personalImagen:
+    item?.personalImagen ?? item?.PersonalImagen ?? item?.foto ?? null,
   companiaId: item?.companiaId ?? item?.CompaniaId ?? null,
 });
 
@@ -151,7 +166,8 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
       fallback: null,
     });
 
-    if ((result as any)?.status === 500) {
+    if (result === false || (result as any)?.status === 500) {
+      toast.error("Fallo la operacion al eliminar el empleado");
       return false;
     }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Save, Plus, Trash2 } from "lucide-react";
+import { Save, Plus } from "lucide-react";
 import type { Area } from "@/types/maintenance";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface AreaFormProps {
   initialData?: Partial<Area>;
@@ -18,20 +19,15 @@ export default function AreaForm({
   onDelete,
 }: AreaFormProps) {
   const [form, setForm] = useState<Area>({ id: 0, area: "" });
-
-  // 👇 referencia al input
-  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (initialData) setForm((prev) => ({ ...prev, ...initialData }));
   }, [initialData]);
 
-  // 👉 Enfocar automáticamente cuando esté en modo "create"
   useEffect(() => {
-    if (mode === "create") {
-      inputRef.current?.focus();
-    }
-  }, [mode]);
+    focusFirstInput(formRef.current);
+  }, [mode, initialData]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -39,46 +35,49 @@ export default function AreaForm({
 
   const handleClickNew = () => {
     setForm({ id: 0, area: "" });
-
-    // 🔥 AutoFocus al hacer clic en Nuevo
-    setTimeout(() => inputRef.current?.focus(), 0);
-
+    focusFirstInput(formRef.current);
     onNew?.();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.area.trim()) {
-      alert("El nombre del área es obligatorio");
+      alert("El nombre del Ē­rea es obligatorio");
       return;
     }
-    await onSave(form);
+    const payload: Area = { ...form, area: form.area.toUpperCase() };
+    await onSave(payload);
+    focusFirstInput(formRef.current);
     if (mode === "create") {
       setForm({ id: 0, area: "" });
-      setTimeout(() => inputRef.current?.focus(), 0);
+      focusFirstInput(formRef.current);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <form
+      ref={formRef}
+      onSubmit={handleSubmit}
+      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">
-              {mode === "create" ? "Crear Área" : "Editar Área"}
+              {mode === "create" ? "Crear area" : "Editar area"}
             </h2>
 
             <div className="space-y-4">
               <label className="block text-sm font-semibold text-gray-700">
-                Nombre del Área
+                Nombre del area
               </label>
               <input
-                ref={inputRef}
+                data-focus-first="true"
                 type="text"
                 name="area"
                 value={form.area}
                 onChange={handleChange}
-                placeholder="Ingrese área"
+                placeholder="Ingrese Ē­rea"
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
                 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                 disabled={mode === "edit"}

@@ -174,7 +174,6 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       },
       fallback: null,
     });
-    console.log("result", result);
     if (result.status === 500) {
       toast.error(result.message);
       return false;
@@ -331,7 +330,11 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: { ...data, id: Date.now() },
     });
 
-    if (created && typeof created === "object" && ("idMaquina" in created || "id" in created)) {
+    if (
+      created &&
+      typeof created === "object" &&
+      ("idMaquina" in created || "id" in created)
+    ) {
       set((state) => ({
         computers: [
           ...state.computers,
@@ -349,10 +352,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       }));
     } else {
       set((state) => ({
-        computers: [
-          ...state.computers,
-          { ...data, id: Date.now() },
-        ],
+        computers: [...state.computers, { ...data, id: Date.now() }],
       }));
     }
 
@@ -401,21 +401,15 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
           return {
             id: (updated as any).id ?? (updated as any).idMaquina ?? id,
             maquina:
-              (updated as any).nombreMaquina ??
-              data.maquina ??
-              c.maquina,
-            registro:
-              (updated as any).registro ?? data.registro ?? c.registro,
+              (updated as any).nombreMaquina ?? data.maquina ?? c.maquina,
+            registro: (updated as any).registro ?? data.registro ?? c.registro,
             serieFactura:
               (updated as any).serieFactura ??
               data.serieFactura ??
               c.serieFactura,
-            serieNc:
-              (updated as any).serieNC ?? data.serieNc ?? c.serieNc,
+            serieNc: (updated as any).serieNC ?? data.serieNc ?? c.serieNc,
             serieBoleta:
-              (updated as any).serieBoleta ??
-              data.serieBoleta ??
-              c.serieBoleta,
+              (updated as any).serieBoleta ?? data.serieBoleta ?? c.serieBoleta,
             ticketera:
               (updated as any).tiketera ?? data.ticketera ?? c.ticketera,
             areaId: c.areaId,

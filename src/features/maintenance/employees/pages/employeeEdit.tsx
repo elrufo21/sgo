@@ -5,10 +5,12 @@ import { toast } from "sonner";
 import EmployeeFormBase from "@/components/EmployeeFormBase";
 import { useEmployeesStore } from "@/store/employees/employees.store";
 import type { Personal } from "@/types/employees";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 const EmployeeEdit = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
 
   const { employees, fetchEmployees, updateEmployee, deleteEmployee } =
     useEmployeesStore();
@@ -37,9 +39,16 @@ const EmployeeEdit = () => {
   };
 
   const handleDelete = async () => {
-    await deleteEmployee(Number(id));
-    toast.success("Empleado eliminado correctamente");
-    navigate("/maintenance/employees");
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>¿Seguro que deseas eliminar este empleado?</p>,
+      onConfirm: async () => {
+        await deleteEmployee(Number(id));
+        toast.success("Empleado eliminado correctamente");
+        navigate("/maintenance/employees");
+      },
+    });
   };
 
   const handleNew = () => navigate("/maintenance/employees/create");

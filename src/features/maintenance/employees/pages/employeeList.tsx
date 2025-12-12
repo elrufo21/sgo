@@ -4,9 +4,8 @@ import type { Employee } from "@/types/employees";
 
 const EmployeeList = () => {
   const { employees, fetchEmployees, deleteEmployee } = useEmployeesStore();
-
+  console.log(employees);
   const columns = [
-    { key: "personalId", header: "Id" },
     {
       id: "nombreCompleto",
       header: "Nombres",
@@ -15,6 +14,8 @@ const EmployeeList = () => {
     },
     { key: "personalTelefono", header: "Telefono" },
     { key: "personalEmail", header: "Email" },
+    { key: "personalNacimiento", header: "F. nacimiento" },
+    { key: "personalDni", header: "DNI" },
   ];
 
   return (

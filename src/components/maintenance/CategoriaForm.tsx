@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import type { Category } from "@/types/maintenance";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface CategoriaFormProps {
   initialData?: Partial<Category>;
@@ -23,7 +24,7 @@ export default function CategoriaForm({
     codigoSunat: null,
   });
 
-  const inputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (initialData) {
@@ -32,20 +33,12 @@ export default function CategoriaForm({
   }, [initialData]);
 
   useEffect(() => {
-    if (mode === "create") {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-    }
-  }, [mode]);
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
 
   const handleNew = () => {
     setForm({ id: 0, nombreSublinea: "", codigoSunat: null });
-
-    setTimeout(() => {
-      inputRef.current?.focus();
-    }, 50);
-
+    focusFirstInput(containerRef.current);
     onNew?.();
   };
 
@@ -54,22 +47,31 @@ export default function CategoriaForm({
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleSave = async () => {
+    const payload: Category = {
+      ...form,
+      nombreSublinea: form.nombreSublinea?.toUpperCase() ?? "",
+    };
+    await onSave(payload);
+    focusFirstInput(containerRef.current);
+  };
+
   return (
-    <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
             <h2 className="text-2xl font-bold text-gray-800 mb-6">
-              {mode === "create" ? "Crear Categoría" : "Editar Categoría"}
+              {mode === "create" ? "Crear Categoria" : "Editar Categoria"}
             </h2>
 
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Nombre de categoría
+                  Nombre de categoria
                 </label>
                 <input
-                  ref={inputRef}
+                  data-focus-first="true"
                   type="text"
                   name="nombreSublinea"
                   value={form.nombreSublinea}
@@ -83,7 +85,7 @@ export default function CategoriaForm({
               {mode === "edit" && (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Código SUNAT
+                    CИdigo SUNAT
                   </label>
                   <input
                     type="text"
@@ -100,7 +102,7 @@ export default function CategoriaForm({
 
             <div className="mt-8 flex gap-3 justify-center flex-wrap">
               <button
-                onClick={() => onSave(form)}
+                onClick={handleSave}
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600
                 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
               >

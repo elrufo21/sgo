@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Camera, Plus, Save, Trash2, Upload, X } from "lucide-react";
 
@@ -8,6 +8,7 @@ import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Personal } from "@/types/employees";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface Props {
   initialData?: Partial<Personal>;
@@ -69,6 +70,7 @@ export default function EmployeeFormBase({
   const [companias, setCompanias] = useState<{ id: string; nombre: string }[]>(
     []
   );
+  const formContainerRef = useRef<HTMLDivElement>(null);
 
   const formMethods = useForm<Personal>({
     defaultValues: buildDefaults(initialData),
@@ -131,6 +133,10 @@ export default function EmployeeFormBase({
     reset(buildDefaults(initialData));
   }, [initialData, reset]);
 
+  useEffect(() => {
+    focusFirstInput(formContainerRef.current);
+  }, [mode, initialData]);
+
   const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
@@ -185,7 +191,7 @@ export default function EmployeeFormBase({
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
       edad--;
     }
-    return `${edad} anos`;
+    return `${edad} años`;
   };
 
   const watchedNacimiento = watch("personalNacimiento");
@@ -203,18 +209,22 @@ export default function EmployeeFormBase({
     });
     reset(defaults);
     onNew?.();
+    focusFirstInput(formContainerRef.current);
   };
 
   const onSubmit = (values: Personal) => {
     onSave({
       ...values,
+      personalNombres: values.personalNombres?.toUpperCase() ?? "",
+      personalApellidos: values.personalApellidos?.toUpperCase() ?? "",
       personalNacimiento: normalizeDateForApi(values.personalNacimiento),
       personalIngreso: values.personalIngreso?.trim() || null,
     });
+    focusFirstInput(formContainerRef.current);
   };
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8">
+    <div ref={formContainerRef} className="py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl p-8">
         <h2 className="text-2xl font-bold mb-6 text-gray-800">
           {mode === "create" ? "Registrar Personal" : "Editar Personal"}
@@ -226,13 +236,14 @@ export default function EmployeeFormBase({
               <div className="md:col-span-2">
                 <HookFormSelect<Personal>
                   name="companiaId"
-                  label="Compania"
+                  label="Compañia"
                   options={companyOptions}
                   rules={{ setValueAs: (val) => Number(val) || 1 }}
                 />
               </div>
 
               <HookFormInput<Personal>
+                data-focus-first="true"
                 name="personalCodigo"
                 label="Codigo Personal"
                 placeholder="Codigo"
@@ -246,7 +257,11 @@ export default function EmployeeFormBase({
                   { value: 0, label: "Seleccione area" },
                   ...areas.map((a) => ({ value: a.id, label: a.area })),
                 ]}
-                rules={{ setValueAs: (val) => Number(val) || null }}
+                rules={{
+                  setValueAs: (val) => Number(val) || 0,
+                  validate: (val) =>
+                    Number(val) > 0 || "El area es obligatorio",
+                }}
               />
 
               <HookFormInput<Personal>
@@ -261,7 +276,25 @@ export default function EmployeeFormBase({
                 rules={{ required: "El apellido es obligatorio" }}
               />
 
-              <HookFormInput<Personal> name="personalDni" label="DNI" />
+              <HookFormInput<Personal>
+                name="personalDni"
+                label="DNI"
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                onInput={(e) => {
+                  const onlyDigits = e.currentTarget.value
+                    .replace(/\D/g, "")
+                    .slice(0, 8);
+                  e.currentTarget.value = onlyDigits;
+                }}
+                rules={{
+                  validate: (value) =>
+                    !value?.toString().trim() ||
+                    /^\d{8}$/.test(value.toString().trim()) ||
+                    "El DNI debe tener 8 dígitos",
+                }}
+              />
 
               <HookFormInput<Personal>
                 name="personalDireccion"
@@ -289,6 +322,15 @@ export default function EmployeeFormBase({
                 name="personalEmail"
                 label="Correo"
                 type="email"
+                rules={{
+                  validate: (value) => {
+                    if (!value?.trim()) return true;
+                    return (
+                      /^\S+@\S+\.\S+$/.test(value.trim()) ||
+                      "Ingrese un correo valido"
+                    );
+                  },
+                }}
               />
 
               <HookFormInput<Personal>

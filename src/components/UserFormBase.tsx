@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Save, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useUsersStore } from "@/store/users/users.store";
 import DataTable from "./DataTable";
 import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface UserFormBaseProps {
   initialData?: Partial<any>;
@@ -21,6 +22,7 @@ export default function UserFormBase({
   onDelete,
 }: UserFormBaseProps) {
   const { users, fetchUsers } = useUsersStore();
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [showPass, setShowPass] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
@@ -56,6 +58,10 @@ export default function UserFormBase({
     }
   }, [initialData]);
 
+  useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
+
   // Handler genérico
   const handleChange = (e: any) => {
     const { name, value, type, checked } = e.target;
@@ -76,6 +82,7 @@ export default function UserFormBase({
     delete payload.ConfirmClave;
 
     onSave(payload);
+    focusFirstInput(containerRef.current);
   };
 
   const handleNew = () => {
@@ -94,6 +101,7 @@ export default function UserFormBase({
     });
 
     onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   const passwordsMatch = form.UsuarioClave === form.ConfirmClave;
@@ -112,7 +120,10 @@ export default function UserFormBase({
   ];
   console.log("users", users);
   return (
-    <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -128,6 +139,7 @@ export default function UserFormBase({
                     Personal ID
                   </label>
                   <input
+                    data-focus-first="true"
                     type="number"
                     name="PersonalId"
                     value={form.PersonalId}

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Save, Printer, X, Plus, Trash2 } from "lucide-react";
 import type {
   CashFlow,
@@ -6,6 +6,7 @@ import type {
   Movement,
   VentaTotal,
 } from "@/types/cashFlow";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface CashFlowFormProps {
   mode: "create" | "edit";
@@ -22,6 +23,7 @@ export default function CashFlowForm({
   onDelete,
   onNew,
 }: CashFlowFormProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [formData, setFormData] = useState({
     caja: initialData?.caja || "",
     encargado: initialData?.encargado || "",
@@ -67,6 +69,10 @@ export default function CashFlowForm({
       deposito: 0,
     }
   );
+
+  useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
 
   // Cálculos
   const totalEfectivo = conteoMonedas.reduce(
@@ -128,6 +134,12 @@ export default function CashFlowForm({
       ventaTotal,
     };
     onSave(cashFlowData);
+    focusFirstInput(containerRef.current);
+  };
+
+  const handleNewClick = () => {
+    onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   const formatDate = (dateString: string) => {
@@ -139,7 +151,10 @@ export default function CashFlowForm({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
+    <div
+      ref={containerRef}
+      className="min-h-screen bg-gray-50 p-4"
+    >
       <div className="max-w-7xl mx-auto bg-white rounded-lg shadow">
         {/* Header */}
         <div className="bg-slate-800 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
@@ -180,7 +195,7 @@ export default function CashFlowForm({
             )}
             {onNew && (
               <button
-                onClick={onNew}
+                onClick={handleNewClick}
                 className="px-3 py-1.5 hover:bg-slate-700 rounded transition-colors text-sm ml-2"
               >
                 Nuevo
@@ -201,6 +216,7 @@ export default function CashFlowForm({
                       Caja
                     </label>
                     <input
+                      data-focus-first="true"
                       type="text"
                       value={formData.caja}
                       onChange={(e) =>

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { Save, Plus, Trash2, X, FileEdit } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Save, Plus, Trash2 } from "lucide-react";
 import type { Client } from "@/types/customer";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface ClientFormBaseProps {
   initialData?: Partial<Client>;
@@ -17,6 +18,7 @@ export default function CustomerFormBase({
   onNew,
   onDelete,
 }: ClientFormBaseProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState<Omit<Client, "id">>({
     nombreRazon: "",
     ruc: "",
@@ -45,6 +47,10 @@ export default function CustomerFormBase({
     }
   }, [initialData]);
 
+  useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -54,6 +60,7 @@ export default function CustomerFormBase({
 
   const handleSaveClick = () => {
     onSave(form);
+    focusFirstInput(containerRef.current);
   };
 
   const handleNewClick = () => {
@@ -69,10 +76,14 @@ export default function CustomerFormBase({
       estado: "activo",
     });
     onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   return (
-    <div className="h-auto from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -92,6 +103,7 @@ export default function CustomerFormBase({
                   </label>
                   <input
                     type="text"
+                    data-focus-first="true"
                     name="nombreRazon"
                     value={form.nombreRazon}
                     onChange={handleChange}

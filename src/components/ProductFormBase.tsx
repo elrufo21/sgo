@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Save, Plus, Edit2, Archive, Trash2, X, FileEdit } from "lucide-react";
 import type { Product } from "@/types/product";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface ProductFormBaseProps {
   initialData?: Partial<Product>;
@@ -22,6 +23,7 @@ export default function ProductFormBase({
   onArchive,
   onDelete,
 }: ProductFormBaseProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [codeEditable, setCodeEditable] = useState(false);
   const [form, setForm] = useState<Omit<Product, "id"> & { images?: string[] }>(
     {
@@ -68,6 +70,10 @@ export default function ProductFormBase({
     }
   }, [initialData, mode]);
 
+  useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
@@ -89,6 +95,7 @@ export default function ProductFormBase({
 
   const handleSaveClick = () => {
     onSave(form);
+    focusFirstInput(containerRef.current);
   };
 
   const handleNewClick = () => {
@@ -108,10 +115,14 @@ export default function ProductFormBase({
     });
     setCodeEditable(false);
     onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   return (
-    <div className="h-auto  from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto  from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -179,6 +190,7 @@ export default function ProductFormBase({
                     Nombre del Producto
                   </label>
                   <input
+                    data-focus-first="true"
                     type="text"
                     name="nombre"
                     value={form.nombre}

@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import DataTable from "./DataTable";
 import { createColumnHelper } from "@tanstack/react-table";
+import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface CuentaBancaria {
   entidadBancaria: string;
@@ -25,6 +26,7 @@ export default function PurchaseFormBase({
   onNew,
   onDelete,
 }: PurchaseFormBaseProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [form, setForm] = useState({
     nombreRazon: "",
     ruc: "",
@@ -48,6 +50,10 @@ export default function PurchaseFormBase({
       setForm({ ...form, ...initialData });
     }
   }, [initialData]);
+
+  useEffect(() => {
+    focusFirstInput(containerRef.current);
+  }, [mode, initialData]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -95,6 +101,7 @@ export default function PurchaseFormBase({
 
   const handleSave = () => {
     onSave(form);
+    focusFirstInput(containerRef.current);
   };
 
   const handleNew = () => {
@@ -115,6 +122,7 @@ export default function PurchaseFormBase({
       numeroCuenta: "",
     });
     onNew?.();
+    focusFirstInput(containerRef.current);
   };
 
   const columnHelper = createColumnHelper<CuentaBancaria>();
@@ -138,7 +146,10 @@ export default function PurchaseFormBase({
   ];
 
   return (
-    <div className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -155,6 +166,7 @@ export default function PurchaseFormBase({
                     Nombre / Razón Social
                   </label>
                   <input
+                    data-focus-first="true"
                     type="text"
                     name="nombreRazon"
                     value={form.nombreRazon}
