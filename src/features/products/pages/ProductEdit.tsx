@@ -4,50 +4,62 @@ import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
 import ProductFormBase from "@/components/ProductFormBase";
 import { toast } from "sonner";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 export default function ProductEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
   const { products, fetchProducts, updateProduct, deleteProduct } =
     useProductsStore();
 
-  const [codeEditable, setCodeEditable] = useState(false);
-  const [form, setForm] = useState<Omit<Product, "id"> & { images?: string[] }>(
-    {
-      categoria: "",
-      codigo: "",
-      nombre: "",
-      unidadMedida: "",
-      valorCritico: 0,
-      preCosto: 0,
-      preVenta: 0,
-      aplicaINV: "bien",
-      cantidad: 0,
-      usuario: "",
-      estado: "activo",
-      images: [],
-    }
-  );
+  const [form, setForm] = useState<Omit<Product, "id"> | null>(null);
 
   useEffect(() => {
     if (products.length === 0) fetchProducts();
-  }, [products, fetchProducts]);
+  }, [products.length, fetchProducts]);
 
   useEffect(() => {
     const prod = products.find((p) => p.id === Number(id));
     if (prod) {
-      const { id, ...rest } = prod;
-      setForm({ ...rest, images: rest.images || [] });
-      setCodeEditable(false);
+      const { id: _discard, ...rest } = prod;
+      setForm({ ...rest, images: prod.images || [] });
     }
   }, [products, id]);
 
   if (!form) return <div>Cargando producto...</div>;
 
-  const handleSave = () => {
-    updateProduct(Number(id), form);
-    toast.success("Producto guardado correctamente");
-    navigate("/products");
+  const handleSave = async () => {
+    if (!id) return;
+    const ok = await updateProduct(Number(id), form);
+    if (ok) {
+      toast.success("Producto guardado correctamente");
+      navigate("/products");
+    } else {
+      toast.error("No se pudo guardar el producto.");
+    }
+  };
+
+  const handleDelete = () => {
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>Seguro que deseas eliminar este producto?</p>,
+      onConfirm: async () => {
+        try {
+          const result = await deleteProduct(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el producto.");
+            return;
+          }
+          toast.success("Producto eliminado correctamente");
+          navigate("/products");
+        } catch (error) {
+          console.error("Error eliminando producto", error);
+          toast.error("Ocurrio un error al eliminar el producto.");
+        }
+      },
+    });
   };
 
   return (
@@ -59,11 +71,7 @@ export default function ProductEdit() {
       onNew={() => {
         navigate("/products/create");
       }}
-      onDelete={() => {
-        deleteProduct(Number(id));
-        toast.success("Producto eliminado correctamente");
-        navigate("/products");
-      }}
+      onDelete={handleDelete}
     />
   );
 }

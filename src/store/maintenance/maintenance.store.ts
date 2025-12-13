@@ -174,8 +174,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       },
       fallback: null,
     });
-    if (result.status === 500) {
-      toast.error(result.message);
+    if (!result) {
       return false;
     } else {
       set((state) => ({
@@ -288,8 +287,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: null,
     });
 
-    if ((result as any)?.status === 500) {
-      toast.error((result as any)?.message);
+    if (!result) {
       return false;
     }
 
@@ -433,8 +431,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: null,
     });
 
-    if ((result as any)?.status === 500) {
-      toast.error((result as any)?.message);
+    if (!result) {
       return false;
     }
 

@@ -1,6 +1,6 @@
 export interface Product {
   id: number;
-  categoria: string;
+  categoria?: string;
   codigo: string;
   nombre: string;
   unidadMedida: string;
@@ -11,4 +11,5 @@ export interface Product {
   cantidad: number;
   usuario: string;
   estado: "activo" | "inactivo" | "archivado";
+  images?: string[];
 }

@@ -86,8 +86,9 @@ export const useClientsStore = create<ClientsState>((set) => ({
   updateClient: async (id, data) => {
     const payload = mapClientToApi({ ...data, id });
     const updated = await apiRequest<ApiClient>({
-      url: `${API_BASE_URL}/Cliente/${id}`,
-      method: "PUT",
+      // Backend usa mismo endpoint para crear/editar: id=0 crea, >0 actualiza
+      url: `${API_BASE_URL}/Cliente/register`,
+      method: "POST",
       data: payload,
       config: {
         headers: {

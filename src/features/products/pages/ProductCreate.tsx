@@ -1,46 +1,26 @@
-import React, { useState } from "react";
-import CustomerFormBase from "@/components/CustomerFormBase";
-import { useClientsStore } from "@/store/customers/customers.store";
+import React from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import ProductFormBase from "@/components/ProductFormBase";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
 
-const CustomerCreate = () => {
+const ProductCreate = () => {
   const { addProduct } = useProductsStore();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    nombreRazon: "",
-    ruc: "",
-    dni: "",
-    direccionFiscal: "",
-    direccionDespacho: "",
-    telefonoMovil: "",
-    email: "",
-    registradoPor: "Admin",
-    estado: "activo",
-  });
-
-  const handleSave = (data: Omit<Product, "id">) => {
-    addProduct(data);
-    toast.success("Producto creado correctamente");
-    navigate("/products");
+  const handleSave = async (data: Omit<Product, "id">) => {
+    const ok = await addProduct(data);
+    if (ok) {
+      toast.success("Producto creado correctamente");
+      navigate("/products/create");
+    } else {
+      toast.error("No se pudo crear el producto.");
+    }
   };
 
   const handleNew = () => {
-    setForm({
-      nombreRazon: "",
-      ruc: "",
-      dni: "",
-      direccionFiscal: "",
-      direccionDespacho: "",
-      telefonoMovil: "",
-      email: "",
-      registradoPor: "Admin",
-      estado: "activo",
-    });
+    // ProductFormBase ya resetea su propio estado
   };
 
   return (
@@ -48,4 +28,4 @@ const CustomerCreate = () => {
   );
 };
 
-export default CustomerCreate;
+export default ProductCreate;

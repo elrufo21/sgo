@@ -4,10 +4,12 @@ import { useCashFlowStore } from "@/store/cashFlow/cashFlow.store";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import type { CashFlow } from "@/types/cashFlow";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 const CashFlowEdit = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
   const { flows, fetchFlows, updateFlow, deleteFlow, getFlowById } =
     useCashFlowStore();
   const [flow, setFlow] = useState<CashFlow | null>(null);
@@ -15,12 +17,10 @@ const CashFlowEdit = () => {
 
   useEffect(() => {
     const loadFlow = async () => {
-      // Si no hay flows, los cargamos
       if (flows.length === 0) {
         await fetchFlows();
       }
 
-      // Buscamos el flow específico
       const foundFlow = getFlowById(Number(id));
       if (foundFlow) {
         setFlow(foundFlow);
@@ -53,11 +53,25 @@ const CashFlowEdit = () => {
   };
 
   const handleDelete = () => {
-    if (window.confirm("¿Estás seguro de eliminar este flujo de caja?")) {
-      deleteFlow(Number(id));
-      toast.success("Flujo de caja eliminado correctamente");
-      navigate("/cash_flow_control");
-    }
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>Seguro que deseas eliminar este flujo de caja?</p>,
+      onConfirm: async () => {
+        try {
+          const result = await deleteFlow(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el flujo de caja.");
+            return;
+          }
+          toast.success("Flujo de caja eliminado correctamente");
+          navigate("/cash_flow_control");
+        } catch (error) {
+          console.error("Error eliminando flujo de caja", error);
+          toast.error("Ocurrio un error al eliminar el flujo de caja.");
+        }
+      },
+    });
   };
 
   const handleNew = () => {

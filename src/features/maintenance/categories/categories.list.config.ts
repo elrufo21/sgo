@@ -10,4 +10,5 @@ export const categoryListConfig: ModuleListConfig<Category> = {
     { key: "nombreSublinea", header: "Nombre sublinea" },
     { key: "codigoSunat", header: "Codigo SUNAT" },
   ],
+  filterKeys: ["nombreSublinea"],
 };

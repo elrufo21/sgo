@@ -1,86 +1,181 @@
 import { create } from "zustand";
+import { API_BASE_URL } from "@/config";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 import type { Product } from "@/types/product";
+
+interface ApiProduct {
+  idProducto?: number;
+  idSubLinea?: number | null;
+  productoCodigo?: string | null;
+  productoNombre?: string | null;
+  productoTipoCambio?: number | null;
+  productoCostoDolar?: number | null;
+  productoUM?: string | null;
+  productoCosto?: number | null;
+  productoVenta?: number | null;
+  productoVentaB?: number | null;
+  productoCantidad?: number | null;
+  productoObs?: string | null;
+  productoEstado?: string | null;
+  productoUsuario?: string | null;
+  productoFecha?: string | null;
+  productoImagen?: string | null;
+  valorCritico?: number | null;
+  aplicaTC?: string | null;
+  fechaVencimiento?: string | null;
+  aplicaFechaV?: boolean | null;
+  aplicaINV?: string | null;
+  cantidadANT?: number | null;
+  fechaModCant?: string | null;
+}
 
 interface ProductsState {
   products: Product[];
   loading: boolean;
   fetchProducts: () => Promise<void>;
-  addProduct: (product: Product) => void;
-  updateProduct: (id: number, data: Partial<Product>) => void;
-  deleteProduct: (id: number) => void;
+  addProduct: (product: Omit<Product, "id">) => Promise<boolean>;
+  updateProduct: (id: number, data: Omit<Product, "id">) => Promise<boolean>;
+  deleteProduct: (id: number) => Promise<boolean>;
 }
 
-export const useProductsStore = create<ProductsState>((set, get) => ({
+const mapApiToProduct = (item: ApiProduct): Product => ({
+  id: item.idProducto ?? 0,
+  codigo: item.productoCodigo ?? "",
+  nombre: item.productoNombre ?? "",
+  unidadMedida: item.productoUM ?? "",
+  valorCritico: Number(item.valorCritico ?? 0),
+  preCosto: Number(item.productoCosto ?? 0),
+  preVenta: Number(item.productoVenta ?? 0),
+  aplicaINV: ((item.aplicaINV as string) === "S" ? "servicio" : "bien") as
+    Product["aplicaINV"],
+  cantidad: Number(item.productoCantidad ?? 0),
+  usuario: item.productoUsuario ?? "",
+  estado:
+    (item.productoEstado as Product["estado"]) ??
+    ("activo" as Product["estado"]),
+  images: item.productoImagen ? [item.productoImagen] : [],
+});
+
+const mapProductToApi = (product: Partial<Product>): ApiProduct => ({
+  idProducto: product.id ?? 0,
+  idSubLinea: 2, // FK requerida: enviar 2 por defecto cuando no se provee otro valor
+  productoCodigo: product.codigo ?? "",
+  productoNombre: product.nombre ?? "",
+  productoUM: product.unidadMedida ?? "",
+  valorCritico: product.valorCritico ?? 0,
+  productoCosto: product.preCosto ?? 0,
+  productoVenta: product.preVenta ?? 0,
+  productoVentaB: 0,
+  productoCantidad: product.cantidad ?? 0,
+  productoObs: "",
+  productoEstado: product.estado ?? "activo",
+  productoUsuario: product.usuario ?? "",
+  productoFecha: new Date().toISOString(),
+  productoImagen: product.images?.[0] ?? "",
+  productoTipoCambio: 0,
+  productoCostoDolar: 0,
+  aplicaTC: null,
+  fechaVencimiento: null,
+  aplicaFechaV: false,
+  aplicaINV: "S", // Backend espera un nvarchar(1); se envía siempre "S"
+  cantidadANT: product.cantidad ?? 0,
+  fechaModCant: null,
+});
+
+const baseUrl = `${API_BASE_URL}/Productos`;
+
+export const useProductsStore = create<ProductsState>((set) => ({
   products: [],
   loading: false,
 
   fetchProducts: async () => {
-    if (get().products.length > 0) return;
-
     set({ loading: true });
-
     try {
-      const response: Product[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 1,
-                categoria: "Periféricos",
-                codigo: "MGR-001",
-                nombre: "Mouse Gamer RGB",
-                unidadMedida: "Unidad",
-                valorCritico: 5,
-                preCosto: 70,
-                preVenta: 89.9,
-                aplicaINV: "bien",
-                cantidad: 20,
-                usuario: "admin",
-                estado: "activo",
-              },
-              {
-                id: 2,
-                categoria: "Periféricos",
-                codigo: "TMC-002",
-                nombre: "Teclado Mecánico Red Switch",
-                unidadMedida: "Unidad",
-                valorCritico: 5,
-                preCosto: 120,
-                preVenta: 159.99,
-                aplicaINV: "bien",
-                cantidad: 15,
-                usuario: "admin",
-                estado: "activo",
-              },
-            ]),
-          600
-        )
-      );
-
-      set({ products: response, loading: false });
+      const response = await apiRequest<ApiProduct[]>({
+        url: `${baseUrl}/list`,
+        method: "GET",
+        fallback: [],
+      });
+      const data = Array.isArray(response) ? response : [];
+      set({ products: data.map(mapApiToProduct), loading: false });
     } catch (error) {
       console.error("Error loading products", error);
       set({ loading: false });
     }
   },
 
-  addProduct: (product) =>
-    set((state) => {
-      const newId =
-        state.products.length > 0
-          ? Math.max(...state.products.map((p) => p.id)) + 1
-          : 1;
+  addProduct: async (product) => {
+    try {
+      const payload = mapProductToApi({ ...product, id: 0 });
+      const created = await apiRequest<ApiProduct>({
+        url: `${baseUrl}/register`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: payload,
+      });
 
-      return { products: [...state.products, { ...product, id: newId }] };
-    }),
+      const newItem = mapApiToProduct(created ?? payload);
+      set((state) => ({ products: [...state.products, newItem] }));
+      return true;
+    } catch (error) {
+      console.error("Error creating product", error);
+      return false;
+    }
+  },
 
-  updateProduct: (id, data) =>
-    set((state) => ({
-      products: state.products.map((p) =>
-        p.id === id ? { ...p, ...data } : p
-      ),
-    })),
+  updateProduct: async (id, data) => {
+    try {
+      const payload = mapProductToApi({ ...data, id });
+      const updated = await apiRequest<ApiProduct>({
+        // Backend usa el mismo endpoint para crear/editar (id=0 crea, >0 actualiza)
+        url: `${baseUrl}/register`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: payload,
+      });
 
-  deleteProduct: (id) =>
-    set((state) => ({ products: state.products.filter((p) => p.id !== id) })),
+      const updatedItem = mapApiToProduct(updated ?? payload);
+      set((state) => ({
+        products: state.products.map((p) =>
+          p.id === id ? updatedItem : p
+        ),
+      }));
+      return true;
+    } catch (error) {
+      console.error("Error updating product", error);
+      return false;
+    }
+  },
+
+  deleteProduct: async (id) => {
+    try {
+      const result = await apiRequest({
+        url: `${baseUrl}/${id}`,
+        method: "DELETE",
+        config: { headers: { Accept: "*/*" } },
+        fallback: true,
+      });
+
+      set((state) => ({
+        products: state.products.filter((p) => p.id !== id),
+      }));
+
+      return result !== false;
+    } catch (error) {
+      console.error("Error deleting product", error);
+      return false;
+    }
+  },
 }));

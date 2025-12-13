@@ -25,21 +25,22 @@ export default function ProductFormBase({
 }: ProductFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [codeEditable, setCodeEditable] = useState(false);
+  const buildEmptyForm = () => ({
+    categoria: "",
+    codigo: generateCode(),
+    nombre: "",
+    unidadMedida: "",
+    valorCritico: 0,
+    preCosto: 0,
+    preVenta: 0,
+    aplicaINV: "bien",
+    cantidad: 0,
+    usuario: "",
+    estado: "activo",
+    images: [],
+  });
   const [form, setForm] = useState<Omit<Product, "id"> & { images?: string[] }>(
-    {
-      categoria: "",
-      codigo: "",
-      nombre: "",
-      unidadMedida: "",
-      valorCritico: 0,
-      preCosto: 0,
-      preVenta: 0,
-      aplicaINV: "bien",
-      cantidad: 0,
-      usuario: "",
-      estado: "activo",
-      images: [],
-    }
+    buildEmptyForm()
   );
 
   // Generar código automático para modo crear
@@ -77,8 +78,13 @@ export default function ProductFormBase({
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    const { name, value, type } = e.target;
+    const numericFields = ["valorCritico", "preCosto", "preVenta", "cantidad"];
+    const parsedValue =
+      type === "number" || numericFields.includes(name)
+        ? Number(value)
+        : value;
+    setForm({ ...form, [name]: parsedValue });
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,29 +99,24 @@ export default function ProductFormBase({
     setForm({ ...form, images: updatedImages });
   };
 
-  const handleSaveClick = () => {
-    onSave(form);
+  const resetForm = () => {
+    setForm(buildEmptyForm());
+    setCodeEditable(false);
     focusFirstInput(containerRef.current);
   };
 
+  const handleSaveClick = async () => {
+    await Promise.resolve(onSave(form));
+    if (mode === "create") {
+      resetForm();
+    } else {
+      focusFirstInput(containerRef.current);
+    }
+  };
+
   const handleNewClick = () => {
-    setForm({
-      categoria: "",
-      codigo: generateCode(),
-      nombre: "",
-      unidadMedida: "",
-      valorCritico: 0,
-      preCosto: 0,
-      preVenta: 0,
-      aplicaINV: "bien",
-      cantidad: 0,
-      usuario: "",
-      estado: "activo",
-      images: [],
-    });
-    setCodeEditable(false);
+    resetForm();
     onNew?.();
-    focusFirstInput(containerRef.current);
   };
 
   return (

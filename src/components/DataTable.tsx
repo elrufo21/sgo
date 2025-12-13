@@ -7,23 +7,29 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useEffect, useRef, useState } from "react";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 interface DataTableProps<T> {
   columns: any[];
   data: T[];
   onRowClick?: (row: T) => void;
+  filterKeys?: (keyof T & string)[];
 }
 
 export default function DataTable<T>({
   columns,
   data,
   onRowClick,
+  filterKeys,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
   const searchRef = useRef<HTMLInputElement>(null);
+  const previousDataLength = useRef(data?.length ?? 0);
+  const dialogOpen = useDialogStore((s) => s.open);
+  const previousDialogOpen = useRef(dialogOpen);
 
-  useEffect(() => {
+  const focusSearch = () => {
     const input = searchRef.current;
     if (!input) return;
     input.focus({ preventScroll: true });
@@ -33,7 +39,26 @@ export default function DataTable<T>({
     } catch {
       // ignore selection issues on non-text inputs
     }
+  };
+
+  useEffect(() => {
+    focusSearch();
   }, []);
+
+  const dataLength = data?.length ?? 0;
+  useEffect(() => {
+    if (dataLength < previousDataLength.current) {
+      focusSearch();
+    }
+    previousDataLength.current = dataLength;
+  }, [dataLength]);
+
+  useEffect(() => {
+    if (previousDialogOpen.current && !dialogOpen) {
+      focusSearch();
+    }
+    previousDialogOpen.current = dialogOpen;
+  }, [dialogOpen]);
 
   const table = useReactTable({
     data,
@@ -44,6 +69,19 @@ export default function DataTable<T>({
     },
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const term = String(filterValue ?? "").toLowerCase().trim();
+      if (!term) return true;
+      const keysToSearch =
+        filterKeys && filterKeys.length > 0
+          ? filterKeys
+          : (Object.keys(row.original) as (keyof T & string)[]);
+      return keysToSearch.some((key) => {
+        const value = (row.original as Record<string, unknown>)[key];
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(term);
+      });
+    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),

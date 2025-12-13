@@ -69,8 +69,9 @@ export default function CustomerFormBase({
   }, [defaults, reset]);
 
   const handleSave = async (values: CustomerFormValues) => {
+    const nombreRazonUpper = values.nombreRazon?.toUpperCase() ?? "";
     const payload: Omit<Client, "id"> = {
-      nombreRazon: values.nombreRazon,
+      nombreRazon: nombreRazonUpper,
       ruc: values.ruc,
       dni: values.dni,
       direccionFiscal: values.direccionFiscal,

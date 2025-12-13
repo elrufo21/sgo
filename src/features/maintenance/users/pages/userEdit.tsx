@@ -1,13 +1,15 @@
-import UserFormBase from "@/components/UserFormBase";
-import type { User } from "@/store/employees/employees.store";
-import { useUsersStore } from "@/store/users/users.store";
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
+import { useDialogStore } from "@/store/app/dialog.store";
+import UserFormBase from "@/components/UserFormBase";
+import type { User } from "@/store/employees/employees.store";
+import { useUsersStore } from "@/store/users/users.store";
 
 const UserEdit = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
 
   const { users, updateUser, fetchUsers, deleteUser } = useUsersStore();
 
@@ -20,7 +22,7 @@ const UserEdit = () => {
   useEffect(() => {
     const user = users.find((e) => e.UsuarioID === Number(id));
     if (user) {
-      const { id, ...rest } = user;
+      const { id: _, ...rest } = user;
       setForm(rest);
     }
   }, [users, id]);
@@ -34,9 +36,25 @@ const UserEdit = () => {
   };
 
   const handleDelete = () => {
-    deleteUser(Number(id));
-    toast.success("Empleado eliminado correctamente");
-    navigate("/maintenance/users");
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>Seguro que deseas eliminar este usuario?</p>,
+      onConfirm: async () => {
+        try {
+          const result = await deleteUser(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el usuario.");
+            return;
+          }
+          toast.success("Empleado eliminado correctamente");
+          navigate("/maintenance/users");
+        } catch (error) {
+          console.error("Error eliminando usuario", error);
+          toast.error("Ocurrio un error al eliminar el usuario.");
+        }
+      },
+    });
   };
 
   const handleNew = () => navigate("/maintenance/users/create");

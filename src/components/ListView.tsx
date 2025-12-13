@@ -20,6 +20,7 @@ export interface CrudListConfig<T> {
   idKey?: keyof T & string;
   createLabel?: string;
   deleteMessage?: string;
+  filterKeys?: (keyof T & string)[];
 }
 
 interface CrudListProps<T> {
@@ -31,6 +32,7 @@ interface CrudListProps<T> {
   idKey?: keyof T & string;
   createLabel?: string;
   deleteMessage?: string;
+  filterKeys?: (keyof T & string)[];
 }
 
 export function CrudList<T>({
@@ -41,7 +43,8 @@ export function CrudList<T>({
   columns,
   idKey = "id",
   createLabel = "+ Nuevo",
-  deleteMessage = "¿Seguro que deseas eliminar este elemento?",
+  deleteMessage = "定Seguro que deseas eliminar este elemento?",
+  filterKeys,
 }: CrudListProps<T>) {
   const openDialog = useDialogStore((s) => s.openDialog);
   const navigate = useNavigate();
@@ -94,8 +97,17 @@ export function CrudList<T>({
             title: "Eliminar",
             content: <p>{deleteMessage}</p>,
             onConfirm: async () => {
-              const result = await deleteItem(id);
-              if (result) toast.success("Elemento eliminado.");
+              try {
+                const result = await deleteItem(id);
+                if (result === false) {
+                  toast.error("No se pudo eliminar el registro.");
+                  return;
+                }
+                toast.success("Elemento eliminado.");
+              } catch (error) {
+                console.error("Error deleting item", error);
+                toast.error("Ocurrió un error al eliminar.");
+              }
             },
           });
 
@@ -127,7 +139,7 @@ export function CrudList<T>({
         </ButtonComponent>
       </div>
 
-      <DataTable data={data} columns={tableColumns} />
+      <DataTable data={data} columns={tableColumns} filterKeys={filterKeys} />
     </div>
   );
 }

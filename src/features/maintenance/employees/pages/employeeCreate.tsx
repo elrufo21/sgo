@@ -21,7 +21,28 @@ const EmployeeCreate = () => {
     const { personalId, ...rest } = data;
     await addEmployee(rest);
     toast.success("Empleado creado correctamente");
-    navigate("/maintenance/employees");
+    navigate("/maintenance/employees/create");
+    setForm({
+      personalEstado: "activo",
+      personalIngreso: today(),
+      personalCodigo: "",
+      personalNombres: "",
+      personalApellidos: "",
+      personalDni: "",
+      personalTelefono: "",
+      personalTelefonoAsi: "",
+      personalEmail: "",
+      personalDireccion: "",
+      personalNacimiento: "",
+      personalBajaFecha: "",
+      personalRuc: "",
+      personalLicencia: "",
+      personalImagen: "",
+      companiaId: null,
+      areaId: null,
+      personalSueldo: null,
+      gerencia: null,
+    });
   };
 
   const handleNew = () => {

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from "react";
 import CustomerFormBase from "@/components/CustomerFormBase";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useNavigate, useParams } from "react-router";
+import { useDialogStore } from "@/store/app/dialog.store";
 import { toast } from "sonner";
 
 const CustomerEdit = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients, updateClient, deleteClient } =
     useClientsStore();
 
@@ -46,9 +48,25 @@ const CustomerEdit = () => {
   };
 
   const handleDelete = async () => {
-    await deleteClient(Number(id));
-    toast.success("Cliente eliminado correctamente");
-    navigate("/customers");
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>¿Seguro que deseas eliminar este cliente?</p>,
+      onConfirm: async () => {
+        try {
+          const result = await deleteClient(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el cliente.");
+            return;
+          }
+          toast.success("Cliente eliminado correctamente");
+          navigate("/customers");
+        } catch (error) {
+          console.error("Error al eliminar cliente", error);
+          toast.error("Ocurrió un error al eliminar el cliente.");
+        }
+      },
+    });
   };
 
   const handleNew = () => {

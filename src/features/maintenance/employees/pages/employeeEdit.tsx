@@ -42,11 +42,20 @@ const EmployeeEdit = () => {
     if (!id) return;
     openDialog({
       title: "Eliminar",
-      content: <p>¿Seguro que deseas eliminar este empleado?</p>,
+      content: <p>Seguro que deseas eliminar este empleado?</p>,
       onConfirm: async () => {
-        await deleteEmployee(Number(id));
-        toast.success("Empleado eliminado correctamente");
-        navigate("/maintenance/employees");
+        try {
+          const result = await deleteEmployee(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el empleado.");
+            return;
+          }
+          toast.success("Empleado eliminado correctamente");
+          navigate("/maintenance/employees");
+        } catch (error) {
+          console.error("Error eliminando empleado", error);
+          toast.error("Ocurrió un error al eliminar el empleado.");
+        }
       },
     });
   };

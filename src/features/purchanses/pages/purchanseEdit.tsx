@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import PurchaseFormBase from "@/components/PurchaseFormBase";
 import { usePurchasesStore } from "@/store/purchanses/purchase.store";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 const PurchanseEdit = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
   const { purchases, fetchPurchases, updatePurchase, deletePurchase } =
     usePurchasesStore();
 
@@ -29,8 +30,8 @@ const PurchanseEdit = () => {
 
   useEffect(() => {
     const purchase = purchases.find((c) => c.id === Number(id));
-    if (purchases) {
-      const { id, ...rest } = purchase;
+    if (purchase) {
+      const { id: _, ...rest } = purchase;
       setForm(rest);
     }
   }, [purchases, id]);
@@ -44,9 +45,25 @@ const PurchanseEdit = () => {
   };
 
   const handleDelete = () => {
-    deletePurchase(Number(id));
-    toast.success("Cliente eliminado correctamente");
-    navigate("/purchases");
+    if (!id) return;
+    openDialog({
+      title: "Eliminar",
+      content: <p>Seguro que deseas eliminar este registro?</p>,
+      onConfirm: async () => {
+        try {
+          const result = await deletePurchase(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar el registro.");
+            return;
+          }
+          toast.success("Cliente eliminado correctamente");
+          navigate("/purchases");
+        } catch (error) {
+          console.error("Error eliminando compra", error);
+          toast.error("Ocurrio un error al eliminar el registro.");
+        }
+      },
+    });
   };
 
   const handleNew = () => {

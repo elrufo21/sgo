@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { LogIn, ShieldCheck } from "lucide-react";
+import { LogIn, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuthStore } from "@/store/auth/auth.store";
@@ -16,6 +16,7 @@ export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -88,13 +89,21 @@ export function LoginPage() {
               <input
                 id="password"
                 name="password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-4 py-3 text-slate-900 shadow-sm focus:border-slate-500 focus:ring-2 focus:ring-slate-200 outline-none transition"
                 placeholder="••••••••"
               />
+              <button
+                type="button"
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className="absolute right-10 top-2.5 text-slate-500 hover:text-slate-700 transition"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
               <ShieldCheck
                 className="absolute right-3 top-3.5 text-slate-400"
                 size={18}

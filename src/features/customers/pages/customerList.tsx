@@ -5,7 +5,6 @@ const CustomerList = () => {
   const { clients, fetchClients, deleteClient } = useClientsStore();
 
   const columns = [
-    { key: "id", header: "ID" },
     { key: "nombreRazon", header: "Nombre o Razón social" },
     { key: "ruc", header: "RUC" },
     { key: "dni", header: "DNI" },
@@ -22,6 +21,7 @@ const CustomerList = () => {
       basePath="/customers"
       createLabel="+ Añadir cliente"
       deleteMessage="¿Estás seguro de eliminar este cliente?"
+      filterKeys={["nombreRazon"]}
     />
   );
 };

@@ -167,7 +167,6 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
     });
 
     if (result === false || (result as any)?.status === 500) {
-      toast.error("Fallo la operacion al eliminar el empleado");
       return false;
     }
 

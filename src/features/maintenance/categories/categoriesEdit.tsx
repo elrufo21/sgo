@@ -18,7 +18,7 @@ export default function CategoryEdit() {
 
   useEffect(() => {
     fetchCategories();
-  }, []);
+  }, [fetchCategories]);
 
   useEffect(() => {
     if (categories.length > 0 && id) {
@@ -29,9 +29,8 @@ export default function CategoryEdit() {
 
   const handleSave = (data: Category) => {
     if (!id) return;
-
     updateCategory(Number(id), data);
-    toast.success("Categoría actualizada");
+    toast.success("Categoria actualizada");
     navigate("/maintenance/categories");
   };
 
@@ -43,19 +42,26 @@ export default function CategoryEdit() {
     if (!id) return;
     openDialog({
       title: "Eliminar",
-      content: <p>¿Esta seguro que decea eliminar esta categoria?</p>,
+      content: <p>Seguro que deseas eliminar esta categoria?</p>,
       onConfirm: async () => {
-        const result = await deleteCategory(Number(id));
-        if (result) {
+        try {
+          const result = await deleteCategory(Number(id));
+          if (result === false) {
+            toast.error("No se pudo eliminar la categoria.");
+            return;
+          }
           toast.success("Elemento eliminado.");
           navigate("/maintenance/categories");
+        } catch (error) {
+          console.error("Error eliminando categoria", error);
+          toast.error("Ocurrio un error al eliminar la categoria.");
         }
       },
     });
   };
 
   if (!category) {
-    return <p className="p-6">Cargando categoría...</p>;
+    return <p className="p-6">Cargando categoria...</p>;
   }
 
   return (

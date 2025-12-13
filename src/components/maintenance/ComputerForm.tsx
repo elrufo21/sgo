@@ -126,8 +126,8 @@ export default function ComputerForm({
         ? normalizeSerie(data.serieFactura, "FA", "FA01")
         : nextSerieFactura,
       serieNc: data?.serieNc
-        ? normalizeSerie(data.serieNc, "NC", "NC01")
-        : "NC",
+        ? normalizeSerie(data.serieNc, "FZ", "FZ01")
+        : "FZ",
       serieBoleta: data?.serieBoleta
         ? normalizeSerie(data.serieBoleta, "BA", "BA05")
         : nextSerieBoleta,
@@ -178,10 +178,7 @@ export default function ComputerForm({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
-    >
+    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <div className="p-6 sm:p-8">
@@ -244,14 +241,14 @@ export default function ComputerForm({
                 />
                 <HookFormInput<ComputerFormValues>
                   name="serieNc"
-                  label="Serie NC"
-                  placeholder="Ej: NC01"
+                  label="Serie FZ"
+                  placeholder="Ej: FZ01"
                   maxLength={4}
                   rules={{
-                    required: "La serie de NC es obligatoria",
+                    required: "La serie de FZ es obligatoria",
                     pattern: {
-                      value: /^NC/i,
-                      message: "Debe iniciar con NC",
+                      value: /^FZ/i,
+                      message: "Debe iniciar con FZ",
                     },
                     maxLength: {
                       value: 4,
