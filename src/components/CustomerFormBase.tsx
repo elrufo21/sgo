@@ -1,7 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Save, Plus, Trash2 } from "lucide-react";
-import type { Client } from "@/types/customer";
+import React, { useEffect, useMemo, useRef } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
+import { useForm } from "react-hook-form";
+
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
+import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import type { Client } from "@/types/customer";
+
+type CustomerFormValues = Omit<Client, "id"> & {
+  tipoDocumento: "ruc" | "dni";
+  numeroDocumento?: string;
+};
 
 interface ClientFormBaseProps {
   initialData?: Partial<Client>;
@@ -11,6 +21,21 @@ interface ClientFormBaseProps {
   onDelete?: () => void;
 }
 
+const buildDefaults = (data?: Partial<Client>): CustomerFormValues => ({
+  nombreRazon: data?.nombreRazon ?? "",
+  ruc: data?.ruc ?? "",
+  dni: data?.dni ?? "",
+  direccionFiscal: data?.direccionFiscal ?? "",
+  direccionDespacho: data?.direccionDespacho ?? "",
+  telefonoMovil: data?.telefonoMovil ?? "",
+  email: data?.email ?? "",
+  registradoPor: data?.registradoPor ?? "",
+  estado: data?.estado ?? "activo",
+  fecha: data?.fecha ?? null,
+  tipoDocumento: "ruc",
+  numeroDocumento: "",
+});
+
 export default function CustomerFormBase({
   initialData,
   mode,
@@ -19,62 +44,49 @@ export default function CustomerFormBase({
   onDelete,
 }: ClientFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [form, setForm] = useState<Omit<Client, "id">>({
-    nombreRazon: "",
-    ruc: "",
-    dni: "",
-    direccionFiscal: "",
-    direccionDespacho: "",
-    telefonoMovil: "",
-    email: "",
-    registradoPor: "",
-    estado: "activo",
+
+  const defaults = useMemo(
+    () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
+    [initialData, mode]
+  );
+
+  const formMethods = useForm<CustomerFormValues>({
+    defaultValues: defaults,
   });
 
-  useEffect(() => {
-    if (initialData) {
-      setForm({
-        nombreRazon: initialData.nombreRazon || "",
-        ruc: initialData.ruc || "",
-        dni: initialData.dni || "",
-        direccionFiscal: initialData.direccionFiscal || "",
-        direccionDespacho: initialData.direccionDespacho || "",
-        telefonoMovil: initialData.telefonoMovil || "",
-        email: initialData.email || "",
-        registradoPor: initialData.registradoPor || "",
-        estado: initialData.estado || "activo",
-      });
-    }
-  }, [initialData]);
+  const {
+    reset,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = formMethods;
 
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-  };
+  useEffect(() => {
+    reset(defaults);
+  }, [defaults, reset]);
 
-  const handleSaveClick = () => {
-    onSave(form);
+  const handleSave = async (values: CustomerFormValues) => {
+    const payload: Omit<Client, "id"> = {
+      nombreRazon: values.nombreRazon,
+      ruc: values.ruc,
+      dni: values.dni,
+      direccionFiscal: values.direccionFiscal,
+      direccionDespacho: values.direccionDespacho,
+      telefonoMovil: values.telefonoMovil,
+      email: values.email,
+      registradoPor: values.registradoPor,
+      estado: values.estado,
+      fecha: values.fecha ?? null,
+    };
+    await onSave(payload);
     focusFirstInput(containerRef.current);
   };
 
-  const handleNewClick = () => {
-    setForm({
-      nombreRazon: "",
-      ruc: "",
-      dni: "",
-      direccionFiscal: "",
-      direccionDespacho: "",
-      telefonoMovil: "",
-      email: "",
-      registradoPor: "",
-      estado: "activo",
-    });
+  const handleNew = () => {
+    reset(buildDefaults());
     onNew?.();
     focusFirstInput(containerRef.current);
   };
@@ -95,214 +107,198 @@ export default function CustomerFormBase({
               </h2>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Nombre o Razón Social
-                  </label>
-                  <input
-                    type="text"
-                    data-focus-first="true"
-                    name="nombreRazon"
-                    value={form.nombreRazon}
-                    onChange={handleChange}
-                    placeholder="Ingrese nombre o razón social"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    RUC
-                  </label>
-                  <input
-                    type="number"
-                    name="ruc"
-                    value={form.ruc}
-                    onChange={handleChange}
-                    placeholder="Ingrese RUC"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    DNI
-                  </label>
-                  <input
-                    type="number"
-                    name="dni"
-                    value={form.dni}
-                    onChange={handleChange}
-                    placeholder="Ingrese DNI"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Dirección Fiscal
-                  </label>
-                  <input
-                    type="text"
-                    name="direccionFiscal"
-                    value={form.direccionFiscal}
-                    onChange={handleChange}
-                    placeholder="Ingrese dirección fiscal"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Dirección de Despacho
-                  </label>
-                  <input
-                    type="text"
-                    name="direccionDespacho"
-                    value={form.direccionDespacho}
-                    onChange={handleChange}
-                    placeholder="Ingrese dirección de despacho"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Teléfono Móvil
-                  </label>
-                  <input
-                    type="number"
-                    name="telefonoMovil"
-                    value={form.telefonoMovil}
-                    onChange={handleChange}
-                    placeholder="Ingrese teléfono móvil"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Correo / Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="Ingrese correo electrónico"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Registrado por
-                  </label>
-                  <input
-                    type="text"
-                    name="registradoPor"
-                    value={form.registradoPor}
-                    onChange={handleChange}
-                    placeholder="Nombre del usuario"
-                    className="w-full px-4 py-3 border-2 bg-gray-50 border-gray-200 cursor-not-allowed"
-                    disabled
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Estado
-                  </label>
-                  <select
-                    name="estado"
-                    value={form.estado}
-                    onChange={handleChange}
-                    className={`w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none ${
-                      mode === "edit" && "cursor-pointer"
-                    }`}
-                    disabled={mode === "create"}
-                  >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                  </select>
-                </div>
-              </div>
-              <div className="border-t-2 border-gray-100 pt-4 order-1 lg:order-2">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="tipoDocumento"
-                        value="ruc"
-                        defaultChecked
-                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
-                      />
-                      <span className="text-gray-700 font-medium">RUC</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="tipoDocumento"
-                        value="dni"
-                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
-                      />
-                      <span className="text-gray-700 font-medium">DNI</span>
-                    </label>
+            <HookForm methods={formMethods} onSubmit={handleSave}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
+                  <div className="col-span-2">
+                    <HookFormInput<CustomerFormValues>
+                      data-focus-first="true"
+                      name="nombreRazon"
+                      label="Nombre o Razon Social"
+                      placeholder="Ingrese nombre o razon social"
+                      rules={{ required: "El nombre es obligatorio" }}
+                    />
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <div className="relative w-full">
-                      <input
-                        type="number"
-                        name="numeroDocumento"
-                        placeholder="Ingrese número"
-                        className="w-full pr-32 px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      />
-                      <button
-                        type="button"
-                        className="absolute top-1/2 right-1.5 -translate-y-1/2 px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-                        onClick={() => {
-                          console.log("Consultar documento");
-                        }}
-                      >
-                        Consultar
-                      </button>
+                  <HookFormInput<CustomerFormValues>
+                    name="ruc"
+                    label="RUC"
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Ingrese RUC"
+                    rules={{
+                      pattern: {
+                        value: /^\d+$/,
+                        message: "Solo números",
+                      },
+                    }}
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="dni"
+                    label="DNI"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={8}
+                    pattern="[0-9]*"
+                    placeholder="Ingrese DNI"
+                    rules={{
+                      pattern: {
+                        value: /^\d{8}$/,
+                        message: "Debe tener 8 dígitos numéricos",
+                      },
+                      maxLength: {
+                        value: 8,
+                        message: "Debe tener 8 dígitos",
+                      },
+                      minLength: {
+                        value: 8,
+                        message: "Debe tener 8 dígitos",
+                      },
+                    }}
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="direccionFiscal"
+                    label="Direccion Fiscal"
+                    placeholder="Ingrese direccion fiscal"
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="direccionDespacho"
+                    label="Direccion de Despacho"
+                    placeholder="Ingrese direccion de despacho"
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="telefonoMovil"
+                    label="Telefono Movil"
+                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Ingrese telefono movil"
+                    rules={{
+                      pattern: {
+                        value: /^\d+$/,
+                        message: "Solo números",
+                      },
+                    }}
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="email"
+                    label="Correo / Email"
+                    type="email"
+                    placeholder="Ingrese correo electronico"
+                    rules={{
+                      pattern: {
+                        value: /^[^\s@]+@[^\s@]+\.com$/i,
+                        message: "Debe incluir @ y terminar en .com",
+                      },
+                    }}
+                  />
+
+                  <HookFormInput<CustomerFormValues>
+                    name="registradoPor"
+                    label="Registrado por"
+                    placeholder="Nombre del usuario"
+                    disabled
+                    className="w-full px-4 py-3 border-2 bg-gray-50 border-gray-200 cursor-not-allowed"
+                  />
+
+                  <HookFormSelect<CustomerFormValues>
+                    name="estado"
+                    label="Estado"
+                    options={[
+                      { value: "activo", label: "Activo" },
+                      { value: "inactivo", label: "Inactivo" },
+                    ]}
+                    disabled={mode === "create"}
+                  />
+                </div>
+
+                <div className="border-t-2 border-gray-100 pt-4 order-1 lg:order-2">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-6">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="ruc"
+                          defaultChecked
+                          {...formMethods.register("tipoDocumento")}
+                          className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
+                        />
+                        <span className="text-gray-700 font-medium">RUC</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          value="dni"
+                          {...formMethods.register("tipoDocumento")}
+                          className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
+                        />
+                        <span className="text-gray-700 font-medium">DNI</span>
+                      </label>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <div className="relative w-full">
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          {...formMethods.register("numeroDocumento")}
+                          placeholder="Ingrese numero"
+                          className="w-full pr-32 px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-1/2 right-1.5 -translate-y-1/2 px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                          onClick={() => {
+                            console.log("Consultar documento");
+                          }}
+                        >
+                          Consultar
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3 order-3 lg:order-3">
-                <div className="flex flex-wrap gap-3 justify-center">
-                  <button
-                    onClick={handleSaveClick}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl"
-                  >
-                    <Save className="w-5 h-5" />
-                    Guardar
-                  </button>
-                  <button
-                    onClick={handleNewClick}
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg border-2 border-blue-600 hover:bg-blue-50 transform hover:scale-105 transition-all"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Nuevo
-                  </button>
-                  {mode === "edit" && onDelete && (
+
+                <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3 order-3 lg:order-3">
+                  <div className="flex flex-wrap gap-3 justify-center">
                     <button
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg border-2 border-red-600 hover:bg-red-50 transform hover:scale-105 transition-all"
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
                     >
-                      <Trash2 className="w-5 h-5" />
-                      Eliminar
+                      <Save className="w-5 h-5" />
+                      Guardar
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={handleNew}
+                      className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg border-2 border-blue-600 hover:bg-blue-50 transform hover:scale-105 transition-all"
+                    >
+                      <Plus className="w-5 h-5" />
+                      Nuevo
+                    </button>
+                    {mode === "edit" && onDelete && (
+                      <button
+                        type="button"
+                        onClick={onDelete}
+                        className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg border-2 border-red-600 hover:bg-red-50 transform hover:scale-105 transition-all"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </HookForm>
           </div>
         </div>
       </div>

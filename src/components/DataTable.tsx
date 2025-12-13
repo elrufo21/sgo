@@ -48,9 +48,36 @@ export default function DataTable<T>({
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 10,
+      },
+    },
   });
 
-  const totalCount = table.getFilteredRowModel().rows.length;
+  const filteredRows = table.getFilteredRowModel().rows;
+  const totalCount = filteredRows.length;
+  const currentPage = table.getState().pagination.pageIndex + 1;
+  const pageSize = table.getState().pagination.pageSize;
+  const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, totalCount);
+
+  const goNext = () => {
+    if (table.getCanNextPage()) {
+      table.nextPage();
+    } else {
+      table.setPageIndex(0); // volver al inicio cuando no hay más páginas
+    }
+  };
+
+  const goPrev = () => {
+    if (table.getCanPreviousPage()) {
+      table.previousPage();
+    } else {
+      const lastPage = Math.max(Math.ceil(totalCount / pageSize) - 1, 0);
+      table.setPageIndex(lastPage);
+    }
+  };
 
   return (
     <div className="w-full border rounded-xl bg-white shadow p-4">
@@ -122,21 +149,22 @@ export default function DataTable<T>({
       <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
         <button
           className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
+          onClick={goPrev}
+          disabled={totalCount === 0}
         >
           Anterior
         </button>
 
-        {/* 👇 SOLO TOTAL */}
-        <span>
-          <strong>{totalCount}</strong> registros
+        <span className="text-center flex-1">
+          <strong>
+            {end}/{totalCount}
+          </strong>
         </span>
 
         <button
           className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
+          onClick={goNext}
+          disabled={totalCount === 0}
         >
           Siguiente
         </button>

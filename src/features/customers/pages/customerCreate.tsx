@@ -18,12 +18,25 @@ const CustomerCreate = () => {
     email: "",
     registradoPor: "Admin",
     estado: "activo",
+    fecha: null as string | null,
   });
 
-  const handleSave = (data: Omit<typeof form, "id">) => {
-    addClient(data);
+  const handleSave = async (data: Omit<typeof form, "id">) => {
+    await addClient(data);
     toast.success("Cliente creado correctamente");
-    navigate("/customers");
+    navigate("/customers/create");
+    setForm({
+      nombreRazon: "",
+      ruc: "",
+      dni: "",
+      direccionFiscal: "",
+      direccionDespacho: "",
+      telefonoMovil: "",
+      email: "",
+      registradoPor: "Admin",
+      estado: "activo",
+      fecha: null as string | null,
+    });
   };
 
   const handleNew = () => {
@@ -37,6 +50,7 @@ const CustomerCreate = () => {
       email: "",
       registradoPor: "Admin",
       estado: "activo",
+      fecha: null,
     });
   };
 

@@ -8,8 +8,24 @@ export interface Client {
   telefonoMovil: string;
   email: string;
   registradoPor: string;
-  estado: "activo" | "inactivo";
+  estado: string;
+  fecha?: string | null;
 }
+
+export interface ApiClient {
+  clienteId: number;
+  clienteRazon: string;
+  clienteRuc: string;
+  clienteDni: string;
+  clienteDireccion: string;
+  clienteTelefono: string;
+  clienteCorreo: string;
+  clienteEstado: string;
+  clienteDespacho: string;
+  clienteUsuario: string;
+  clienteFecha: string | null;
+}
+
 export interface CuentaBancaria {
   entidadBancaria: string;
   moneda: string;

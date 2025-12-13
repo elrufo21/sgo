@@ -5,9 +5,11 @@ const CustomerList = () => {
   const { clients, fetchClients, deleteClient } = useClientsStore();
 
   const columns = [
-    { key: "id", header: "Id" },
-    { key: "nombreRazon", header: "Nombre o Razon social" },
-    { key: "telefonoMovil", header: "Telefono" },
+    { key: "id", header: "ID" },
+    { key: "nombreRazon", header: "Nombre o Razón social" },
+    { key: "ruc", header: "RUC" },
+    { key: "dni", header: "DNI" },
+    { key: "telefonoMovil", header: "Teléfono" },
     { key: "email", header: "Email" },
   ];
 

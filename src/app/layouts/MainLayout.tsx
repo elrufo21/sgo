@@ -1,4 +1,10 @@
-import { Outlet, Link, useLocation, useMatches } from "react-router";
+import {
+  Outlet,
+  Link,
+  useLocation,
+  useMatches,
+  useNavigate,
+} from "react-router";
 import {
   Home,
   Package,
@@ -8,8 +14,10 @@ import {
   X,
   Settings2,
   StoreIcon,
+  ChevronDown,
 } from "lucide-react";
 import { useState } from "react";
+import { useAuthStore } from "@/store/auth/auth.store";
 
 interface BreadcrumbItem {
   label: string;
@@ -21,13 +29,20 @@ interface RouteHandle {
 }
 
 export default function MainLayout() {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [search, setSearch] = useState(""); // 🔍 buscador
   const { pathname } = useLocation();
   const matches = useMatches();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const userInitial =
+    user?.displayName?.charAt(0)?.toUpperCase() ||
+    user?.username?.charAt(0)?.toUpperCase() ||
+    "?";
 
-  // 📌 Items del menú
   const navItems = [
     { label: "Dashboard", to: "/", icon: <Home size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
@@ -45,12 +60,10 @@ export default function MainLayout() {
     },
   ];
 
-  // 🔎 Filtrar módulos
   const filteredItems = navItems.filter((item) =>
     item.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  // 📌 Breadcrumb automático
   const breadcrumbItems = matches
     .filter((match) => {
       const handle = match.handle as RouteHandle | undefined;
@@ -93,7 +106,6 @@ export default function MainLayout() {
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800">
-      {/* SIDEBAR DESKTOP */}
       <aside
         className={`hidden md:flex flex-col bg-white shadow-xl transition-all duration-300
           ${open ? "w-60" : "w-16"}`}
@@ -116,7 +128,6 @@ export default function MainLayout() {
           </button>
         </div>
 
-        {/* 🔍 BUSCADOR Desktop (solo cuando está abierto) */}
         {open && (
           <div className="px-3 mt-4">
             <input
@@ -141,7 +152,6 @@ export default function MainLayout() {
         </div>
       </aside>
 
-      {/* OVERLAY MÓVIL */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -149,7 +159,6 @@ export default function MainLayout() {
         />
       )}
 
-      {/* SIDEBAR MÓVIL */}
       <aside
         className={`fixed z-50 top-0 left-0 h-full bg-white shadow-xl transition-transform duration-300 md:hidden
           ${
@@ -166,7 +175,6 @@ export default function MainLayout() {
           </button>
         </div>
 
-        {/* 🔍 BUSCADOR Móvil */}
         <div className="px-3 mt-4">
           <input
             type="text"
@@ -184,12 +192,9 @@ export default function MainLayout() {
         </nav>
       </aside>
 
-      {/* CONTENIDO PRINCIPAL */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* HEADER */}
         <header className="h-16 bg-slate-700 shadow px-6 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
-            {/* Botón móvil */}
             <button
               className="md:hidden p-2 rounded hover:bg-slate-500 transition-colors"
               onClick={() => setMobileOpen(true)}
@@ -199,16 +204,43 @@ export default function MainLayout() {
             <h2 className="text-xl font-semibold">Panel de Control</h2>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-slate-500 text-white flex items-center justify-center font-semibold cursor-pointer hover:bg-slate-400 transition-colors">
-              R
-            </div>
+          <div className="relative">
+            <button
+              onClick={() => setUserMenuOpen((prev) => !prev)}
+              className="flex items-center gap-3 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm border border-white/20 shadow-sm hover:bg-white/20 transition-colors"
+            >
+              <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-900 flex items-center justify-center font-semibold">
+                {userInitial}
+              </div>
+              <div className="hidden sm:flex flex-col text-left leading-tight text-white">
+                <span className="text-sm font-semibold">
+                  {user?.displayName ?? user?.username ?? "Usuario"}
+                </span>
+                <span className="text-[11px] text-slate-200">
+                  {user?.role ?? "Sesión activa"}
+                </span>
+              </div>
+              <ChevronDown size={16} className="text-white/80" />
+            </button>
+
+            {userMenuOpen && (
+              <div className="absolute right-0 mt-2 w-44 rounded-lg bg-white text-slate-800 shadow-lg border border-slate-100 z-50">
+                <button
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                  onClick={() => {
+                    setUserMenuOpen(false);
+                    logout();
+                    navigate("/login", { replace: true });
+                  }}
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
-        {/* MAIN */}
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          {/* Breadcrumb */}
           {breadcrumbItems.length > 0 && (
             <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
               <ol className="list-reset flex">

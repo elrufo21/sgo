@@ -20,10 +20,13 @@ const CustomerEdit = () => {
     email: "",
     registradoPor: "",
     estado: "activo",
+    fecha: null,
   });
 
   useEffect(() => {
-    if (clients.length === 0) fetchClients();
+    if (clients.length === 0) {
+      fetchClients();
+    }
   }, [clients, fetchClients]);
 
   useEffect(() => {
@@ -36,14 +39,14 @@ const CustomerEdit = () => {
 
   if (!form) return <div>Cargando cliente...</div>;
 
-  const handleSave = (data: Omit<typeof form, "id">) => {
-    updateClient(Number(id), data);
+  const handleSave = async (data: Omit<typeof form, "id">) => {
+    await updateClient(Number(id), data);
     toast.success("Cliente guardado correctamente");
     navigate("/customers");
   };
 
-  const handleDelete = () => {
-    deleteClient(Number(id));
+  const handleDelete = async () => {
+    await deleteClient(Number(id));
     toast.success("Cliente eliminado correctamente");
     navigate("/customers");
   };

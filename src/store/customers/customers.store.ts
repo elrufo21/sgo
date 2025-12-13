@@ -1,81 +1,122 @@
-import type { Client } from "@/types/customer";
+import { API_BASE_URL } from "@/config";
+import { apiRequest } from "@/shared/helpers/apiRequest";
+import type { ApiClient, Client } from "@/types/customer";
 import { create } from "zustand";
 
 interface ClientsState {
   clients: Client[];
   loading: boolean;
   fetchClients: () => Promise<void>;
-  addClient: (client: Omit<Client, "id">) => void;
-  updateClient: (id: number, data: Partial<Client>) => void;
-  deleteClient: (id: number) => void;
+  addClient: (client: Omit<Client, "id">) => Promise<void>;
+  updateClient: (id: number, data: Partial<Client>) => Promise<void>;
+  deleteClient: (id: number) => Promise<boolean>;
 }
 
-export const useClientsStore = create<ClientsState>((set, get) => ({
+const mapApiToClient = (item: any): Client => ({
+  id: item?.clienteId ?? item?.ClienteId ?? item?.id ?? 0,
+  nombreRazon: item?.clienteRazon ?? item?.ClienteRazon ?? "",
+  ruc: item?.clienteRuc ?? item?.ClienteRuc ?? "",
+  dni: item?.clienteDni ?? item?.ClienteDni ?? "",
+  direccionFiscal: item?.clienteDireccion ?? item?.ClienteDireccion ?? "",
+  direccionDespacho: item?.clienteDespacho ?? item?.ClienteDespacho ?? "",
+  telefonoMovil: item?.clienteTelefono ?? item?.ClienteTelefono ?? "",
+  email: item?.clienteCorreo ?? item?.ClienteCorreo ?? "",
+  registradoPor: item?.clienteUsuario ?? item?.ClienteUsuario ?? "",
+  estado: item?.clienteEstado ?? item?.ClienteEstado ?? "activo",
+  fecha: item?.clienteFecha ?? item?.ClienteFecha ?? null,
+});
+
+const mapClientToApi = (client: Partial<Client>): ApiClient => ({
+  clienteId: client.id ?? 0,
+  clienteRazon: client.nombreRazon ?? "",
+  clienteRuc: client.ruc ?? "",
+  clienteDni: client.dni ?? "",
+  clienteDireccion: client.direccionFiscal ?? "",
+  clienteTelefono: client.telefonoMovil ?? "",
+  clienteCorreo: client.email ?? "",
+  clienteEstado: client.estado ?? "activo",
+  clienteDespacho: client.direccionDespacho ?? "",
+  clienteUsuario: client.registradoPor ?? "",
+  clienteFecha: client.fecha ?? null,
+});
+
+export const useClientsStore = create<ClientsState>((set) => ({
   clients: [],
   loading: false,
 
   fetchClients: async () => {
-    if (get().clients.length > 0) return;
-
     set({ loading: true });
-
     try {
-      const response: Client[] = await new Promise((resolve) =>
-        setTimeout(
-          () =>
-            resolve([
-              {
-                id: 1,
-                nombreRazon: "Empresa XYZ",
-                ruc: "20123456789",
-                dni: "12345678",
-                direccionFiscal: "Av. Principal 123",
-                direccionDespacho: "Av. Secundaria 456",
-                telefonoMovil: "987654321",
-                email: "contacto@xyz.com",
-                registradoPor: "admin",
-                estado: "activo",
-              },
-              {
-                id: 2,
-                nombreRazon: "Juan Pérez",
-                ruc: "",
-                dni: "87654321",
-                direccionFiscal: "Calle Falsa 123",
-                direccionDespacho: "Calle Verdadera 456",
-                telefonoMovil: "912345678",
-                email: "juan@gmail.com",
-                registradoPor: "admin",
-                estado: "activo",
-              },
-            ]),
-          600
-        )
-      );
-
-      set({ clients: response, loading: false });
+      const response = await apiRequest<ApiClient[]>({
+        url: `${API_BASE_URL}/Cliente/list`,
+        method: "GET",
+        fallback: [],
+      });
+      const data = Array.isArray(response) ? response : [];
+      set({ clients: data.map(mapApiToClient), loading: false });
     } catch (error) {
       console.error("Error loading clients", error);
       set({ loading: false });
     }
   },
 
-  addClient: (client) =>
-    set((state) => {
-      const newId =
-        state.clients.length > 0
-          ? Math.max(...state.clients.map((c) => c.id)) + 1
-          : 1;
-      return { clients: [...state.clients, { ...client, id: newId }] };
-    }),
+  addClient: async (client) => {
+    const payload = mapClientToApi(client);
+    const created = await apiRequest<ApiClient>({
+      url: `${API_BASE_URL}/Cliente/register`,
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: payload,
+    });
 
-  updateClient: (id, data) =>
     set((state) => ({
-      clients: state.clients.map((c) => (c.id === id ? { ...c, ...data } : c)),
-    })),
+      clients: [
+        ...state.clients,
+        mapApiToClient(created ?? { ...payload, clienteId: Date.now() }),
+      ],
+    }));
+  },
 
-  deleteClient: (id) =>
+  updateClient: async (id, data) => {
+    const payload = mapClientToApi({ ...data, id });
+    const updated = await apiRequest<ApiClient>({
+      url: `${API_BASE_URL}/Cliente/${id}`,
+      method: "PUT",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: payload,
+    });
+
+    set((state) => ({
+      clients: state.clients.map((c) =>
+        c.id === id ? mapApiToClient(updated ?? payload) : c
+      ),
+    }));
+  },
+
+  deleteClient: async (id) => {
+    const result = await apiRequest({
+      url: `${API_BASE_URL}/Cliente/${id}`,
+      method: "DELETE",
+      config: { headers: { Accept: "*/*" } },
+      fallback: true,
+    });
+
     set((state) => ({
       clients: state.clients.filter((c) => c.id !== id),
-    })),
+    }));
+
+    return result !== false;
+  },
 }));
