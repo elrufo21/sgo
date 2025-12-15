@@ -16,8 +16,11 @@ export default function CategoryCreate() {
   });
 
   const handleSave = async (data: Omit<Category, "id">) => {
-    await addCategory(data);
-    toast.success("Categoría creada correctamente");
+    const created = await addCategory(data);
+    if (!created) {
+      return;
+    }
+    toast.success("Categoria creada correctamente");
     setForm({
       nombreSublinea: "",
       codigoSunat: "",

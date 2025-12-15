@@ -18,5 +18,10 @@ export const employeeListConfig: ModuleListConfig<Employee> = {
     { key: "personalNacimiento", header: "F. nacimiento" },
     { key: "personalDni", header: "DNI" },
   ],
-  filterKeys: ["personalNombres"],
+  filterKeys: [
+    "personalNombres",
+    "personalApellidos",
+    "personalDni",
+    "personalEmail",
+  ],
 };

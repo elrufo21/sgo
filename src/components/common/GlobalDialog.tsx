@@ -19,10 +19,12 @@ export function GlobalDialog() {
     fullWidth,
     disableBackdropClose,
     loading,
+    data,
     onConfirm,
     onCancel,
     closeDialog,
     setLoading,
+    setData,
   } = useDialogStore();
 
   const handleClose = (_e?: unknown, reason?: string) => {
@@ -39,10 +41,11 @@ export function GlobalDialog() {
     if (!onConfirm) return closeDialog();
     try {
       setLoading(true);
-      await onConfirm();
+      await onConfirm(data);
       closeDialog();
     } finally {
       setLoading(false);
+      setData(null);
     }
   };
 

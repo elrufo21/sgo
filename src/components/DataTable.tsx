@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   data: T[];
   onRowClick?: (row: T) => void;
   filterKeys?: (keyof T & string)[];
+  tdClassName?: string | ((cell: any) => string | undefined);
 }
 
 export default function DataTable<T>({
@@ -21,6 +22,7 @@ export default function DataTable<T>({
   data,
   onRowClick,
   filterKeys,
+  tdClassName,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
@@ -163,11 +165,25 @@ export default function DataTable<T>({
                 }`}
                 onClick={() => onRowClick?.(row.original)}
               >
-                {row.getVisibleCells().map((cell) => (
-                  <td key={cell.id} className="p-3">
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </td>
-                ))}
+                {row.getVisibleCells().map((cell) => {
+                  const metaClass = cell.column.columnDef.meta?.tdClassName;
+                  const colClass =
+                    typeof metaClass === "function"
+                      ? metaClass(row.original)
+                      : metaClass ?? "";
+                  const extraClass =
+                    typeof tdClassName === "function"
+                      ? tdClassName(cell) ?? ""
+                      : tdClassName ?? "";
+                  return (
+                    <td key={cell.id} className={`p-3 ${colClass} ${extraClass}`}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </td>
+                  );
+                })}
               </tr>
             ))
           ) : (

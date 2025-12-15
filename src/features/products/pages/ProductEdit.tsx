@@ -21,17 +21,18 @@ export default function ProductEdit() {
 
   useEffect(() => {
     const prod = products.find((p) => p.id === Number(id));
+    console.log("prod", prod, products);
     if (prod) {
-      const { id: _discard, ...rest } = prod;
+      const { ...rest } = prod;
       setForm({ ...rest, images: prod.images || [] });
     }
   }, [products, id]);
 
   if (!form) return <div>Cargando producto...</div>;
 
-  const handleSave = async () => {
+  const handleSave = async (frm) => {
     if (!id) return;
-    const ok = await updateProduct(Number(id), form);
+    const ok = await updateProduct(Number(id), frm);
     if (ok) {
       toast.success("Producto guardado correctamente");
       navigate("/products");

@@ -114,6 +114,10 @@ export const useClientsStore = create<ClientsState>((set) => ({
       fallback: true,
     });
 
+    if (result === false) {
+      return false;
+    }
+
     set((state) => ({
       clients: state.clients.filter((c) => c.id !== id),
     }));

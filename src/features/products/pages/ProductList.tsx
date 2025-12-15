@@ -8,11 +8,28 @@ const ProductList = () => {
   const productColumns = [
     { key: "codigo", header: "Código" },
     { key: "nombre", header: "Nombre" },
-    { key: "cantidad", header: "Stock" },
+    {
+      key: "cantidad",
+      header: "Stock",
+
+      render: (row: Product) => {
+        const stock = Number(row.cantidad ?? 0);
+        const critico = Number(row.valorCritico ?? 0);
+        const color =
+          stock <= 0
+            ? "text-red-600 font-bold"
+            : stock <= critico
+            ? "text-blue-600 font-bold"
+            : "";
+        return <span className={`${color} text-right w-full`}>{stock}</span>;
+      },
+      tdClassName: "text-right",
+    },
     {
       key: "preVenta",
       header: "Precio",
       render: (row: Product) => `S/ ${Number(row.preVenta).toFixed(2)}`,
+      tdClassName: "text-right",
     },
   ];
 

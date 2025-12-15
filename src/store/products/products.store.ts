@@ -46,19 +46,27 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
   valorCritico: Number(item.valorCritico ?? 0),
   preCosto: Number(item.productoCosto ?? 0),
   preVenta: Number(item.productoVenta ?? 0),
-  aplicaINV: ((item.aplicaINV as string) === "S" ? "servicio" : "bien") as
-    Product["aplicaINV"],
+  aplicaINV: ((item.aplicaINV as string) === "S"
+    ? "servicio"
+    : "bien") as Product["aplicaINV"],
   cantidad: Number(item.productoCantidad ?? 0),
   usuario: item.productoUsuario ?? "",
   estado:
     (item.productoEstado as Product["estado"]) ??
     ("activo" as Product["estado"]),
   images: item.productoImagen ? [item.productoImagen] : [],
+  idSubLinea: item.idSubLinea,
 });
 
-const mapProductToApi = (product: Partial<Product>): ApiProduct => ({
-  idProducto: product.id ?? 0,
-  idSubLinea: 2, // FK requerida: enviar 2 por defecto cuando no se provee otro valor
+const mapProductToApi = (
+  product: Partial<Product>,
+  idOverride?: number
+): ApiProduct => ({
+  idProducto: idOverride ?? product.id ?? 0,
+  idSubLinea:
+    product.idSubLinea === undefined || product.idSubLinea === null
+      ? 0
+      : Number(product.idSubLinea), // usar seleccion; 0 si no hay
   productoCodigo: product.codigo ?? "",
   productoNombre: product.nombre ?? "",
   productoUM: product.unidadMedida ?? "",
@@ -84,7 +92,7 @@ const mapProductToApi = (product: Partial<Product>): ApiProduct => ({
 
 const baseUrl = `${API_BASE_URL}/Productos`;
 
-export const useProductsStore = create<ProductsState>((set) => ({
+export const useProductsStore = create<ProductsState>((set, get) => ({
   products: [],
   loading: false,
 
@@ -106,7 +114,7 @@ export const useProductsStore = create<ProductsState>((set) => ({
 
   addProduct: async (product) => {
     try {
-      const payload = mapProductToApi({ ...product, id: 0 });
+      const payload = mapProductToApi(product, 0);
       const created = await apiRequest<ApiProduct>({
         url: `${baseUrl}/register`,
         method: "POST",
@@ -131,11 +139,10 @@ export const useProductsStore = create<ProductsState>((set) => ({
 
   updateProduct: async (id, data) => {
     try {
-      const payload = mapProductToApi({ ...data, id });
+      const payload = mapProductToApi(data, id);
       const updated = await apiRequest<ApiProduct>({
-        // Backend usa el mismo endpoint para crear/editar (id=0 crea, >0 actualiza)
-        url: `${baseUrl}/register`,
-        method: "POST",
+        url: `${baseUrl}/${id}`,
+        method: "PUT",
         data: payload,
         config: {
           headers: {
@@ -148,9 +155,7 @@ export const useProductsStore = create<ProductsState>((set) => ({
 
       const updatedItem = mapApiToProduct(updated ?? payload);
       set((state) => ({
-        products: state.products.map((p) =>
-          p.id === id ? updatedItem : p
-        ),
+        products: state.products.map((p) => (p.id === id ? updatedItem : p)),
       }));
       return true;
     } catch (error) {

@@ -1,5 +1,6 @@
 export interface Product {
   id: number;
+  idSubLinea?: number | null;
   categoria?: string;
   codigo: string;
   nombre: string;

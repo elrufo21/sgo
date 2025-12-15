@@ -1,5 +1,6 @@
 export interface Category {
   id?: string | number;
+  idSubLinea?: number;
   nombreSublinea: string;
   codigoSunat: string;
   nombre?: string | null;

@@ -21,7 +21,7 @@ const CustomerList = () => {
       basePath="/customers"
       createLabel="+ Añadir cliente"
       deleteMessage="¿Estás seguro de eliminar este cliente?"
-      filterKeys={["nombreRazon"]}
+      filterKeys={["nombreRazon", "ruc", "dni", "email"]}
     />
   );
 };

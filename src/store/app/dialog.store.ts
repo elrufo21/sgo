@@ -7,7 +7,7 @@ type DialogOptions = {
   content: ReactNode;
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: () => Promise<void> | void;
+  onConfirm?: (data?: unknown) => Promise<void> | void;
   onCancel?: () => void;
   maxWidth?: DialogProps["maxWidth"];
   fullWidth?: boolean;
@@ -24,12 +24,14 @@ const defaults = {
   maxWidth: "sm" as DialogProps["maxWidth"],
   disableBackdropClose: false,
   loading: false,
+  data: null as unknown,
 };
 
 type DialogState = typeof defaults & {
   openDialog: (options: DialogOptions) => void;
   closeDialog: () => void;
   setLoading: (loading: boolean) => void;
+  setData: (data: unknown) => void;
 };
 
 export const useDialogStore = create<DialogState>((set) => ({
@@ -37,4 +39,5 @@ export const useDialogStore = create<DialogState>((set) => ({
   openDialog: (options) => set({ ...defaults, ...options, open: true }),
   closeDialog: () => set(defaults),
   setLoading: (loading) => set({ loading }),
+  setData: (data) => set({ data }),
 }));

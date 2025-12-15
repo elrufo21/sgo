@@ -46,6 +46,13 @@ const ComputerList = () => {
       basePath="/maintenance/computers"
       createLabel="+ Añadir computadora"
       deleteMessage="¿Estás seguro de eliminar esta computadora?"
+      filterKeys={[
+        "maquina",
+        "serieFactura",
+        "serieNc",
+        "serieBoleta",
+        "ticketera",
+      ]}
     />
   );
 };

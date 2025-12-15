@@ -12,6 +12,7 @@ interface ColumnConfig<T> {
   header: string;
   id?: string;
   render?: (row: T) => ReactNode;
+  tdClassName?: string | ((row: T) => string | undefined);
 }
 
 export interface CrudListConfig<T> {
@@ -61,6 +62,7 @@ export function CrudList<T>({
           id: col.id ?? col.header,
           header: col.header,
           cell: ({ row }) => col.render!(row.original),
+          meta: { tdClassName: col.tdClassName },
         });
       }
 
@@ -68,6 +70,7 @@ export function CrudList<T>({
         return columnHelper.accessor(col.key as any, {
           header: col.header,
           cell: (info) => info.getValue(),
+          meta: { tdClassName: col.tdClassName },
         });
       }
 
@@ -75,6 +78,7 @@ export function CrudList<T>({
         id: col.id ?? col.header,
         header: col.header,
         cell: () => null,
+        meta: { tdClassName: col.tdClassName },
       });
     }),
 

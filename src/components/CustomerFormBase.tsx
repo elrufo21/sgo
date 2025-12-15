@@ -130,8 +130,8 @@ export default function CustomerFormBase({
                     placeholder="Ingrese RUC"
                     rules={{
                       pattern: {
-                        value: /^\d+$/,
-                        message: "Solo números",
+                        value: /^\d{11}$/,
+                        message: "Debe tener 11 digitos",
                       },
                     }}
                   />
