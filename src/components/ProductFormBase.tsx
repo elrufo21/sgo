@@ -23,7 +23,10 @@ interface ProductFormBaseProps {
 
 const unidadesMedida = ["Unidad", "Kg", "Litro", "Caja", "Docena"];
 
-type ProductFormValues = Omit<Product, "id"> & { images?: string[] };
+type ProductFormValues = Omit<Product, "id"> & {
+  images?: string[];
+  preVentaB?: number | null;
+};
 
 export default function ProductFormBase({
   initialData,
@@ -46,13 +49,17 @@ export default function ProductFormBase({
   const defaults = useMemo<ProductFormValues>(
     () => ({
       categoria: initialData?.categoria ?? "",
-      idSubLinea: initialData?.idSubLinea ?? null,
+      idSubLinea:
+        initialData?.idSubLinea !== undefined && initialData?.idSubLinea !== null
+          ? Number(initialData.idSubLinea)
+          : null,
       codigo: initialData?.codigo ?? (mode === "create" ? generateCode() : ""),
       nombre: initialData?.nombre ?? "",
       unidadMedida: initialData?.unidadMedida ?? "",
       valorCritico: initialData?.valorCritico ?? null,
       preCosto: initialData?.preCosto ?? null,
       preVenta: initialData?.preVenta ?? null,
+      preVentaB: (initialData as any)?.preVentaB ?? null,
       aplicaINV: initialData?.aplicaINV ?? "bien",
       cantidad: initialData?.cantidad ?? null,
       usuario: initialData?.usuario ?? "",
@@ -61,7 +68,7 @@ export default function ProductFormBase({
     }),
     [initialData, mode]
   );
-
+  console.log("defaults", defaults);
   const formMethods = useForm<ProductFormValues>({
     defaultValues: defaults,
   });
@@ -71,7 +78,7 @@ export default function ProductFormBase({
     reset,
     setValue,
     watch,
-    formState: { isSubmitting },
+    formState: { isSubmitting, errors },
   } = formMethods;
   const openDialog = useDialogStore((s) => s.openDialog);
 
@@ -124,7 +131,11 @@ export default function ProductFormBase({
   };
 
   const onSubmit = async (values: ProductFormValues) => {
-    await Promise.resolve(onSave(values));
+    const payload = {
+      ...values,
+      nombre: values.nombre?.toUpperCase() ?? "",
+    };
+    await Promise.resolve(onSave(payload));
     if (mode === "create") {
       reset({
         ...defaults,
@@ -197,13 +208,23 @@ export default function ProductFormBase({
                       options={[
                         { value: "", label: "Seleccionar..." },
                         ...categories.map((cat) => ({
-                          value: cat.idSubLinea ?? cat.id ?? "",
+                          value:
+                            cat.idSubLinea !== undefined && cat.idSubLinea !== null
+                              ? Number(cat.idSubLinea)
+                              : cat.id !== undefined && cat.id !== null
+                              ? Number(cat.id)
+                              : "",
                           label: cat.nombreSublinea,
                         })),
                       ]}
                       rules={{
                         setValueAs: (v) =>
                           v === "" ? null : Number((v as any)?.value ?? v),
+                        required: "La categoría es obligatoria",
+                        validate: (v) =>
+                          v !== 0 && v !== null && v !== undefined
+                            ? true
+                            : "La categoría es obligatoria",
                       }}
                       onOptionSelected={(opt) =>
                         setValue("categoria", opt?.label ?? "")
@@ -275,6 +296,7 @@ export default function ProductFormBase({
                       name="nombre"
                       label="Nombre del Producto"
                       placeholder="Ingrese el nombre completo del producto"
+                      rules={{ required: "El nombre es obligatorio" }}
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     />
                   </div>
@@ -286,6 +308,7 @@ export default function ProductFormBase({
                       { value: "", label: "Seleccionar..." },
                       ...unidadesMedida.map((u) => ({ value: u, label: u })),
                     ]}
+                    rules={{ required: "La unidad de medida es obligatoria" }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
 
@@ -293,7 +316,10 @@ export default function ProductFormBase({
                     name="valorCritico"
                     label="Stock Mínimo (Valor Crítico)"
                     type="number"
-                    rules={{ valueAsNumber: true }}
+                    rules={{
+                      valueAsNumber: true,
+                      required: "El stock mínimo es obligatorio",
+                    }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
 
@@ -310,7 +336,9 @@ export default function ProductFormBase({
                           <input
                             type="radio"
                             value={v}
-                            {...formMethods.register("aplicaINV")}
+                            {...formMethods.register("aplicaINV", {
+                              required: "El tipo de producto es obligatorio",
+                            })}
                             checked={watch("aplicaINV") === v}
                             onChange={() => setValue("aplicaINV", v)}
                             className="w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
@@ -334,11 +362,28 @@ export default function ProductFormBase({
                       <input
                         type="number"
                         step="0.01"
+                        min="0.01"
                         {...formMethods.register("preCosto", {
                           valueAsNumber: true,
+                          required: "El precio de costo es obligatorio",
+                          validate: (v) =>
+                            v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v) &&
+                            v > 0
+                              ? true
+                              : "El precio de costo debe ser mayor a 0",
                         })}
                         className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       />
+                      {errors.preCosto && (
+                        <p className="text-sm text-red-600">
+                          {String(
+                            (errors as any).preCosto?.message ??
+                              "El precio de costo es obligatorio"
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -353,83 +398,135 @@ export default function ProductFormBase({
                       <input
                         type="number"
                         step="0.01"
+                        min="0.01"
                         {...formMethods.register("preVenta", {
                           valueAsNumber: true,
+                          required: "El precio de venta es obligatorio",
+                          validate: (v) =>
+                            v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v) &&
+                            v > 0
+                              ? true
+                              : "El precio de venta debe ser mayor a 0",
                         })}
                         className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       />
+                      {errors.preVenta && (
+                        <p className="text-sm text-red-600">
+                          {String(
+                            (errors as any).preVenta?.message ??
+                              "El precio de venta es obligatorio"
+                          )}
+                        </p>
+                      )}
                     </div>
                   </div>
-
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold text-gray-700">
+                      Precio de Venta b
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
+                        S/
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        {...formMethods.register("preVentaB", {
+                          valueAsNumber: true,
+                          required: "El precio de venta es obligatorio",
+                          validate: (v) =>
+                            v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v) &&
+                            v > 0
+                              ? true
+                              : "El precio de venta debe ser mayor a 0",
+                        })}
+                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      />
+                      {errors.preVentaB && (
+                        <p className="text-sm text-red-600">
+                          {String(
+                            (errors as any).preVentaB?.message ??
+                              "El precio de venta es obligatorio"
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <HookFormInput<ProductFormValues>
                     name="cantidad"
                     label="Cantidad en Stock"
                     type="number"
-                    rules={{ valueAsNumber: true }}
+                    rules={{
+                      valueAsNumber: true,
+                      required: "La cantidad es obligatoria",
+                    }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
-
+                  <HookFormSelect<ProductFormValues>
+                    name="estado"
+                    label="Estado del Producto"
+                    disabled={mode === "create"}
+                    options={[
+                      { value: "BUENO", label: "Activo" },
+                      { value: "inactivo", label: "Inactivo" },
+                      { value: "archivado", label: "Archivado" },
+                    ]}
+                    rules={{ required: "El estado es obligatorio" }}
+                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                  />
                   <HookFormInput<ProductFormValues>
                     name="usuario"
                     label="Usuario Responsable"
                     disabled
                     className="w-full px-4 py-3 border-2 bg-gray-50 border-gray-200 cursor-not-allowed"
                   />
-
-                  <HookFormSelect<ProductFormValues>
-                    name="estado"
-                    label="Estado del Producto"
-                    disabled={mode === "create"}
-                    options={[
-                      { value: "activo", label: "Activo" },
-                      { value: "inactivo", label: "Inactivo" },
-                      { value: "archivado", label: "Archivado" },
-                    ]}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
                 </div>
-              </div>
-
-              <div className="border-t-2 border-gray-100">
-                <div className="space-y-4">
-                  <div className="mb-4">
-                    <label className="cursor-pointer inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                      Agregar imágenes
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={handleImageChange}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-
-                  {watch("images")?.length > 0 && (
-                    <div className="flex flex-wrap gap-4 justify-start sm:justify-center">
-                      {watch("images")!.map((img, i) => (
-                        <div
-                          key={i}
-                          className="relative group w-[300px] h-[300px]"
-                        >
-                          <div className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-400 transition-colors shadow-sm hover:shadow-md">
-                            <img
-                              src={img}
-                              alt={`Imagen ${i + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                          <button
-                            onClick={() => removeImage(i)}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Eliminar imagen"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        </div>
-                      ))}
+                <div className="border-t-2 border-gray-100">
+                  <div className="space-y-4">
+                    <div className="mb-4">
+                      <label className="cursor-pointer inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Agregar imágenes
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={handleImageChange}
+                          className="hidden"
+                        />
+                      </label>
                     </div>
-                  )}
+
+                    {watch("images")?.length > 0 && (
+                      <div className="flex flex-wrap gap-4 justify-start sm:justify-center">
+                        {watch("images")!.map((img, i) => (
+                          <div
+                            key={i}
+                            className="relative group w-[300px] h-[300px]"
+                          >
+                            <div className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-400 transition-colors shadow-sm hover:shadow-md">
+                              <img
+                                src={img}
+                                alt={`Imagen ${i + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <button
+                              onClick={() => removeImage(i)}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                              title="Eliminar imagen"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

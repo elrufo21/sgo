@@ -5,6 +5,7 @@ import maintenanceRoutes from "@/features/maintenance/routes";
 import productRoutes from "@/features/products/routes";
 import customerRoutes from "../features/customers/routes";
 import purchansesRoutes from "../features/purchanses/routes";
+import shoppingRoutes from "../features/shopping/routes";
 import MainLayout from "./layouts/MainLayout";
 import { RedirectIfAuthenticated, RequireAuth } from "./guards/AuthGuard";
 import LoginPage from "@/features/auth/LoginPage";
@@ -30,6 +31,7 @@ const router = createBrowserRouter([
       ...productRoutes,
       ...customerRoutes,
       ...purchansesRoutes,
+      ...shoppingRoutes,
       ...maintenanceRoutes,
       ...cashFlowRoutes,
       { path: "*", element: <h1>404 - Not Found</h1> },

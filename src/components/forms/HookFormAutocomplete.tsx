@@ -107,10 +107,10 @@ export function HookFormAutocomplete<
                   fullWidth
                   sx={{
                     "& .MuiOutlinedInput-root": {
-                      borderRadius: "0.5rem",
+                      borderRadius: "0.45rem",
                       backgroundColor: "#fff",
                       "& fieldset": {
-                        borderWidth: "2px",
+                        borderWidth: "1px",
                         borderColor: "#e5e7eb",
                       },
                       "&.Mui-focused fieldset": {
@@ -119,7 +119,7 @@ export function HookFormAutocomplete<
                       },
                     },
                     "& .MuiOutlinedInput-input": {
-                      padding: "12px 16px",
+                      padding: "9px 12px",
                       fontSize: "0.875rem",
                     },
                   }}

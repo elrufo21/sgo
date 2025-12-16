@@ -12,6 +12,8 @@ import UserList from "./users/pages/userList";
 import CategoryCreate from "./categories/categoriesCreate";
 import CategoryEdit from "./categories/categoriesEdit";
 import { GenericList } from "@/shared/listing/GenericList";
+import ProviderCreate from "./providers/providerCreate";
+import ProviderEdit from "./providers/providerEdit";
 
 export default [
   {
@@ -84,6 +86,39 @@ export default [
         { label: "Mantenimiento", to: "/maintenance" },
         { label: "Categorías", to: "/maintenance/categories" },
         { label: "Editar categoría" },
+      ],
+    },
+  },
+
+  {
+    path: "maintenance/providers",
+    element: <GenericList moduleKey="providers" />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Proveedores" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/providers/create",
+    element: <ProviderCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Proveedores", to: "/maintenance/providers" },
+        { label: "Crear proveedor" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/providers/:id/edit",
+    element: <ProviderEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Proveedores", to: "/maintenance/providers" },
+        { label: "Editar proveedor" },
       ],
     },
   },

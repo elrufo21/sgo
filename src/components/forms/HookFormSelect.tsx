@@ -39,7 +39,7 @@ export function HookFormSelect<T extends FieldValues>({
       <select
         className={
           className ??
-          "w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+          "w-full px-3 py-2 border border-gray-200 rounded-md focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
         }
         aria-invalid={error ? "true" : "false"}
         {...register(name, rules)}
@@ -59,4 +59,3 @@ export function HookFormSelect<T extends FieldValues>({
     </div>
   );
 }
-

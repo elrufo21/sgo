@@ -1,0 +1,268 @@
+import { useState, useMemo, useCallback, useEffect } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  flexRender,
+} from "@tanstack/react-table";
+import { ChevronUp, ChevronDown, Search, Trash2 } from "lucide-react";
+const EditableDataTable = ({
+  columns: userColumns,
+  data: initialData,
+  onDataChange,
+  enableActions = true,
+  enablePagination = true,
+  enableSorting = true,
+  enableFiltering = true,
+}) => {
+  const [data, setData] = useState(initialData);
+  const [globalFilter, setGlobalFilter] = useState("");
+
+  const createEmptyRow = useCallback(() => {
+    return userColumns.reduce((acc, col) => {
+      acc[col.accessorKey] = col.meta?.defaultValue ?? "";
+      return acc;
+    }, {});
+  }, [userColumns]);
+
+  const isRowEmpty = useCallback(
+    (row: any) =>
+      userColumns.every((col) => {
+        const defVal = col.meta?.defaultValue ?? "";
+        const current = row?.[col.accessorKey];
+        return current === defVal || (current === undefined && defVal === "");
+      }),
+    [userColumns]
+  );
+
+  const ensureTrailingEmptyRow = useCallback(
+    (rows: any[]) => {
+      if (!rows || !rows.length) return [createEmptyRow()];
+      const last = rows[rows.length - 1];
+      if (isRowEmpty(last)) return rows;
+      return [...rows, createEmptyRow()];
+    },
+    [createEmptyRow, isRowEmpty]
+  );
+
+  // Mantener sincronizada la data interna con la prop de entrada
+  useEffect(() => {
+    setData((prev) => {
+      const base =
+        initialData && initialData.length ? initialData : [createEmptyRow()];
+      return ensureTrailingEmptyRow(base);
+    });
+  }, [initialData, createEmptyRow, ensureTrailingEmptyRow]);
+
+  const updateData = useCallback(
+    (rowIndex, columnId, value) => {
+      setData((old) => {
+        const mapped = old.map((row, index) => {
+          if (index === rowIndex) {
+            return {
+              ...old[rowIndex],
+              [columnId]: value,
+            };
+          }
+          return row;
+        });
+        const newData = ensureTrailingEmptyRow(mapped);
+        onDataChange?.(newData);
+        return newData;
+      });
+    },
+    [onDataChange, ensureTrailingEmptyRow]
+  );
+
+  const updateRow = useCallback(
+    (rowIndex, updater) => {
+      setData((old) => {
+        const mapped = old.map((row, index) => {
+          if (index === rowIndex) {
+            const nextRow =
+              typeof updater === "function" ? updater(row) ?? row : updater;
+            return { ...row, ...nextRow };
+          }
+          return row;
+        });
+        const newData = ensureTrailingEmptyRow(mapped);
+        onDataChange?.(newData);
+        return newData;
+      });
+    },
+    [onDataChange, ensureTrailingEmptyRow]
+  );
+
+  // Eliminar fila
+  const deleteRow = useCallback(
+    (rowIndex) => {
+      const newData = data.filter((_, index) => index !== rowIndex);
+      const ensured = ensureTrailingEmptyRow(newData);
+      setData(ensured);
+      onDataChange?.(ensured);
+    },
+    [data, onDataChange, ensureTrailingEmptyRow]
+  );
+
+  // Columnas con acciones
+  const columns = useMemo(() => {
+    const cols = [...userColumns];
+    if (enableActions) {
+      cols.push({
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => (
+          <button
+            onClick={() => deleteRow(row.index)}
+            className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+            title="Eliminar fila"
+          >
+            <Trash2 size={18} />
+          </button>
+        ),
+      });
+    }
+    return cols;
+  }, [userColumns, enableActions, deleteRow]);
+
+  const table = useReactTable({
+    data,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: enableFiltering ? getFilteredRowModel() : undefined,
+    getPaginationRowModel: enablePagination
+      ? getPaginationRowModel()
+      : undefined,
+    getSortedRowModel: enableSorting ? getSortedRowModel() : undefined,
+    state: {
+      globalFilter,
+    },
+    onGlobalFilterChange: setGlobalFilter,
+    meta: {
+      updateData,
+      updateRow,
+    },
+  });
+
+  const getColumnStyle = (column) => {
+    const width = column.columnDef?.meta?.width;
+    if (!width) return undefined;
+    return { width, minWidth: width };
+  };
+
+  return (
+    <div className="w-full space-y-4 ">
+      {/* Barra de herramientas */}
+      <div className="flex justify-between items-center gap-4">
+        {enableFiltering && (
+          <div className="relative flex-1 max-w-sm">
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+            <input
+              value={globalFilter ?? ""}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              placeholder="Buscar en toda la tabla..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Tabla */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden ">
+        <div className="overflow-x-auto overflow-y-auto max-h-[420px]">
+          <table className="w-full">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      style={getColumnStyle(header.column)}
+                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200"
+                    >
+                      {header.isPlaceholder ? null : (
+                        <div
+                          className={`flex items-center gap-2 ${
+                            header.column.getCanSort()
+                              ? "cursor-pointer select-none"
+                              : ""
+                          }`}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                          {enableSorting && header.column.getCanSort() && (
+                            <span className="text-gray-400">
+                              {{
+                                asc: <ChevronUp size={16} />,
+                                desc: <ChevronDown size={16} />,
+                              }[header.column.getIsSorted()] ?? (
+                                <ChevronDown size={16} className="opacity-30" />
+                              )}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200 max-h-[520px]">
+              {table.getRowModel().rows.map((row) => (
+                <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                  {row.getVisibleCells().map((cell) => (
+                    <td
+                      key={cell.id}
+                      style={getColumnStyle(cell.column)}
+                      className="px-4 py-2"
+                    >
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Paginación */}
+      {enablePagination && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Mostrando {table.getRowModel().rows.length} de {data.length} filas
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+            >
+              Siguiente
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EditableDataTable;

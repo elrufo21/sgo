@@ -56,6 +56,7 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
     ("activo" as Product["estado"]),
   images: item.productoImagen ? [item.productoImagen] : [],
   idSubLinea: item.idSubLinea,
+  preVentaB: item.productoVentaB,
 });
 
 const mapProductToApi = (
@@ -66,17 +67,17 @@ const mapProductToApi = (
   idSubLinea:
     product.idSubLinea === undefined || product.idSubLinea === null
       ? 0
-      : Number(product.idSubLinea), // usar seleccion; 0 si no hay
+      : Number(product.idSubLinea),
   productoCodigo: product.codigo ?? "",
   productoNombre: product.nombre ?? "",
   productoUM: product.unidadMedida ?? "",
   valorCritico: product.valorCritico ?? 0,
   productoCosto: product.preCosto ?? 0,
   productoVenta: product.preVenta ?? 0,
-  productoVentaB: 0,
+  productoVentaB: product.preVentaB ?? 0,
   productoCantidad: product.cantidad ?? 0,
   productoObs: "",
-  productoEstado: product.estado ?? "activo",
+  productoEstado: product.estado ?? "BUENO",
   productoUsuario: product.usuario ?? "",
   productoFecha: new Date().toISOString(),
   productoImagen: product.images?.[0] ?? "",
@@ -85,7 +86,7 @@ const mapProductToApi = (
   aplicaTC: null,
   fechaVencimiento: null,
   aplicaFechaV: false,
-  aplicaINV: "S", // Backend espera un nvarchar(1); se envía siempre "S"
+  aplicaINV: "S",
   cantidadANT: product.cantidad ?? 0,
   fechaModCant: null,
 });

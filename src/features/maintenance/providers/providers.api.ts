@@ -1,0 +1,38 @@
+import type { Provider } from "@/types/maintenance";
+import { apiRequest } from "@/shared/helpers/apiRequest";
+
+export const providersQueryKey = ["providers"] as const;
+
+type ProviderApiResponse = {
+  proveedorId?: number;
+  proveedorRazon?: string;
+  proveedorRuc?: string;
+  proveedorContacto?: string;
+  proveedorCelular?: string;
+  proveedorTelefono?: string;
+  proveedorCorreo?: string;
+  proveedorDireccion?: string;
+  proveedorEstado?: string;
+} & Record<string, unknown>;
+
+export const fetchProvidersApi = async (): Promise<Provider[]> => {
+  const response = await apiRequest<ProviderApiResponse[]>({
+    url: "http://localhost:5000/api/v1/Proveedor/list",
+    method: "GET",
+    fallback: [],
+  });
+
+  return (
+    response?.map((item) => ({
+      id: Number(item.proveedorId ?? (item as any).id ?? 0),
+      razon: String(item.proveedorRazon ?? (item as any).proveedorRazon ?? (item as any).nombre ?? ""),
+      ruc: String(item.proveedorRuc ?? ""),
+      contacto: String(item.proveedorContacto ?? ""),
+      celular: String(item.proveedorCelular ?? ""),
+      telefono: String(item.proveedorTelefono ?? ""),
+      correo: String(item.proveedorCorreo ?? ""),
+      direccion: String(item.proveedorDireccion ?? ""),
+      estado: String(item.proveedorEstado ?? ""),
+    })) ?? []
+  );
+};

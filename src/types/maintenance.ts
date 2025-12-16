@@ -21,3 +21,15 @@ export interface Computer {
   ticketera: string;
   areaId: number;
 }
+
+export interface Provider {
+  id: number;
+  razon: string;
+  ruc: string;
+  contacto: string;
+  celular: string;
+  telefono: string;
+  correo: string;
+  direccion: string;
+  estado: string;
+}

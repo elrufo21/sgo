@@ -8,6 +8,7 @@ export interface Product {
   valorCritico: number;
   preCosto: number;
   preVenta: number;
+  preVentaB: number | string;
   aplicaINV: "bien" | "servicio";
   cantidad: number;
   usuario: string;

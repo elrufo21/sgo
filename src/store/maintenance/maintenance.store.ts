@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Category, Area, Computer } from "@/types/maintenance";
+import type { Category, Area, Computer, Provider } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { toast } from "sonner";
 import { queryClient } from "@/shared/queryClient";
@@ -15,19 +15,26 @@ import {
   computersQueryKey,
   fetchComputersApi,
 } from "@/features/maintenance/computers/computers.api";
+import {
+  providersQueryKey,
+  fetchProvidersApi,
+} from "@/features/maintenance/providers/providers.api";
 
 interface MaintenanceState {
   categories: Category[];
   areas: Area[];
   computers: Computer[];
+  providers: Provider[];
   loading: boolean;
   setCategories: (items: Category[]) => void;
   setAreas: (items: Area[]) => void;
   setComputers: (items: Computer[]) => void;
+  setProviders: (items: Provider[]) => void;
 
   fetchCategories: () => Promise<void>;
   fetchAreas: () => Promise<void>;
   fetchComputers: () => Promise<void>;
+  fetchProviders: () => Promise<void>;
 
   addCategory: (data: Omit<Category, "id">) => Promise<boolean>;
   updateCategory: (id: number, data: Partial<Category>) => Promise<void>;
@@ -40,16 +47,22 @@ interface MaintenanceState {
   addComputer: (data: Omit<Computer, "id">) => Promise<void>;
   updateComputer: (id: number, data: Partial<Computer>) => Promise<void>;
   deleteComputer: (id: number) => Promise<boolean>;
+
+  addProvider: (data: Omit<Provider, "id">) => Promise<void>;
+  updateProvider: (id: number, data: Partial<Provider>) => Promise<void>;
+  deleteProvider: (id: number) => Promise<boolean>;
 }
 
 export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
   categories: [],
   areas: [],
   computers: [],
+  providers: [],
   loading: false,
   setCategories: (items) => set({ categories: items }),
   setAreas: (items) => set({ areas: items }),
   setComputers: (items) => set({ computers: items }),
+  setProviders: (items) => set({ providers: items }),
 
   fetchCategories: async () => {
     set({ loading: true });
@@ -91,6 +104,19 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
         queryFn: fetchComputersApi,
       });
       set({ computers: response ?? [], loading: false });
+    } catch (err) {
+      console.error(err);
+      set({ loading: false });
+    }
+  },
+  fetchProviders: async () => {
+    set({ loading: true });
+    try {
+      const response = await queryClient.fetchQuery({
+        queryKey: providersQueryKey,
+        queryFn: fetchProvidersApi,
+      });
+      set({ providers: response ?? [], loading: false });
     } catch (err) {
       console.error(err);
       set({ loading: false });
@@ -448,6 +474,154 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       computers: state.computers.filter((c) => c.id !== id),
     }));
     await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+    return true;
+  },
+
+  addProvider: async (data) => {
+    const payload = {
+      proveedorId: 0,
+      proveedorRazon: data.razon,
+      proveedorRuc: data.ruc,
+      proveedorContacto: data.contacto,
+      proveedorCelular: data.celular,
+      proveedorTelefono: data.telefono,
+      proveedorCorreo: data.correo,
+      proveedorDireccion: data.direccion,
+      proveedorEstado: data.estado,
+    };
+
+    const created = await apiRequest<any>({
+      url: "http://localhost:5000/api/v1/Proveedor/register",
+      method: "POST",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id: Date.now() },
+    });
+
+    const hasCreatedId =
+      created &&
+      typeof created === "object" &&
+      ("proveedorId" in (created as any) || "id" in (created as any));
+
+    set((state) => ({
+      providers: [
+        ...state.providers,
+        hasCreatedId
+          ? {
+              id: (created as any).id ?? (created as any).proveedorId,
+              razon:
+                (created as any).proveedorRazon ??
+                (created as any).razon ??
+                data.razon,
+              ruc: (created as any).proveedorRuc ?? data.ruc,
+              contacto: (created as any).proveedorContacto ?? data.contacto,
+              celular: (created as any).proveedorCelular ?? data.celular,
+              telefono: (created as any).proveedorTelefono ?? data.telefono,
+              correo: (created as any).proveedorCorreo ?? data.correo,
+              direccion: (created as any).proveedorDireccion ?? data.direccion,
+              estado: (created as any).proveedorEstado ?? data.estado,
+            }
+          : { ...data, id: Date.now() },
+      ],
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: providersQueryKey });
+  },
+
+  updateProvider: async (id, data) => {
+    const payload = {
+      proveedorId: id,
+      proveedorRazon: data.razon ?? "",
+      proveedorRuc: data.ruc ?? "",
+      proveedorContacto: data.contacto ?? "",
+      proveedorCelular: data.celular ?? "",
+      proveedorTelefono: data.telefono ?? "",
+      proveedorCorreo: data.correo ?? "",
+      proveedorDireccion: data.direccion ?? "",
+      proveedorEstado: data.estado ?? "",
+    };
+
+    const updated = await apiRequest<any>({
+      url: `http://localhost:5000/api/v1/Proveedor/${id}`,
+      method: "PUT",
+      data: payload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: { ...data, id },
+    });
+
+    set((state) => ({
+      providers: state.providers.map((p) => {
+        if (p.id !== id) return p;
+        const hasUpdatedId =
+          updated &&
+          typeof updated === "object" &&
+          ("proveedorId" in (updated as any) || "id" in (updated as any));
+        if (hasUpdatedId) {
+          return {
+            id: (updated as any).id ?? (updated as any).proveedorId ?? id,
+            razon:
+              (updated as any).proveedorRazon ??
+              (updated as any).razon ??
+              data.razon ??
+              p.razon,
+            ruc: (updated as any).proveedorRuc ?? data.ruc ?? p.ruc,
+            contacto:
+              (updated as any).proveedorContacto ??
+              data.contacto ??
+              p.contacto,
+            celular:
+              (updated as any).proveedorCelular ?? data.celular ?? p.celular,
+            telefono:
+              (updated as any).proveedorTelefono ??
+              data.telefono ??
+              p.telefono,
+            correo:
+              (updated as any).proveedorCorreo ?? data.correo ?? p.correo,
+            direccion:
+              (updated as any).proveedorDireccion ??
+              data.direccion ??
+              p.direccion,
+            estado:
+              (updated as any).proveedorEstado ?? data.estado ?? p.estado,
+          };
+        }
+        return { ...p, ...data };
+      }),
+    }));
+
+    await queryClient.invalidateQueries({ queryKey: providersQueryKey });
+  },
+
+  deleteProvider: async (id) => {
+    const result = await apiRequest({
+      url: `http://localhost:5000/api/v1/Proveedor/${id}`,
+      method: "DELETE",
+      config: {
+        headers: {
+          Accept: "*/*",
+        },
+      },
+      fallback: null,
+    });
+
+    if (!result) {
+      return false;
+    }
+
+    set((state) => ({
+      providers: state.providers.filter((p) => p.id !== id),
+    }));
+    await queryClient.invalidateQueries({ queryKey: providersQueryKey });
     return true;
   },
 }));
