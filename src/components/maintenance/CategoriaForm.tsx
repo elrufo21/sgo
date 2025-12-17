@@ -22,7 +22,6 @@ export default function CategoriaForm({
   onDelete,
   variant = "page",
 }: CategoriaFormProps) {
-  console.log("initialData", initialData);
   const [form, setForm] = useState<Category>({
     id: 0,
     nombreSublinea: "",
@@ -55,7 +54,6 @@ export default function CategoriaForm({
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Para modo modal, exponer data al dialog store
   useEffect(() => {
     if (isModal) {
       setDialogData({
@@ -74,6 +72,46 @@ export default function CategoriaForm({
     focusFirstInput(containerRef.current);
   };
 
+  const Header = () =>
+    isModal ? null : (
+      <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+        <h1 className="text-base font-semibold">
+          {mode === "create" ? "Crear Categoria" : "Editar Categoria"}
+        </h1>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+            title="Guardar"
+          >
+            <Save className="w-4 h-4" />
+            <span className="hidden sm:inline">Guardar</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleNew}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+            title="Nuevo"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Nuevo</span>
+          </button>
+          {mode === "edit" && onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+              title="Eliminar"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Eliminar</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -82,16 +120,12 @@ export default function CategoriaForm({
             variant !== "modal" && "rounded-2xl shadow-xl"
           } overflow-hidden`}
         >
+          <Header />
           <div className="p-6 sm:p-8">
-            {variant !== "modal" && (
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                {mode === "create" ? "Crear Categoría" : "Editar Categoría"}
-              </h2>
-            )}
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-700">
-                  Nombre de categoría
+                  Nombre de categoria
                 </label>
                 <input
                   data-focus-first
@@ -108,7 +142,7 @@ export default function CategoriaForm({
               {mode === "edit" && (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Código SUNAT
+                    Codigo SUNAT
                   </label>
                   <input
                     type="text"
@@ -122,39 +156,6 @@ export default function CategoriaForm({
                 </div>
               )}
             </div>
-
-            {/* ----------- Actions ----------- */}
-            {!isModal && (
-              <div className="mt-8 flex gap-3 justify-center flex-wrap">
-                <button
-                  onClick={handleSave}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600
-                  text-white font-semibold rounded-lg hover:bg-blue-700 transition"
-                >
-                  <Save className="w-5 h-5" /> Guardar
-                </button>
-
-                {mode === "create" && (
-                  <button
-                    onClick={handleNew}
-                    className="flex items-center gap-2 px-6 py-3 border-2 
-                    border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    <Plus className="w-5 h-5" /> Nuevo
-                  </button>
-                )}
-
-                {mode === "edit" && onDelete && (
-                  <button
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-6 py-3 border-2 
-                    border-red-600 text-red-600 rounded-lg hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="w-5 h-5" /> Eliminar
-                  </button>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>

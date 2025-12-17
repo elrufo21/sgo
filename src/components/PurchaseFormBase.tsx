@@ -47,7 +47,7 @@ export default function PurchaseFormBase({
 
   useEffect(() => {
     if (initialData) {
-      setForm({ ...form, ...initialData });
+      setForm((prev) => ({ ...prev, ...initialData }));
     }
   }, [initialData]);
 
@@ -75,8 +75,10 @@ export default function PurchaseFormBase({
       !cuentaTemp.moneda ||
       !cuentaTemp.tipoCuenta ||
       !cuentaTemp.numeroCuenta
-    )
-      return alert("Complete todos los campos de la cuenta");
+    ) {
+      alert("Complete todos los campos de la cuenta");
+      return;
+    }
 
     const index = form.cuentasBancarias.findIndex(
       (c) => c.numeroCuenta === cuentaTemp.numeroCuenta
@@ -140,30 +142,60 @@ export default function PurchaseFormBase({
       cell: (info) => info.getValue(),
     }),
     columnHelper.accessor("numeroCuenta", {
-      header: "Número de cuenta",
+      header: "Numero de cuenta",
       cell: (info) => info.getValue(),
     }),
   ];
 
   return (
-    <div
-      ref={containerRef}
-      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
-    >
+    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
               {mode === "create"
                 ? "Crear Proveedor / Cliente"
                 : "Editar Proveedor / Cliente"}
-            </h2>
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Nuevo"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
+              {mode === "edit" && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
+                </button>
+              )}
+            </div>
+          </div>
 
+          <div className="p-6 sm:p-8">
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-[40%] space-y-4">
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Nombre / Razón Social
+                    Nombre / Razon Social
                   </label>
                   <input
                     data-focus-first="true"
@@ -171,7 +203,7 @@ export default function PurchaseFormBase({
                     name="nombreRazon"
                     value={form.nombreRazon}
                     onChange={handleChange}
-                    placeholder="Ingrese nombre o razón social"
+                    placeholder="Ingrese nombre o razon social"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                 </div>
@@ -213,7 +245,7 @@ export default function PurchaseFormBase({
                     name="celular"
                     value={form.celular}
                     onChange={handleChange}
-                    placeholder="Ingrese número de celular"
+                    placeholder="Ingrese numero de celular"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                 </div>
@@ -227,21 +259,21 @@ export default function PurchaseFormBase({
                     name="email"
                     value={form.email}
                     onChange={handleChange}
-                    placeholder="Ingrese correo electrónico"
+                    placeholder="Ingrese correo electronico"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Dirección
+                    Direccion
                   </label>
                   <input
                     type="text"
                     name="direccion"
                     value={form.direccion}
                     onChange={handleChange}
-                    placeholder="Ingrese dirección"
+                    placeholder="Ingrese direccion"
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                 </div>
@@ -293,7 +325,7 @@ export default function PurchaseFormBase({
                     >
                       <option value="">Seleccione moneda</option>
                       <option value="PEN">Soles (PEN)</option>
-                      <option value="USD">Dólares (USD)</option>
+                      <option value="USD">Dolares (USD)</option>
                     </select>
                   </div>
                 </div>
@@ -317,14 +349,14 @@ export default function PurchaseFormBase({
 
                   <div className="flex-1">
                     <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Número de Cuenta
+                      Numero de Cuenta
                     </label>
                     <input
                       type="text"
                       name="numeroCuenta"
                       value={cuentaTemp.numeroCuenta}
                       onChange={handleCuentaChange}
-                      placeholder="Ingrese número de cuenta"
+                      placeholder="Ingrese numero de cuenta"
                       className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                     />
                   </div>
@@ -344,35 +376,6 @@ export default function PurchaseFormBase({
                   onRowClick={(row) => setCuentaTemp(row)}
                 />
               </div>
-            </div>
-
-            <div className="mt-8 flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl"
-              >
-                <Save className="w-5 h-5" /> Guardar
-              </button>
-
-              {mode === "edit" && (
-                <>
-                  <button
-                    onClick={handleNew}
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg border-2 border-blue-600 hover:bg-blue-50 transform hover:scale-105 transition-all"
-                  >
-                    <Plus className="w-5 h-5" /> Nuevo
-                  </button>
-                  {onDelete && (
-                    <button
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg border-2 border-red-600 hover:bg-red-50 transform hover:scale-105 transition-all"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                      Eliminar
-                    </button>
-                  )}
-                </>
-              )}
             </div>
           </div>
         </div>

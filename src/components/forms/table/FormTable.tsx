@@ -8,6 +8,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, Search, Trash2 } from "lucide-react";
+
 const EditableDataTable = ({
   columns: userColumns,
   data: initialData,
@@ -28,7 +29,7 @@ const EditableDataTable = ({
   }, [userColumns]);
 
   const isRowEmpty = useCallback(
-    (row: any) =>
+    (row) =>
       userColumns.every((col) => {
         const defVal = col.meta?.defaultValue ?? "";
         const current = row?.[col.accessorKey];
@@ -38,7 +39,7 @@ const EditableDataTable = ({
   );
 
   const ensureTrailingEmptyRow = useCallback(
-    (rows: any[]) => {
+    (rows) => {
       if (!rows || !rows.length) return [createEmptyRow()];
       const last = rows[rows.length - 1];
       if (isRowEmpty(last)) return rows;
@@ -47,7 +48,6 @@ const EditableDataTable = ({
     [createEmptyRow, isRowEmpty]
   );
 
-  // Mantener sincronizada la data interna con la prop de entrada
   useEffect(() => {
     setData((prev) => {
       const base =
@@ -95,7 +95,6 @@ const EditableDataTable = ({
     [onDataChange, ensureTrailingEmptyRow]
   );
 
-  // Eliminar fila
   const deleteRow = useCallback(
     (rowIndex) => {
       const newData = data.filter((_, index) => index !== rowIndex);
@@ -106,7 +105,6 @@ const EditableDataTable = ({
     [data, onDataChange, ensureTrailingEmptyRow]
   );
 
-  // Columnas con acciones
   const columns = useMemo(() => {
     const cols = [...userColumns];
     if (enableActions) {
@@ -153,11 +151,11 @@ const EditableDataTable = ({
   };
 
   return (
-    <div className="w-full space-y-4 ">
+    <div className="w-full space-y-4 px-2 sm:px-0">
       {/* Barra de herramientas */}
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
         {enableFiltering && (
-          <div className="relative flex-1 max-w-sm">
+          <div className="relative flex-1 max-w-full sm:max-w-sm">
             <Search
               className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
               size={18}
@@ -173,9 +171,9 @@ const EditableDataTable = ({
       </div>
 
       {/* Tabla */}
-      <div className="border border-gray-200 rounded-lg overflow-hidden ">
-        <div className="overflow-x-auto overflow-y-auto max-h-[420px]">
-          <table className="w-full">
+      <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <div className="overflow-x-auto overflow-y-auto max-h-[400px] sm:max-h-[540px]">
+          <table className="w-full min-w-[640px]">
             <thead className="bg-gray-50 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
@@ -183,11 +181,11 @@ const EditableDataTable = ({
                     <th
                       key={header.id}
                       style={getColumnStyle(header.column)}
-                      className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200"
+                      className="px-2 sm:px-4 py-3 text-left text-xs sm:text-sm font-semibold text-gray-700 border-b border-gray-200"
                     >
                       {header.isPlaceholder ? null : (
                         <div
-                          className={`flex items-center gap-2 ${
+                          className={`flex items-center gap-1 sm:gap-2 ${
                             header.column.getCanSort()
                               ? "cursor-pointer select-none"
                               : ""
@@ -215,14 +213,14 @@ const EditableDataTable = ({
                 </tr>
               ))}
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200 max-h-[520px]">
+            <tbody className="bg-white divide-y divide-gray-200">
               {table.getRowModel().rows.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                   {row.getVisibleCells().map((cell) => (
                     <td
                       key={cell.id}
                       style={getColumnStyle(cell.column)}
-                      className="px-4 py-2"
+                      className="px-2 sm:px-4 py-2 text-sm"
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
@@ -239,22 +237,22 @@ const EditableDataTable = ({
 
       {/* Paginación */}
       {enablePagination && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="text-sm text-gray-600 text-center sm:text-left">
             Mostrando {table.getRowModel().rows.length} de {data.length} filas
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              className="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
             >
               Anterior
             </button>
             <button
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+              className="px-3 sm:px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
             >
               Siguiente
             </button>

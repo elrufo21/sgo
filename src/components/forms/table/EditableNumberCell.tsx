@@ -18,7 +18,7 @@ const EditableNumberCell = ({ getValue, row, column, table }) => {
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={onBlur}
-      className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-full px-2 py-1 border border-gray-300 text-right rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     />
   );
 };

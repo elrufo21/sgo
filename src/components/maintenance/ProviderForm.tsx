@@ -34,7 +34,7 @@ export default function ProviderForm({
       telefono: initialData?.telefono ?? "",
       correo: initialData?.correo ?? "",
       direccion: initialData?.direccion ?? "",
-      estado: initialData?.estado ?? "",
+      estado: initialData?.estado ?? "ACTIVO",
     }),
     [initialData]
   );
@@ -95,15 +95,48 @@ export default function ProviderForm({
 
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+        <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
               {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
-            </h2>
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Nuevo"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
+              {mode === "edit" && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
+                </button>
+              )}
+            </div>
+          </div>
 
-            <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="p-6 sm:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
                 <HookFormInput<Provider>
                   name="razon"
                   label="Razon social"
@@ -159,40 +192,57 @@ export default function ProviderForm({
                   rules={{ required: "El estado es obligatorio" }}
                 />
               </div>
+              <div className="border-t-2 border-gray-100 pt-4 order-1 lg:order-2">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-6">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="ruc"
+                        defaultChecked
+                        {...formMethods.register("tipoDocumento")}
+                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
+                      />
+                      <span className="text-gray-700 font-medium">RUC</span>
+                    </label>
 
-              <div className="mt-8 flex flex-wrap gap-3 justify-center">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-70"
-                >
-                  <Save />
-                  Guardar
-                </button>
-                {mode === "create" && (
-                  <button
-                    type="button"
-                    onClick={handleNew}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-                  >
-                    <Plus />
-                    Nuevo
-                  </button>
-                )}
-                {mode === "edit" && onDelete && (
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-                  >
-                    <Trash2 />
-                    Eliminar
-                  </button>
-                )}
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        value="dni"
+                        {...formMethods.register("tipoDocumento")}
+                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
+                      />
+                      <span className="text-gray-700 font-medium">DNI</span>
+                    </label>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <div className="relative w-full">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        {...formMethods.register("numeroDocumento")}
+                        placeholder="Ingrese numero"
+                        className="w-full pr-32 px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                      />
+                      <button
+                        type="button"
+                        className="absolute top-1/2 right-1.5 -translate-y-1/2 px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                        onClick={() => {
+                          console.log("Consultar documento");
+                        }}
+                      >
+                        Consultar
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </HookForm>
+            </div>
           </div>
-        </div>
+        </HookForm>
       </div>
     </div>
   );

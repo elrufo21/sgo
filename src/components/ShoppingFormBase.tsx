@@ -1,6 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
-import { Controller, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
@@ -15,6 +21,9 @@ import EditableTextCell from "@/components/forms/table/EditableTextCell";
 import EditableNumberCell from "@/components/forms/table/EditableNumberCell";
 import { useProvidersQuery } from "@/features/maintenance/providers/useProvidersQuery";
 import TotalsPanel from "./shopping/TotalsPanel";
+import { fetchProvidersApi } from "@/features/maintenance/providers/providers.api";
+import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
+import { useShoppingStore } from "@/store/shopping/shopping.store";
 
 interface ShoppingFormBaseProps {
   initialData?: Partial<ShoppingFormData>;
@@ -31,9 +40,9 @@ const conceptOptions = [
 ];
 
 const documentoOptions = [
-  { value: "Factura", label: "Factura" },
-  { value: "Boleta", label: "Boleta" },
-  { value: "Recibo", label: "Recibo" },
+  { value: "01", label: "Factura" },
+  { value: "03", label: "Boleta" },
+  { value: "00", label: "Nota de credito" },
 ];
 
 const condicionOptions = [
@@ -47,9 +56,9 @@ const monedaOptions = [
 ];
 
 const tipoIgvOptions = [
-  { value: "Gravado", label: "Gravado" },
-  { value: "Exonerado", label: "Exonerado" },
-  { value: "Inafecto", label: "Inafecto" },
+  { value: 1, label: "Incluido" },
+  { value: 2, label: "Disgregado" },
+  { value: 3, label: "Sin IGV" },
 ];
 
 export default function ShoppingFormBase({
@@ -93,6 +102,8 @@ export default function ShoppingFormBase({
                 preCosto: 0,
                 preVenta: 0,
                 cantidad: 1,
+                descuento: 0,
+                importe: 0,
               },
             ],
     }),
@@ -107,9 +118,14 @@ export default function ShoppingFormBase({
     reset,
     handleSubmit,
     setValue,
+    getValues,
     watch,
     formState: { isSubmitting },
   } = formMethods;
+  const setProviders = useMaintenanceStore((s) => s.setProviders);
+  const draftItems = useShoppingStore((s) => s.draftItems);
+  const setDraftItems = useShoppingStore((s) => s.setDraftItems);
+  const clearDraftItems = useShoppingStore((s) => s.clearDraftItems);
   const [tableData, setTableData] = useState<ShoppingItem[]>(defaults.items);
   const [descuento, setDescuento] = useState<number>(0);
   const [percepcion, setPercepcion] = useState<number>(0);
@@ -136,10 +152,34 @@ export default function ShoppingFormBase({
     [providers]
   );
 
+  const rucOptions = useMemo(
+    () =>
+      providers
+        .filter((prov) => prov.ruc)
+        .map((prov) => ({
+          value: prov.ruc ?? "",
+          label: prov.ruc ?? "",
+          razon: prov.razon ?? "",
+        })),
+    [providers]
+  );
+
   useEffect(() => {
     reset(defaults);
-    setTableData(defaults.items);
-    setValue("items", defaults.items);
+    const normalized = normalizeRows(defaults.items);
+    setTableData(normalized);
+    setValue("items", normalized);
+
+    // Si no hay datos iniciales y hay borrador, hidratarlo
+    if (
+      mode === "create" &&
+      (!initialData?.items || initialData.items.length === 0) &&
+      draftItems.length > 0
+    ) {
+      const hydrated = normalizeRows(draftItems);
+      setTableData(hydrated);
+      setValue("items", hydrated);
+    }
   }, [defaults, reset]);
 
   useEffect(() => {
@@ -156,6 +196,10 @@ export default function ShoppingFormBase({
   const diasPlazo = watch("diasPlazo");
   const fechaEmision = watch("fechaEmision");
   const fechaPago = watch("fechaPago");
+  const numeroSerie = watch("numero");
+  const rucValue = watch("ruc");
+  const documento = watch("documento");
+  const isBoleta = (documento ?? "").trim() === "03";
   const isCredito = (condicion ?? "").toLowerCase() === "credito";
   const lastChangedRef = useRef<
     "diasPlazo" | "fechaPago" | "fechaEmision" | null
@@ -188,6 +232,28 @@ export default function ShoppingFormBase({
   }, [diasPlazo, fechaPago, fechaEmision]);
 
   const isSyncingRef = useRef(false);
+  const lastRucLookupRef = useRef<string>("");
+
+  const lookupProviderByRuc = useCallback(
+    async (ruc: string) => {
+      const trimmed = ruc.trim();
+      if (!trimmed) return;
+      try {
+        const providersList = await fetchProvidersApi();
+        setProviders(providersList ?? []);
+        const found = providersList?.find(
+          (p) => (p.ruc ?? "").trim() === trimmed
+        );
+        if (found) {
+          setValue("proveedor", found.razon ?? "", { shouldDirty: true });
+          setValue("ruc", found.ruc ?? trimmed, { shouldDirty: true });
+        }
+      } catch (error) {
+        console.error("No se pudo consultar proveedor por RUC", error);
+      }
+    },
+    [setProviders, setValue]
+  );
 
   // Sync diasPlazo -> fechaPago
   useEffect(() => {
@@ -242,9 +308,49 @@ export default function ShoppingFormBase({
     }
   }, [fechaPago, fechaEmision, isCredito, diasPlazo, setValue]);
 
+  // Consultar proveedor por RUC y autocompletar
+  useEffect(() => {
+    const trimmed = (rucValue ?? "").trim();
+    if (!trimmed || trimmed.length < 8) return;
+    if (lastRucLookupRef.current === trimmed) return;
+    lastRucLookupRef.current = trimmed;
+    lookupProviderByRuc(trimmed);
+  }, [lookupProviderByRuc, rucValue]);
+
+  // Formatear numero de serie: AAAA-#### (primeros 4 letras, luego números)
+  useEffect(() => {
+    const raw = numeroSerie ?? "";
+    const letters = raw
+      .replace(/[^a-zA-Z]/g, "")
+      .slice(0, 4)
+      .toUpperCase();
+    const numbers = raw.replace(/\D/g, "").slice(0, 4);
+    if (!letters && !numbers) return;
+    const formatted =
+      letters.length === 4 && numbers ? `${letters}-${numbers}` : letters;
+    if (formatted !== raw) setValue("numero", formatted, { shouldDirty: true });
+  }, [numeroSerie, setValue]);
+
   const normalizeRows = (rows: ShoppingItem[]): ShoppingItem[] =>
     rows.map((row) => {
-      const prod = productMap.get(row.productId ?? row["productId"]);
+      const prod = productMap.get(
+        String(row.productId ?? row["productId"] ?? "")
+      );
+      const cantidadNum = Number(row.cantidad ?? 1) || 1;
+      const importeInput = Number(row.importe ?? (row as any)["importe"]);
+      const hasImporte = Number.isFinite(importeInput);
+      const costoFromProd = prod ? Number(prod.preCosto ?? 0) : null;
+      const costoBase = Number(row.preCosto ?? 0) || 0;
+      const costoNum =
+        hasImporte && cantidadNum > 0
+          ? Number((importeInput / cantidadNum).toFixed(2))
+          : Number.isFinite(costoFromProd ?? NaN)
+          ? (costoFromProd as number)
+          : costoBase;
+      const descuentoNum = Number(row.descuento ?? 0) || 0;
+      const importeNum = hasImporte
+        ? Number(importeInput.toFixed(2))
+        : Number((costoNum * cantidadNum).toFixed(2));
       return {
         ...row,
         productId: prod?.id ?? row.productId ?? null,
@@ -252,13 +358,13 @@ export default function ShoppingFormBase({
         nombre: prod?.nombre ?? row.nombre ?? "",
         unidadMedida: prod?.unidadMedida ?? row.unidadMedida ?? "",
         stock: prod ? Number(prod.cantidad ?? 0) : Number(row.stock ?? 0) || 0,
-        preCosto: prod
-          ? Number(prod.preCosto ?? 0)
-          : Number(row.preCosto ?? 0) || 0,
+        preCosto: costoNum,
         preVenta: prod
           ? Number(prod.preVenta ?? 0)
           : Number(row.preVenta ?? 0) || 0,
-        cantidad: Number(row.cantidad ?? 1) || 1,
+        cantidad: cantidadNum,
+        descuento: descuentoNum,
+        importe: importeNum,
       };
     });
 
@@ -266,12 +372,109 @@ export default function ShoppingFormBase({
     const normalized = normalizeRows(rows);
     setTableData(normalized);
     setValue("items", normalized, { shouldDirty: true });
+    if (mode === "create") {
+      setDraftItems(normalized);
+    }
+  };
+
+  const ImportCell = ({ getValue, row, table }: any) => {
+    const initialValue = Number(getValue() ?? 0) || 0;
+    const [value, setValue] = useState<string>(initialValue.toString());
+
+    useEffect(() => {
+      setValue(initialValue.toString());
+    }, [initialValue]);
+
+    const onBlur = () => {
+      const cantidad = Number(row.getValue("cantidad") ?? 1) || 1;
+      const importeNum = Number(value) || 0;
+      const newCosto =
+        cantidad > 0 ? Number((importeNum / cantidad).toFixed(2)) : 0;
+
+      table.options.meta?.updateRow(row.index, (r: any) => ({
+        ...r,
+        importe: importeNum,
+        preCosto: newCosto,
+      }));
+    };
+
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={onBlur}
+        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+      />
+    );
   };
 
   const productMap = useMemo(
-    () => new Map(productOptions.map((p) => [p.value, p.data])),
+    () => new Map(productOptions.map((p) => [String(p.value), p.data])),
     [productOptions]
   );
+
+  const QuantityCell = ({ getValue, row, table }: any) => {
+    const initialValue = Number(getValue() ?? 0) || 0;
+    const [value, setValue] = useState<string>(initialValue.toString());
+
+    useEffect(() => {
+      setValue(initialValue.toString());
+    }, [initialValue]);
+
+    const onBlur = () => {
+      const qty = Number(value) || 0;
+      const costo = Number(row.getValue("preCosto") ?? 0) || 0;
+      const importe = Number((qty * costo).toFixed(2));
+
+      table.options.meta?.updateRow(row.index, (r: any) => ({
+        ...r,
+        cantidad: qty,
+        importe,
+      }));
+    };
+
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={onBlur}
+        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+      />
+    );
+  };
+
+  const CostCell = ({ getValue, row, table }: any) => {
+    const initialValue = Number(getValue() ?? 0) || 0;
+    const [value, setValue] = useState<string>(initialValue.toString());
+
+    useEffect(() => {
+      setValue(initialValue.toString());
+    }, [initialValue]);
+
+    const onBlur = () => {
+      const costo = Number(value) || 0;
+      const qty = Number(row.getValue("cantidad") ?? 0) || 0;
+      const importe = Number((qty * costo).toFixed(2));
+
+      table.options.meta?.updateRow(row.index, (r: any) => ({
+        ...r,
+        preCosto: costo,
+        importe,
+      }));
+    };
+
+    return (
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={onBlur}
+        className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+      />
+    );
+  };
 
   const columns = useMemo(() => {
     return [
@@ -288,33 +491,33 @@ export default function ShoppingFormBase({
       },
       {
         accessorKey: "unidadMedida",
-        header: "Unidad",
+        header: "UM",
         cell: EditableTextCell,
-        meta: { defaultValue: "" },
-      },
-      {
-        accessorKey: "stock",
-        header: "Stock",
-        cell: EditableNumberCell,
-        meta: { defaultValue: 0 },
-      },
-      {
-        accessorKey: "preCosto",
-        header: "Costo",
-        cell: EditableNumberCell,
-        meta: { defaultValue: 0 },
-      },
-      {
-        accessorKey: "preVenta",
-        header: "Precio venta",
-        cell: EditableNumberCell,
-        meta: { defaultValue: 0 },
+        meta: { defaultValue: "", disabled: true },
       },
       {
         accessorKey: "cantidad",
         header: "Cantidad",
-        cell: EditableNumberCell,
+        cell: QuantityCell,
         meta: { defaultValue: 1 },
+      },
+      {
+        accessorKey: "preCosto",
+        header: "Costo",
+        cell: CostCell,
+        meta: { defaultValue: 0 },
+      },
+      {
+        accessorKey: "descuento",
+        header: "Descuento",
+        cell: EditableNumberCell,
+        meta: { defaultValue: 0 },
+      },
+      {
+        accessorKey: "importe",
+        header: "Importe",
+        cell: ImportCell,
+        meta: { defaultValue: 0 },
       },
     ];
   }, [productOptions]);
@@ -332,6 +535,7 @@ export default function ShoppingFormBase({
       items: detail,
     });
     if (mode === "create") {
+      clearDraftItems();
       const emptyRow = {
         productId: null,
         codigo: "",
@@ -341,6 +545,8 @@ export default function ShoppingFormBase({
         preCosto: 0,
         preVenta: 0,
         cantidad: 1,
+        descuento: 0,
+        importe: 0,
       };
       reset({
         concepto: "",
@@ -366,6 +572,7 @@ export default function ShoppingFormBase({
   };
 
   const handleNew = () => {
+    clearDraftItems();
     const emptyRow = {
       productId: null,
       codigo: "",
@@ -375,6 +582,8 @@ export default function ShoppingFormBase({
       preCosto: 0,
       preVenta: 0,
       cantidad: 1,
+      descuento: 0,
+      importe: 0,
     };
     reset({
       concepto: "",
@@ -401,45 +610,101 @@ export default function ShoppingFormBase({
 
   return (
     <div ref={containerRef} className="py-6 px-3 sm:px-4 lg:px-6 w-full">
-      <div className="mx-auto bg-white rounded-2xl shadow-xl p-6 sm:p-7 ">
+      <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 lg:gap-6 ">
-            <div className="space-y-4 col-span-2 max-h-[640px] overflow-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="col-span-2">
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
+              {mode === "create" ? "Nueva Compra" : "Editar Compra"}
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
+              {mode === "create" && (
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </button>
+              )}
+              {mode === "edit" && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-7">
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 lg:gap-6 ">
+              <div className="space-y-4 col-span-2  overflow-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <HookFormAutocomplete<ShoppingFormData>
+                      name="proveedor"
+                      label="Proveedor"
+                      options={providerOptions}
+                      placeholder="Seleccionar proveedor"
+                      rules={{
+                        validate: (value) =>
+                          isBoleta ||
+                          (value?.trim()
+                            ? true
+                            : "El proveedor es obligatorio"),
+                      }}
+                      onOptionSelected={(option) => {
+                        if (option?.ruc) {
+                          setValue("ruc", option.ruc, { shouldDirty: true });
+                        }
+                      }}
+                    />
+                  </div>
                   <HookFormAutocomplete<ShoppingFormData>
-                    name="proveedor"
-                    label="Proveedor"
-                    options={providerOptions}
-                    placeholder="Seleccionar proveedor"
-                    rules={{ required: "El proveedor es obligatorio" }}
+                    name="ruc"
+                    label="RUC"
+                    options={rucOptions}
+                    placeholder="RUC"
+                    rules={{
+                      validate: (value) => {
+                        if (isBoleta) return true;
+                        if (!value?.trim()) return "El RUC es obligatorio";
+                        return (
+                          /^\d{8,11}$/.test(value.trim()) ||
+                          "Ingrese un RUC valido"
+                        );
+                      },
+                    }}
                     onOptionSelected={(option) => {
-                      if (option?.ruc) {
-                        setValue("ruc", option.ruc, { shouldDirty: true });
+                      if (option?.razon) {
+                        setValue("proveedor", option.razon, {
+                          shouldDirty: true,
+                        });
                       }
                     }}
                   />
-                </div>
-                <HookFormInput<ShoppingFormData>
-                  name="ruc"
-                  label="RUC"
-                  placeholder="RUC"
-                  inputMode="numeric"
-                  rules={{
-                    validate: (value) =>
-                      !value?.trim() ||
-                      /^\d{8,11}$/.test(value.trim()) ||
-                      "Ingrese un RUC valido",
-                  }}
-                />
 
-                <HookFormInput<ShoppingFormData>
-                  name="fechaEmision"
-                  label="Fecha de emision"
-                  type="date"
-                  rules={{ required: "La fecha de emision es obligatoria" }}
-                />
-                <div className="col-span-2">
+                  <HookFormInput<ShoppingFormData>
+                    name="fechaEmision"
+                    label="Fecha de emision"
+                    type="date"
+                    rules={{ required: "La fecha de emision es obligatoria" }}
+                  />
                   <HookFormSelect<ShoppingFormData>
                     name="documento"
                     label="Documento"
@@ -449,141 +714,86 @@ export default function ShoppingFormBase({
                     ]}
                     rules={{ required: "El documento es obligatorio" }}
                   />
+
+                  <HookFormInput<ShoppingFormData>
+                    name="numero"
+                    label="Numero de serie"
+                    placeholder="Numero"
+                    rules={{ required: "El numero es obligatorio" }}
+                  />
+
+                  <HookFormSelect<ShoppingFormData>
+                    name="condicion"
+                    label="Condicion"
+                    options={[
+                      { value: "", label: "Seleccionar..." },
+                      ...condicionOptions,
+                    ]}
+                    rules={{ required: "La condicion es obligatoria" }}
+                  />
+                  <HookFormSelect<ShoppingFormData>
+                    name="tipoIgv"
+                    label="Tipo IGV"
+                    options={[
+                      { value: "", label: "Seleccionar..." },
+                      ...tipoIgvOptions,
+                    ]}
+                    rules={{ required: "El tipo de IGV es obligatorio" }}
+                  />
+                  <HookFormInput<ShoppingFormData>
+                    name="diasPlazo"
+                    label="Dias de plazo"
+                    type="number"
+                    disabled={!isCredito}
+                    rules={{
+                      valueAsNumber: true,
+                      min: { value: 0, message: "Debe ser 0 o mayor" },
+                    }}
+                  />
+
+                  <HookFormInput<ShoppingFormData>
+                    name="fechaPago"
+                    label="Fecha de pago"
+                    type="date"
+                    disabled={!isCredito}
+                    rules={{
+                      validate: (value) =>
+                        !isCredito ||
+                        !!value ||
+                        "La fecha de pago es obligatoria",
+                    }}
+                  />
+                </div>
+                <TotalsPanel
+                  tableData={tableData}
+                  descuento={descuento}
+                  percepcion={percepcion}
+                  onChangeDescuento={setDescuento}
+                  onChangePercepcion={setPercepcion}
+                />
+              </div>
+
+              <div className="space-y-3 col-span-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <HookFormAutocomplete<ShoppingFormData>
+                    name="concepto"
+                    label="Concepto"
+                    options={conceptOptions}
+                    placeholder="Seleccionar concepto"
+                    rules={{ required: "El concepto es obligatorio" }}
+                  />
                 </div>
 
-                <HookFormInput<ShoppingFormData>
-                  name="serie"
-                  label="Serie"
-                  placeholder="Serie"
-                  rules={{ required: "La serie es obligatoria" }}
-                />
-
-                <HookFormInput<ShoppingFormData>
-                  name="numero"
-                  label="Numero"
-                  placeholder="Numero"
-                  rules={{ required: "El numero es obligatorio" }}
-                />
-
-                <HookFormSelect<ShoppingFormData>
-                  name="condicion"
-                  label="Condicion"
-                  options={[
-                    { value: "", label: "Seleccionar..." },
-                    ...condicionOptions,
-                  ]}
-                  rules={{ required: "La condicion es obligatoria" }}
-                />
-
-                <HookFormSelect<ShoppingFormData>
-                  name="moneda"
-                  label="Moneda"
-                  options={[
-                    { value: "", label: "Seleccionar..." },
-                    ...monedaOptions,
-                  ]}
-                  rules={{ required: "La moneda es obligatoria" }}
-                />
-
-                <HookFormInput<ShoppingFormData>
-                  name="diasPlazo"
-                  label="Dias de plazo"
-                  type="number"
-                  disabled={!isCredito}
-                  rules={{
-                    valueAsNumber: true,
-                    min: { value: 0, message: "Debe ser 0 o mayor" },
-                  }}
-                />
-
-                <HookFormInput<ShoppingFormData>
-                  name="fechaPago"
-                  label="Fecha de pago"
-                  type="date"
-                  disabled={!isCredito}
-                  rules={{
-                    validate: (value) =>
-                      !isCredito ||
-                      !!value ||
-                      "La fecha de pago es obligatoria",
-                  }}
+                <EditableDataTable
+                  data={tableData}
+                  columns={columns}
+                  onDataChange={handleTableChange}
+                  enablePagination={false}
+                  enableFiltering={false}
+                  enableSorting={false}
                 />
               </div>
-              <TotalsPanel
-                tableData={tableData}
-                descuento={descuento}
-                percepcion={percepcion}
-                onChangeDescuento={setDescuento}
-                onChangePercepcion={setPercepcion}
-              />
             </div>
-
-            <div className="space-y-3 col-span-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <HookFormAutocomplete<ShoppingFormData>
-                  name="concepto"
-                  label="Concepto"
-                  options={conceptOptions}
-                  placeholder="Seleccionar concepto"
-                  rules={{ required: "El concepto es obligatorio" }}
-                />
-                <HookFormSelect<ShoppingFormData>
-                  name="tipoIgv"
-                  label="Tipo IGV"
-                  options={[
-                    { value: "", label: "Seleccionar..." },
-                    ...tipoIgvOptions,
-                  ]}
-                  rules={{ required: "El tipo de IGV es obligatorio" }}
-                />
-              </div>
-              <HookFormInput<ShoppingFormData>
-                name="descripcion"
-                label="Descripcion"
-                placeholder="Descripcion breve"
-                rules={{ required: "La descripcion es obligatoria" }}
-              />
-
-              <EditableDataTable
-                data={tableData}
-                columns={columns}
-                onDataChange={handleTableChange}
-                enablePagination={false}
-                enableFiltering={false}
-                enableSorting={false}
-              />
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap gap-3 justify-center">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-70"
-            >
-              <Save />
-              Guardar
-            </button>
-            {mode === "create" && (
-              <button
-                type="button"
-                onClick={handleNew}
-                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-              >
-                <Plus />
-                Nuevo
-              </button>
-            )}
-            {mode === "edit" && onDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-              >
-                <Trash2 />
-                Eliminar
-              </button>
-            )}
           </div>
         </HookForm>
       </div>

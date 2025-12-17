@@ -27,7 +27,6 @@ export default function UserFormBase({
   const [showPass, setShowPass] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
 
-  // FORM REAL — Basado en tu estructura SQL
   const [form, setForm] = useState({
     PersonalId: "",
     UsuarioAlias: "",
@@ -42,19 +41,17 @@ export default function UserFormBase({
     Administrador: 0,
   });
 
-  // Cargar usuarios solo una vez
   useEffect(() => {
     if (users.length === 0) fetchUsers();
   }, []);
 
-  // Cargar datos de edición
   useEffect(() => {
     if (initialData) {
-      setForm({
-        ...form,
+      setForm((prev) => ({
+        ...prev,
         ...initialData,
         ConfirmClave: initialData.UsuarioClave ?? "",
-      });
+      }));
     }
   }, [initialData]);
 
@@ -62,7 +59,6 @@ export default function UserFormBase({
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  // Handler genérico
   const handleChange = (e: any) => {
     const { name, value, type, checked } = e.target;
 
@@ -74,7 +70,7 @@ export default function UserFormBase({
 
   const handleSave = () => {
     if (form.UsuarioClave !== form.ConfirmClave) {
-      toast.error("Las contraseñas no coinciden");
+      toast.error("Las contrasenas no coinciden");
       return;
     }
 
@@ -106,7 +102,6 @@ export default function UserFormBase({
 
   const passwordsMatch = form.UsuarioClave === form.ConfirmClave;
 
-  // TABLA — Puedes retirarla luego
   const columnHelper = createColumnHelper<any>();
   const columns = [
     columnHelper.accessor("UsuarioAlias", {
@@ -118,22 +113,53 @@ export default function UserFormBase({
       cell: (info) => info.getValue(),
     }),
   ];
-  console.log("users", users);
+
   return (
-    <div
-      ref={containerRef}
-      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
-    >
+    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
               {mode === "create" ? "Crear Usuario" : "Editar Usuario"}
-            </h2>
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
 
+              <button
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Nuevo"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
+
+              {mode === "edit" && onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-8">
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-[40%] space-y-4">
-                {/* PERSONAL */} {/* PERSONAL ID */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Personal ID
@@ -148,7 +174,7 @@ export default function UserFormBase({
                       focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                   />
                 </div>
-                {/* ALIAS */}
+
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Usuario / Alias
@@ -163,10 +189,10 @@ export default function UserFormBase({
                       focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
                   />
                 </div>
-                {/* CONTRASEÑA */}
+
                 <div className="space-y-2 relative">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Contraseña
+                    Contrasena
                   </label>
 
                   <input
@@ -174,7 +200,7 @@ export default function UserFormBase({
                     name="UsuarioClave"
                     value={form.UsuarioClave}
                     onChange={handleChange}
-                    placeholder="Ingrese contraseña"
+                    placeholder="Ingrese contrasena"
                     className={`w-full px-4 py-3 border-2 rounded-lg pr-10
                       ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
                       focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
@@ -187,10 +213,10 @@ export default function UserFormBase({
                     {showPass ? <EyeOff /> : <Eye />}
                   </span>
                 </div>
-                {/* CONFIRMAR CONTRASEÑA */}
+
                 <div className="space-y-2 relative">
                   <label className="block text-sm font-semibold text-gray-700">
-                    Confirmar contraseña
+                    Confirmar contrasena
                   </label>
 
                   <input
@@ -198,7 +224,7 @@ export default function UserFormBase({
                     name="ConfirmClave"
                     value={form.ConfirmClave}
                     onChange={handleChange}
-                    placeholder="Repita la contraseña"
+                    placeholder="Repita la contrasena"
                     className={`w-full px-4 py-3 border-2 rounded-lg pr-10
                       ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
                       focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
@@ -211,7 +237,7 @@ export default function UserFormBase({
                     {showPassConfirm ? <EyeOff /> : <Eye />}
                   </span>
                 </div>
-                {/* ESTADO */}
+
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-gray-700">
                     Estado
@@ -228,33 +254,8 @@ export default function UserFormBase({
                     <option value="INACTIVO">Inactivo</option>
                   </select>
                 </div>
-                {/* PERMISOS 
-                <div className="space-y-1 pt-1">
-                  {[
-                    ["EnviaBoleta", "Puede enviar boletas"],
-                    ["EnviarFactura", "Puede enviar facturas"],
-                    ["EnviaNC", "Puede enviar notas de crédito"],
-                    ["EnviaND", "Puede enviar notas de débito"],
-                    ["Administrador", "Administrador"],
-                  ].map(([key, label]) => (
-                    <label
-                      key={key}
-                      className="flex items-center gap-2 text-gray-700"
-                    >
-                      <input
-                        type="checkbox"
-                        name={key}
-                        checked={form[key] === 1}
-                        onChange={handleChange}
-                        className="w-4 h-4"
-                      />
-                      {label}
-                    </label>
-                  ))}
-                </div>*/}
               </div>
 
-              {/* TABLA (opcional) */}
               <div className="w-full md:w-[60%] mt-6 md:mt-0">
                 <DataTable
                   columns={columns}
@@ -262,34 +263,6 @@ export default function UserFormBase({
                   onRowClick={(row) => setForm({ ...form, ...row })}
                 />
               </div>
-            </div>
-
-            {/* BOTONES */}
-            <div className="mt-8 flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={handleSave}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <Save className="w-5 h-5" /> Guardar
-              </button>
-
-              {mode === "edit" ? (
-                onDelete && (
-                  <button
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-                  >
-                    <Trash2 className="w-5 h-5" /> Eliminar
-                  </button>
-                )
-              ) : (
-                <button
-                  onClick={handleNew}
-                  className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-                >
-                  <Plus className="w-5 h-5" /> Nuevo
-                </button>
-              )}
             </div>
           </div>
         </div>

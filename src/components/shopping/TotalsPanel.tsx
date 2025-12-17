@@ -27,7 +27,9 @@ export default function TotalsPanel({
     const valorVentaCalc = items.reduce((acc, item) => {
       const cantidad = Number(item.cantidad ?? 0) || 0;
       const costo = Number(item.preCosto ?? 0) || 0;
-      return acc + costo * cantidad;
+      const desc = Number(item.descuento ?? 0) || 0;
+      const lineTotal = Math.max(0, costo * cantidad - desc);
+      return acc + lineTotal;
     }, 0);
     const sub = Math.max(0, valorVentaCalc - (Number(descuento) || 0));
     const igvCalc = sub * 0.18;
@@ -135,7 +137,7 @@ function ValueEditable({
       value={value}
       onChange={(e) => onChange(Number(e.target.value) || 0)}
       className={`w-full px-2 py-1 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-100 text-right ${
-        accent ? "bg-purple-600 text-white font-semibold" : "bg-white"
+        accent ? " font-semibold" : "bg-white"
       }`}
       placeholder={placeholder}
     />

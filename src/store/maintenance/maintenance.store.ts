@@ -40,7 +40,7 @@ interface MaintenanceState {
   updateCategory: (id: number, data: Partial<Category>) => Promise<void>;
   deleteCategory: (idSubLinea: number) => Promise<boolean>;
 
-  addArea: (data: Omit<Area, "id">) => Promise<void>;
+  addArea: (data: Omit<Area, "id">) => Promise<boolean>;
   updateArea: (id: number, data: Partial<Area>) => Promise<void>;
   deleteArea: (id: number) => Promise<boolean>;
 
@@ -173,8 +173,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     };
 
     const updated = await apiRequest<Category>({
-      url: `http://localhost:5000/api/v1/Linea/${id}`,
-      method: "PUT",
+      url: "http://localhost:5000/api/v1/Linea/registerlinea",
+      method: "POST",
       data: payload,
       config: {
         headers: {
@@ -245,6 +245,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: { ...data, id: Date.now() },
     });
 
+    if (
+      typeof created === "string" &&
+      created.toLowerCase().includes("existe")
+    ) {
+      toast.error("Ya existe esta area");
+      return false;
+    }
+
     const hasCreatedId =
       created &&
       typeof created === "object" &&
@@ -262,8 +270,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
         areas: [...state.areas, { ...data, id: Date.now() }],
       }));
     }
-    console.log("created", created);
     await queryClient.invalidateQueries({ queryKey: areasQueryKey });
+    return true;
   },
   updateArea: async (id, data) => {
     const payload = {
@@ -364,6 +372,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     });
 
     if (
+      typeof created === "string" &&
+      created.toLowerCase().includes("existe")
+    ) {
+      toast.error("Ya existe esta maquina registrada");
+      return false;
+    }
+
+    if (
       created &&
       typeof created === "object" &&
       ("idMaquina" in created || "id" in created)
@@ -390,6 +406,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     }
 
     await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+    return true;
   },
   updateComputer: async (id, data) => {
     const payload = {
@@ -411,8 +428,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       serieBoleta?: string;
       tiketera?: string;
     }>({
-      url: `http://localhost:5000/api/v1/Maquina/${id}`,
-      method: "PUT",
+      url: "http://localhost:5000/api/v1/Maquina/registermaquina",
+      method: "POST",
       data: payload,
       config: {
         headers: {
@@ -422,6 +439,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       },
       fallback: { ...data, id },
     });
+
+    if (
+      typeof updated === "string" &&
+      updated.toLowerCase().includes("existe")
+    ) {
+      toast.error("Ya existe un registro con ese nombre");
+      return false;
+    }
 
     set((state) => ({
       computers: state.computers.map((c) => {
@@ -453,6 +478,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     }));
 
     await queryClient.invalidateQueries({ queryKey: computersQueryKey });
+    return true;
   },
   deleteComputer: async (id) => {
     const result = await apiRequest({
@@ -576,23 +602,17 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
               p.razon,
             ruc: (updated as any).proveedorRuc ?? data.ruc ?? p.ruc,
             contacto:
-              (updated as any).proveedorContacto ??
-              data.contacto ??
-              p.contacto,
+              (updated as any).proveedorContacto ?? data.contacto ?? p.contacto,
             celular:
               (updated as any).proveedorCelular ?? data.celular ?? p.celular,
             telefono:
-              (updated as any).proveedorTelefono ??
-              data.telefono ??
-              p.telefono,
-            correo:
-              (updated as any).proveedorCorreo ?? data.correo ?? p.correo,
+              (updated as any).proveedorTelefono ?? data.telefono ?? p.telefono,
+            correo: (updated as any).proveedorCorreo ?? data.correo ?? p.correo,
             direccion:
               (updated as any).proveedorDireccion ??
               data.direccion ??
               p.direccion,
-            estado:
-              (updated as any).proveedorEstado ?? data.estado ?? p.estado,
+            estado: (updated as any).proveedorEstado ?? data.estado ?? p.estado,
           };
         }
         return { ...p, ...data };

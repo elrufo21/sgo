@@ -50,7 +50,8 @@ export default function ProductFormBase({
     () => ({
       categoria: initialData?.categoria ?? "",
       idSubLinea:
-        initialData?.idSubLinea !== undefined && initialData?.idSubLinea !== null
+        initialData?.idSubLinea !== undefined &&
+        initialData?.idSubLinea !== null
           ? Number(initialData.idSubLinea)
           : null,
       codigo: initialData?.codigo ?? (mode === "create" ? generateCode() : ""),
@@ -63,12 +64,12 @@ export default function ProductFormBase({
       aplicaINV: initialData?.aplicaINV ?? "bien",
       cantidad: initialData?.cantidad ?? null,
       usuario: initialData?.usuario ?? "",
-      estado: initialData?.estado ?? "activo",
+      estado: initialData?.estado ?? "BUENO",
       images: initialData?.images ?? [],
     }),
     [initialData, mode]
   );
-  console.log("defaults", defaults);
+
   const formMethods = useForm<ProductFormValues>({
     defaultValues: defaults,
   });
@@ -158,27 +159,58 @@ export default function ProductFormBase({
     >
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">
+          <HookForm methods={formMethods} onSubmit={onSubmit}>
+            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear Nuevo Producto" : "Editar Producto"}
-              </h2>
+              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNewClick}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </button>
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            <HookForm methods={formMethods} onSubmit={onSubmit}>
+            <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <label className="block text-sm font-semibold text-gray-700">
-                        Categoría
+                        Categoria
                       </label>
                       <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() =>
                             openDialog({
-                              title: "Registrar categoría",
+                              title: "Registrar categoria",
                               content: (
                                 <CategoriaForm
                                   variant="modal"
@@ -209,7 +241,8 @@ export default function ProductFormBase({
                         { value: "", label: "Seleccionar..." },
                         ...categories.map((cat) => ({
                           value:
-                            cat.idSubLinea !== undefined && cat.idSubLinea !== null
+                            cat.idSubLinea !== undefined &&
+                            cat.idSubLinea !== null
                               ? Number(cat.idSubLinea)
                               : cat.id !== undefined && cat.id !== null
                               ? Number(cat.id)
@@ -220,19 +253,18 @@ export default function ProductFormBase({
                       rules={{
                         setValueAs: (v) =>
                           v === "" ? null : Number((v as any)?.value ?? v),
-                        required: "La categoría es obligatoria",
+                        required: "La categoria es obligatoria",
                         validate: (v) =>
                           v !== 0 && v !== null && v !== undefined
                             ? true
-                            : "La categoría es obligatoria",
+                            : "La categoria es obligatoria",
                       }}
                       onOptionSelected={(opt) =>
                         setValue("categoria", opt?.label ?? "")
                       }
                       onOpenModal={(selectedOption) => {
-                        console.log("selectedOption", selectedOption);
                         openDialog({
-                          title: "Editar categoría",
+                          title: "Editar categoria",
                           content: (
                             <CategoriaForm
                               variant="modal"
@@ -262,7 +294,7 @@ export default function ProductFormBase({
 
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-700">
-                      Código del Producto
+                      Codigo del Producto
                     </label>
                     <div className="relative">
                       <input
@@ -314,11 +346,11 @@ export default function ProductFormBase({
 
                   <HookFormInput<ProductFormValues>
                     name="valorCritico"
-                    label="Stock Mínimo (Valor Crítico)"
+                    label="Stock Minimo (Valor Critico)"
                     type="number"
                     rules={{
                       valueAsNumber: true,
-                      required: "El stock mínimo es obligatorio",
+                      required: "El stock minimo es obligatorio",
                     }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
@@ -424,7 +456,7 @@ export default function ProductFormBase({
                   </div>
                   <div className="space-y-2">
                     <label className="block text-sm font-semibold text-gray-700">
-                      Precio de Venta b
+                      Precio de Venta B
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
@@ -473,8 +505,7 @@ export default function ProductFormBase({
                     disabled={mode === "create"}
                     options={[
                       { value: "BUENO", label: "Activo" },
-                      { value: "inactivo", label: "Inactivo" },
-                      { value: "archivado", label: "Archivado" },
+                      { value: "DESCONTINUADO", label: "Inactivo" },
                     ]}
                     rules={{ required: "El estado es obligatorio" }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
@@ -490,7 +521,7 @@ export default function ProductFormBase({
                   <div className="space-y-4">
                     <div className="mb-4">
                       <label className="cursor-pointer inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        Agregar imágenes
+                        Agregar imagenes
                         <input
                           type="file"
                           accept="image/*"
@@ -529,43 +560,8 @@ export default function ProductFormBase({
                   </div>
                 </div>
               </div>
-
-              <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3">
-                <div className="flex flex-wrap gap-3 justify-center">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-70"
-                  >
-                    <Save className="w-5 h-5" />
-                    Guardar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleNewClick}
-                    className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg border-2 border-blue-600 hover:bg-blue-50 transform hover:scale-105 transition-all"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Nuevo
-                  </button>
-                  {mode === "edit" && (
-                    <>
-                      {onDelete && (
-                        <button
-                          type="button"
-                          onClick={onDelete}
-                          className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg border-2 border-red-600 hover:bg-red-50 transform hover:scale-105 transition-all"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                          Eliminar
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </HookForm>
-          </div>
+            </div>
+          </HookForm>
         </div>
       </div>
     </div>

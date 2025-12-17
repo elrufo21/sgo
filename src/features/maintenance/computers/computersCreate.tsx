@@ -12,7 +12,8 @@ const ComputerCreate = () => {
   const [resetKey, setResetKey] = useState(() => Date.now());
 
   const handleSave = async (data: Omit<Computer, "id">) => {
-    await addComputer(data);
+    const rs = await addComputer(data);
+    if (!rs) return;
     toast.success("Computadora creada correctamente");
     navigate("/maintenance/computers");
   };

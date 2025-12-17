@@ -26,6 +26,8 @@ export interface ShoppingItem {
   preCosto?: number;
   preVenta?: number;
   cantidad: number;
+  descuento?: number;
+  importe?: number;
 }
 
 export type ShoppingFormData = Omit<Shopping, "id">;

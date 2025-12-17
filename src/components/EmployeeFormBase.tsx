@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Camera, Plus, Save, Trash2, Upload, X } from "lucide-react";
 
@@ -191,7 +191,7 @@ export default function EmployeeFormBase({
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
       edad--;
     }
-    return `${edad} años`;
+    return `${edad} anos`;
   };
 
   const watchedNacimiento = watch("personalNacimiento");
@@ -225,223 +225,227 @@ export default function EmployeeFormBase({
 
   return (
     <div ref={formContainerRef} className="py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          {mode === "create" ? "Registrar Personal" : "Editar Personal"}
-        </h2>
-
+      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="md:col-span-2">
-                <HookFormSelect<Personal>
-                  name="companiaId"
-                  label="Compañia"
-                  options={companyOptions}
-                  rules={{ setValueAs: (val) => Number(val) || 1 }}
-                />
-              </div>
-
-              <HookFormInput<Personal>
-                data-focus-first="true"
-                name="personalCodigo"
-                label="Codigo Personal"
-                placeholder="Codigo"
-                rules={{ required: "El codigo de personal es obligatorio" }}
-              />
-
-              <HookFormSelect<Personal>
-                name="areaId"
-                label="Area"
-                options={[
-                  { value: 0, label: "Seleccione area" },
-                  ...areas.map((a) => ({ value: a.id, label: a.area })),
-                ]}
-                rules={{
-                  setValueAs: (val) => Number(val) || 0,
-                  validate: (val) =>
-                    Number(val) > 0 || "El area es obligatorio",
-                }}
-              />
-
-              <HookFormInput<Personal>
-                name="personalNombres"
-                label="Nombres"
-                rules={{ required: "El nombre es obligatorio" }}
-              />
-
-              <HookFormInput<Personal>
-                name="personalApellidos"
-                label="Apellidos"
-                rules={{ required: "El apellido es obligatorio" }}
-              />
-
-              <HookFormInput<Personal>
-                name="personalDni"
-                label="DNI"
-                type="text"
-                inputMode="numeric"
-                maxLength={8}
-                onInput={(e) => {
-                  const onlyDigits = e.currentTarget.value
-                    .replace(/\D/g, "")
-                    .slice(0, 8);
-                  e.currentTarget.value = onlyDigits;
-                }}
-                rules={{
-                  validate: (value) =>
-                    !value?.toString().trim() ||
-                    /^\d{8}$/.test(value.toString().trim()) ||
-                    "El DNI debe tener 8 dígitos",
-                }}
-              />
-
-              <HookFormInput<Personal>
-                name="personalDireccion"
-                label="Direccion"
-              />
-
-              <HookFormInput<Personal>
-                name="personalNacimiento"
-                label="Fecha nacimiento"
-                type="date"
-              />
-              <input
-                name="edad"
-                value={calcularEdad(watchedNacimiento)}
-                readOnly
-                className="w-full px-4 py-3 rounded-lg outline-none"
-              />
-
-              <HookFormInput<Personal>
-                name="personalTelefono"
-                label="Telefono"
-              />
-
-              <HookFormInput<Personal>
-                name="personalEmail"
-                label="Correo"
-                type="email"
-                rules={{
-                  validate: (value) => {
-                    if (!value?.trim()) return true;
-                    return (
-                      /^\S+@\S+\.\S+$/.test(value.trim()) ||
-                      "Ingrese un correo valido"
-                    );
-                  },
-                }}
-              />
-
-              <HookFormInput<Personal>
-                name="personalIngreso"
-                label="Fecha ingreso"
-                type="date"
-              />
-
-              <HookFormSelect<Personal>
-                name="personalEstado"
-                label="Estado"
-                disabled={mode === "create"}
-                options={[
-                  { value: "activo", label: "Activo" },
-                  { value: "inactivo", label: "Inactivo" },
-                ]}
-              />
-            </div>
-
-            <div className="space-y-5">
-              <h3 className="text-lg font-semibold">Foto del empleado</h3>
-
-              <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
-                <img
-                  src={
-                    watchedImagen && watchedImagen.trim() !== ""
-                      ? watchedImagen
-                      : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>"
-                  }
-                  className="w-full h-full object-cover"
-                  alt="Foto empleado"
-                />
-                {watchedImagen && watchedImagen.trim() !== "" && (
-                  <button
-                    type="button"
-                    onClick={removePhoto}
-                    className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
-                  >
-                    <X />
-                  </button>
-                )}
-              </div>
-
-              <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                <Upload className="w-5 h-5" />
-                Subir Foto
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleUploadPhoto}
-                  className="hidden"
-                />
-              </label>
-
-              {!takingPhoto ? (
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
+              {mode === "create" ? "Registrar Personal" : "Editar Personal"}
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Nuevo"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
+              {mode === "edit" && onDelete && (
                 <button
                   type="button"
-                  onClick={startCamera}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
                 >
-                  <Camera className="w-5 h-5" />
-                  Tomar Foto
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
                 </button>
-              ) : (
-                <div className="space-y-3">
-                  <video
-                    ref={videoRef}
-                    autoPlay
-                    className="w-full h-64 bg-black rounded-lg"
-                  ></video>
-                  <button
-                    type="button"
-                    onClick={takePhoto}
-                    className="w-full py-3 bg-green-600 text-white rounded-lg"
-                  >
-                    Capturar
-                  </button>
-                </div>
               )}
             </div>
           </div>
 
-          <div className="mt-8 flex flex-wrap gap-3 justify-center">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg disabled:opacity-70"
-            >
-              <Save />
-              Guardar
-            </button>
-            {mode === "create" && (
-              <button
-                type="button"
-                onClick={handleNew}
-                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 rounded-lg"
-              >
-                <Plus />
-                Nuevo
-              </button>
-            )}
-            {mode === "edit" && onDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-red-600 text-red-600 rounded-lg"
-              >
-                <Trash2 />
-                Eliminar
-              </button>
-            )}
+          <div className="p-6 sm:p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <HookFormSelect<Personal>
+                    name="companiaId"
+                    label="Compania"
+                    options={companyOptions}
+                    rules={{ setValueAs: (val) => Number(val) || 1 }}
+                  />
+                </div>
+
+                <HookFormInput<Personal>
+                  data-focus-first="true"
+                  name="personalCodigo"
+                  label="Codigo Personal"
+                  placeholder="Codigo"
+                  rules={{ required: "El codigo de personal es obligatorio" }}
+                />
+
+                <HookFormSelect<Personal>
+                  name="areaId"
+                  label="Area"
+                  options={[
+                    { value: 0, label: "Seleccione area" },
+                    ...areas.map((a) => ({ value: a.id, label: a.area })),
+                  ]}
+                  rules={{
+                    setValueAs: (val) => Number(val) || 0,
+                    validate: (val) =>
+                      Number(val) > 0 || "El area es obligatorio",
+                  }}
+                />
+
+                <HookFormInput<Personal>
+                  name="personalNombres"
+                  label="Nombres"
+                  rules={{ required: "El nombre es obligatorio" }}
+                />
+
+                <HookFormInput<Personal>
+                  name="personalApellidos"
+                  label="Apellidos"
+                  rules={{ required: "El apellido es obligatorio" }}
+                />
+
+                <HookFormInput<Personal>
+                  name="personalDni"
+                  label="DNI"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={8}
+                  onInput={(e) => {
+                    const onlyDigits = e.currentTarget.value
+                      .replace(/\D/g, "")
+                      .slice(0, 8);
+                    e.currentTarget.value = onlyDigits;
+                  }}
+                  rules={{
+                    validate: (value) =>
+                      !value?.toString().trim() ||
+                      /^\d{8}$/.test(value.toString().trim()) ||
+                      "El DNI debe tener 8 digitos",
+                  }}
+                />
+
+                <HookFormInput<Personal>
+                  name="personalDireccion"
+                  label="Direccion"
+                />
+
+                <HookFormInput<Personal>
+                  name="personalNacimiento"
+                  label="Fecha nacimiento"
+                  type="date"
+                />
+                <input
+                  name="edad"
+                  value={calcularEdad(watchedNacimiento)}
+                  readOnly
+                  className="w-full px-4 py-3 rounded-lg outline-none"
+                />
+
+                <HookFormInput<Personal>
+                  name="personalTelefono"
+                  label="Telefono"
+                />
+
+                <HookFormInput<Personal>
+                  name="personalEmail"
+                  label="Correo"
+                  type="email"
+                  rules={{
+                    validate: (value) => {
+                      if (!value?.trim()) return true;
+                      return (
+                        /^\S+@\S+\.\S+$/.test(value.trim()) ||
+                        "Ingrese un correo valido"
+                      );
+                    },
+                  }}
+                />
+
+                <HookFormInput<Personal>
+                  name="personalIngreso"
+                  label="Fecha ingreso"
+                  type="date"
+                />
+
+                <HookFormSelect<Personal>
+                  name="personalEstado"
+                  label="Estado"
+                  disabled={mode === "create"}
+                  options={[
+                    { value: "activo", label: "Activo" },
+                    { value: "inactivo", label: "Inactivo" },
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-5">
+                <h3 className="text-lg font-semibold">Foto del empleado</h3>
+
+                <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
+                  <img
+                    src={
+                      watchedImagen && watchedImagen.trim() !== ""
+                        ? watchedImagen
+                        : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>"
+                    }
+                    className="w-full h-full object-cover"
+                    alt="Foto empleado"
+                  />
+                  {watchedImagen && watchedImagen.trim() !== "" && (
+                    <button
+                      type="button"
+                      onClick={removePhoto}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full"
+                    >
+                      <X />
+                    </button>
+                  )}
+                </div>
+
+                <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                  <Upload className="w-5 h-5" />
+                  Subir Foto
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadPhoto}
+                    className="hidden"
+                  />
+                </label>
+
+                {!takingPhoto ? (
+                  <button
+                    type="button"
+                    onClick={startCamera}
+                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    <Camera className="w-5 h-5" />
+                    Tomar Foto
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      className="w-full h-64 bg-black rounded-lg"
+                    ></video>
+                    <button
+                      type="button"
+                      onClick={takePhoto}
+                      className="w-full py-3 bg-green-600 text-white rounded-lg"
+                    >
+                      Capturar
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </HookForm>
       </div>

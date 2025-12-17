@@ -30,19 +30,26 @@ const AutocompleteTableCell = ({ getValue, row, column, table }) => {
     const product = option?.data ?? null;
 
     const fallbackUpdate = () => {
+      const cantidadActual =
+        (table?.options?.data?.[row.index]?.cantidad as number) ?? 1;
+      const costo = Number(product?.preCosto ?? 0);
+      const importe = Number((costo * (cantidadActual || 1)).toFixed(2));
       updateData?.(row.index, column.id, option?.value ?? null);
       updateData?.(row.index, "codigo", product?.codigo ?? "");
       updateData?.(row.index, "nombre", product?.nombre ?? "");
       updateData?.(row.index, "unidadMedida", product?.unidadMedida ?? "");
       updateData?.(row.index, "stock", Number(product?.cantidad ?? 0));
-      updateData?.(row.index, "preCosto", Number(product?.preCosto ?? 0));
+      updateData?.(row.index, "preCosto", costo);
       updateData?.(row.index, "preVenta", Number(product?.preVenta ?? 0));
+      updateData?.(row.index, "importe", importe);
     };
 
     if (updateRow) {
       updateRow(row.index, (currentRow = {}) => {
         const cantidad =
           currentRow.cantidad !== undefined ? currentRow.cantidad : 1;
+        const costo = Number(product?.preCosto ?? 0);
+        const importe = Number((costo * (cantidad || 1)).toFixed(2));
         if (!option) {
           return {
             ...currentRow,
@@ -54,6 +61,7 @@ const AutocompleteTableCell = ({ getValue, row, column, table }) => {
             preCosto: 0,
             preVenta: 0,
             cantidad,
+            importe: 0,
           };
         }
 
@@ -64,9 +72,10 @@ const AutocompleteTableCell = ({ getValue, row, column, table }) => {
           nombre: product?.nombre ?? "",
           unidadMedida: product?.unidadMedida ?? "",
           stock: Number(product?.cantidad ?? 0),
-          preCosto: Number(product?.preCosto ?? 0),
+          preCosto: costo,
           preVenta: Number(product?.preVenta ?? 0),
           cantidad,
+          importe,
         };
       });
       return;

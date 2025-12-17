@@ -88,6 +88,7 @@ export function HookFormAutocomplete<
             </label>
 
             <Autocomplete
+              size="small"
               options={options}
               value={selectedOption}
               disableClearable={disableClearable}
@@ -100,6 +101,7 @@ export function HookFormAutocomplete<
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  size="small"
                   placeholder={placeholder}
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message}
@@ -119,7 +121,7 @@ export function HookFormAutocomplete<
                       },
                     },
                     "& .MuiOutlinedInput-input": {
-                      padding: "9px 12px",
+                      padding: "8px 12px",
                       fontSize: "0.875rem",
                     },
                   }}

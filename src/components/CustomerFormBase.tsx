@@ -99,16 +99,47 @@ export default function CustomerFormBase({
     >
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800">
+          <HookForm methods={formMethods} onSubmit={handleSave}>
+            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <h1 className="text-base font-semibold">
                 {mode === "create"
                   ? "Registrar Nuevo Cliente"
                   : "Editar Cliente"}
-              </h2>
+              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </button>
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                )}
+              </div>
             </div>
 
-            <HookForm methods={formMethods} onSubmit={handleSave}>
+            <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
                   <div className="col-span-2">
@@ -147,15 +178,15 @@ export default function CustomerFormBase({
                     rules={{
                       pattern: {
                         value: /^\d{8}$/,
-                        message: "Debe tener 8 dígitos numéricos",
+                        message: "Debe tener 8 digitos numericos",
                       },
                       maxLength: {
                         value: 8,
-                        message: "Debe tener 8 dígitos",
+                        message: "Debe tener 8 digitos",
                       },
                       minLength: {
                         value: 8,
-                        message: "Debe tener 8 dígitos",
+                        message: "Debe tener 8 digitos",
                       },
                     }}
                   />
@@ -182,7 +213,7 @@ export default function CustomerFormBase({
                     rules={{
                       pattern: {
                         value: /^\d+$/,
-                        message: "Solo números",
+                        message: "Solo numeros",
                       },
                     }}
                   />
@@ -194,7 +225,7 @@ export default function CustomerFormBase({
                     placeholder="Ingrese correo electronico"
                     rules={{
                       pattern: {
-                        value: /^[^\s@]+@[^\s@]+\.com$/i,
+                        value: /^[^\\s@]+@[^\\s@]+\\.com$/i,
                         message: "Debe incluir @ y terminar en .com",
                       },
                     }}
@@ -267,40 +298,9 @@ export default function CustomerFormBase({
                     </div>
                   </div>
                 </div>
-
-                <div className="mt-8 pt-6 border-t-2 border-gray-100 w-full lg:col-span-3 order-3 lg:order-3">
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 transform hover:scale-105 transition-all shadow-lg hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                      <Save className="w-5 h-5" />
-                      Guardar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleNew}
-                      className="flex items-center gap-2 px-6 py-3 bg-white text-blue-600 font-semibold rounded-lg border-2 border-blue-600 hover:bg-blue-50 transform hover:scale-105 transition-all"
-                    >
-                      <Plus className="w-5 h-5" />
-                      Nuevo
-                    </button>
-                    {mode === "edit" && onDelete && (
-                      <button
-                        type="button"
-                        onClick={onDelete}
-                        className="flex items-center gap-2 px-6 py-3 bg-white text-red-600 font-semibold rounded-lg border-2 border-red-600 hover:bg-red-50 transform hover:scale-105 transition-all"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                        Eliminar
-                      </button>
-                    )}
-                  </div>
-                </div>
               </div>
-            </HookForm>
-          </div>
+            </div>
+          </HookForm>
         </div>
       </div>
     </div>

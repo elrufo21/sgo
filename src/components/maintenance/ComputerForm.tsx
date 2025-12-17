@@ -114,7 +114,7 @@ export default function ComputerForm({
   );
 
   const nextSerieBoleta = useMemo(
-    () => computeNextSerie((c) => c.serieBoleta, "BA05", "BA"),
+    () => computeNextSerie((c) => c.serieBoleta, "BA01", "BA"),
     [computeNextSerie]
   );
 
@@ -127,9 +127,9 @@ export default function ComputerForm({
         : nextSerieFactura,
       serieNc: data?.serieNc
         ? normalizeSerie(data.serieNc, "FZ", "FZ01")
-        : "FZ",
+        : "FZ01",
       serieBoleta: data?.serieBoleta
-        ? normalizeSerie(data.serieBoleta, "BA", "BA05")
+        ? normalizeSerie(data.serieBoleta, "BA", "BA01")
         : nextSerieBoleta,
       ticketera: data?.ticketera ?? "",
       areaId: data?.areaId ?? 0,
@@ -179,127 +179,127 @@ export default function ComputerForm({
 
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+        <HookForm methods={formMethods} onSubmit={handleSubmit}>
+          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <h1 className="text-base font-semibold">
               {mode === "create"
                 ? "Registrar nueva Computadora"
                 : "Editar Computadora"}
-            </h2>
-
-            <HookForm methods={formMethods} onSubmit={handleSubmit}>
-              <div className="space-y-4">
-                <HookFormInput<ComputerFormValues>
-                  data-focus-first="true"
-                  name="maquina"
-                  label="Maquina *"
-                  placeholder="Ej: PC-001"
-                  rules={{ required: "La maquina es obligatoria" }}
-                />
-                <HookFormInput<ComputerFormValues>
-                  name="serieFactura"
-                  label="Serie Factura"
-                  placeholder="Ej: FA05"
-                  maxLength={4}
-                  rules={{
-                    required: "La serie de factura es obligatoria",
-                    pattern: {
-                      value: /^FA/i,
-                      message: "Debe iniciar con FA",
-                    },
-                    maxLength: {
-                      value: 4,
-                      message: "Maximo 4 caracteres",
-                    },
-                    minLength: {
-                      value: 4,
-                      message: "Debe tener 4 caracteres",
-                    },
-                  }}
-                />
-                <HookFormInput<ComputerFormValues>
-                  name="serieBoleta"
-                  label="Serie Boleta"
-                  placeholder="Ej: BA05"
-                  maxLength={4}
-                  rules={{
-                    required: "La serie de boleta es obligatoria",
-                    pattern: {
-                      value: /^BA/i,
-                      message: "Debe iniciar con BA",
-                    },
-                    maxLength: {
-                      value: 4,
-                      message: "Maximo 4 caracteres",
-                    },
-                    minLength: {
-                      value: 4,
-                      message: "Debe tener 4 caracteres",
-                    },
-                  }}
-                />
-                <HookFormInput<ComputerFormValues>
-                  name="serieNc"
-                  label="Serie FZ"
-                  placeholder="Ej: FZ01"
-                  maxLength={4}
-                  rules={{
-                    required: "La serie de FZ es obligatoria",
-                    pattern: {
-                      value: /^FZ/i,
-                      message: "Debe iniciar con FZ",
-                    },
-                    maxLength: {
-                      value: 4,
-                      message: "Maximo 4 caracteres",
-                    },
-                    minLength: {
-                      value: 4,
-                      message: "Debe tener 4 caracteres",
-                    },
-                  }}
-                />
-                <HookFormInput<ComputerFormValues>
-                  name="ticketera"
-                  label="Ticketera"
-                  placeholder="Ej: TICKET-01"
-                />
-              </div>
-
-              <div className="mt-8 flex gap-3 justify-center flex-wrap">
+            </h1>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+                <span className="hidden sm:inline">Guardar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleNew}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                title="Nuevo"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Nuevo</span>
+              </button>
+              {mode === "edit" && onDelete && (
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white 
-                  font-semibold rounded-lg hover:bg-blue-700 transition disabled:opacity-70 disabled:cursor-not-allowed"
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                  title="Eliminar"
                 >
-                  <Save className="w-5 h-5" /> Guardar
+                  <Trash2 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Eliminar</span>
                 </button>
-                {mode === "create" && (
-                  <button
-                    type="button"
-                    onClick={handleNew}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-blue-600 
-                        text-blue-600 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    <Plus className="w-5 h-5" /> Nuevo
-                  </button>
-                )}
-                {mode === "edit" && onDelete && (
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-6 py-3 border-2 border-red-600 
-                        text-red-600 rounded-lg hover:bg-red-50 transition"
-                  >
-                    <Trash2 className="w-5 h-5" /> Eliminar
-                  </button>
-                )}
-              </div>
-            </HookForm>
+              )}
+            </div>
           </div>
-        </div>
+
+          <div className="p-6 sm:p-8">
+            <div className="space-y-4">
+              <HookFormInput<ComputerFormValues>
+                data-focus-first="true"
+                name="maquina"
+                label="Maquina *"
+                placeholder="Ej: PC-001"
+                rules={{ required: "La maquina es obligatoria" }}
+              />
+              <HookFormInput<ComputerFormValues>
+                name="serieFactura"
+                label="Serie Factura"
+                placeholder="Ej: FA05"
+                maxLength={4}
+                rules={{
+                  required: "La serie de factura es obligatoria",
+                  pattern: {
+                    value: /^FA/i,
+                    message: "Debe iniciar con FA",
+                  },
+                  maxLength: {
+                    value: 4,
+                    message: "Maximo 4 caracteres",
+                  },
+                  minLength: {
+                    value: 4,
+                    message: "Debe tener 4 caracteres",
+                  },
+                }}
+              />
+              <HookFormInput<ComputerFormValues>
+                name="serieBoleta"
+                label="Serie Boleta"
+                placeholder="Ej: BA01"
+                maxLength={4}
+                rules={{
+                  required: "La serie de boleta es obligatoria",
+                  pattern: {
+                    value: /^BA/i,
+                    message: "Debe iniciar con BA",
+                  },
+                  maxLength: {
+                    value: 4,
+                    message: "Maximo 4 caracteres",
+                  },
+                  minLength: {
+                    value: 4,
+                    message: "Debe tener 4 caracteres",
+                  },
+                }}
+              />
+              <HookFormInput<ComputerFormValues>
+                name="serieNc"
+                label="Serie NC"
+                placeholder="Ej: FZ01"
+                maxLength={4}
+                rules={{
+                  required: "La serie de FZ es obligatoria",
+                  pattern: {
+                    value: /^FZ/i,
+                    message: "Debe iniciar con FZ",
+                  },
+                  maxLength: {
+                    value: 4,
+                    message: "Maximo 4 caracteres",
+                  },
+                  minLength: {
+                    value: 4,
+                    message: "Debe tener 4 caracteres",
+                  },
+                }}
+              />
+              <HookFormInput<ComputerFormValues>
+                name="ticketera"
+                label="Ticketera"
+                placeholder="Ej: TICKET-01"
+              />
+            </div>
+          </div>
+        </HookForm>
       </div>
     </div>
   );

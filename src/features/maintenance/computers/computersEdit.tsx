@@ -30,8 +30,9 @@ export default function ComputerEdit() {
 
   if (!initialData) return <div>Cargando computadora...</div>;
 
-  const handleSave = (data: Omit<Computer, "id">) => {
-    updateComputer(Number(id), data);
+  const handleSave = async (data: Omit<Computer, "id">) => {
+    const rs = await updateComputer(Number(id), data);
+    if (!rs) return;
     toast.success("Computadora actualizada correctamente");
     navigate("/maintenance/computers");
   };

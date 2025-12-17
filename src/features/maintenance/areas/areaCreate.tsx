@@ -8,7 +8,8 @@ export default function AreaCreate() {
   const { addArea } = useMaintenanceStore();
 
   const handleSave = async (data: any) => {
-    await addArea(data);
+    const rs = await addArea(data);
+    if (!rs) return;
     toast.success("Área creada correctamente");
     navigate("/maintenance/areas/create");
   };
