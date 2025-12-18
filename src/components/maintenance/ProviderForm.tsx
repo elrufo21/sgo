@@ -6,6 +6,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 interface ProviderFormProps {
   initialData?: Partial<Provider>;
@@ -13,6 +14,7 @@ interface ProviderFormProps {
   onSave: (data: Provider) => void | Promise<void>;
   onNew?: () => void;
   onDelete?: () => void;
+  variant?: "page" | "modal";
 }
 
 export default function ProviderForm({
@@ -21,8 +23,11 @@ export default function ProviderForm({
   onSave,
   onNew,
   onDelete,
+  variant = "page",
 }: ProviderFormProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const setDialogData = useDialogStore((s) => s.setData);
+  const isModal = variant === "modal";
 
   const defaults = useMemo<Provider>(
     () => ({
@@ -56,6 +61,20 @@ export default function ProviderForm({
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
+
+  useEffect(() => {
+    if (!isModal) return;
+    const subscription = formMethods.watch((values) => {
+      setDialogData({
+        ...values,
+        razon: values.razon?.toUpperCase() ?? "",
+        contacto: values.contacto?.toUpperCase() ?? "",
+        direccion: values.direccion?.toUpperCase() ?? "",
+        estado: values.estado?.toUpperCase() ?? "",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [isModal, formMethods, setDialogData]);
 
   const handleNew = () => {
     reset({
@@ -95,44 +114,50 @@ export default function ProviderForm({
 
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div
+        className={`max-w-5xl mx-auto bg-white overflow-hidden ${
+          isModal ? "" : "rounded-2xl shadow-xl"
+        }`}
+      >
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                title="Guardar"
-              >
-                <Save className="w-4 h-4" />
-                <span className="hidden sm:inline">Guardar</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleNew}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title="Nuevo"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Nuevo</span>
-              </button>
-              {mode === "edit" && onDelete && (
+          {!isModal && (
+            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <h1 className="text-base font-semibold">
+                {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
+              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
                 <button
                   type="button"
-                  onClick={onDelete}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                  title="Eliminar"
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
                 >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Eliminar</span>
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
                 </button>
-              )}
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="p-6 sm:p-8">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

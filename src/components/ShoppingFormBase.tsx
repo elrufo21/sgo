@@ -11,6 +11,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
+import ProviderForm from "@/components/maintenance/ProviderForm";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import type { ShoppingFormData, ShoppingItem } from "@/types/shopping";
 import { useProductsStore } from "@/store/products/products.store";
@@ -24,6 +25,10 @@ import TotalsPanel from "./shopping/TotalsPanel";
 import { fetchProvidersApi } from "@/features/maintenance/providers/providers.api";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useShoppingStore } from "@/store/shopping/shopping.store";
+import { useDialogStore } from "@/store/app/dialog.store";
+import type { Provider } from "@/types/maintenance";
+import { GenericList } from "@/shared/listing/GenericList";
+import { MemoryRouter } from "react-router";
 
 interface ShoppingFormBaseProps {
   initialData?: Partial<ShoppingFormData>;
@@ -70,7 +75,8 @@ export default function ShoppingFormBase({
 }: ShoppingFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { products, fetchProducts } = useProductsStore();
-  const { data: providers = [] } = useProvidersQuery();
+  const { data: providers = [], refetch: refetchProviders } =
+    useProvidersQuery();
 
   const defaults = useMemo<ShoppingFormData>(
     () => ({
@@ -101,7 +107,7 @@ export default function ShoppingFormBase({
                 stock: 0,
                 preCosto: 0,
                 preVenta: 0,
-                cantidad: 1,
+                cantidad: null,
                 descuento: 0,
                 importe: 0,
               },
@@ -123,12 +129,40 @@ export default function ShoppingFormBase({
     formState: { isSubmitting },
   } = formMethods;
   const setProviders = useMaintenanceStore((s) => s.setProviders);
+  const addProvider = useMaintenanceStore((s) => s.addProvider);
   const draftItems = useShoppingStore((s) => s.draftItems);
   const setDraftItems = useShoppingStore((s) => s.setDraftItems);
   const clearDraftItems = useShoppingStore((s) => s.clearDraftItems);
   const [tableData, setTableData] = useState<ShoppingItem[]>(defaults.items);
   const [descuento, setDescuento] = useState<number>(0);
   const [percepcion, setPercepcion] = useState<number>(0);
+  const quantityInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const openDialog = useDialogStore((s) => s.openDialog);
+
+  const focusQuantityInput = useCallback((rowIndex: number) => {
+    const attemptFocus = () => {
+      const el = quantityInputRefs.current[rowIndex];
+      if (el) {
+        el.focus();
+        if (typeof el.select === "function") el.select();
+      }
+    };
+    attemptFocus();
+    setTimeout(attemptFocus, 0);
+  }, []);
+
+  const openProviderList = useCallback(() => {
+    openDialog({
+      title: "Lista de proveedores",
+      maxWidth: "md",
+      fullWidth: true,
+      content: (
+        <MemoryRouter>
+          <GenericList moduleKey="providers" />
+        </MemoryRouter>
+      ),
+    });
+  }, [openDialog]);
 
   const productOptions = useMemo(
     () =>
@@ -170,7 +204,6 @@ export default function ShoppingFormBase({
     setTableData(normalized);
     setValue("items", normalized);
 
-    // Si no hay datos iniciales y hay borrador, hidratarlo
     if (
       mode === "create" &&
       (!initialData?.items || initialData.items.length === 0) &&
@@ -210,7 +243,6 @@ export default function ShoppingFormBase({
     fechaEmision,
   });
 
-  // Desactivar plazo y fecha de pago cuando es contado
   useEffect(() => {
     if (!isCredito) {
       setValue("diasPlazo", 0, { shouldDirty: true });
@@ -218,7 +250,6 @@ export default function ShoppingFormBase({
     }
   }, [isCredito, setValue]);
 
-  // Registrar cuál campo cambió por última vez
   useEffect(() => {
     const prev = prevValuesRef.current;
     if (diasPlazo !== prev.diasPlazo) {
@@ -255,7 +286,6 @@ export default function ShoppingFormBase({
     [setProviders, setValue]
   );
 
-  // Sync diasPlazo -> fechaPago
   useEffect(() => {
     if (!isCredito) return;
     if (!fechaEmision) return;
@@ -279,7 +309,6 @@ export default function ShoppingFormBase({
     }
   }, [diasPlazo, fechaEmision, isCredito, fechaPago, setValue]);
 
-  // Sync fechaPago -> diasPlazo cuando el usuario edita fecha
   useEffect(() => {
     if (!isCredito) return;
     if (!fechaEmision || !fechaPago) return;
@@ -308,7 +337,6 @@ export default function ShoppingFormBase({
     }
   }, [fechaPago, fechaEmision, isCredito, diasPlazo, setValue]);
 
-  // Consultar proveedor por RUC y autocompletar
   useEffect(() => {
     const trimmed = (rucValue ?? "").trim();
     if (!trimmed || trimmed.length < 8) return;
@@ -317,7 +345,6 @@ export default function ShoppingFormBase({
     lookupProviderByRuc(trimmed);
   }, [lookupProviderByRuc, rucValue]);
 
-  // Formatear numero de serie: AAAA-#### (primeros 4 letras, luego números)
   useEffect(() => {
     const raw = numeroSerie ?? "";
     const letters = raw
@@ -336,7 +363,11 @@ export default function ShoppingFormBase({
       const prod = productMap.get(
         String(row.productId ?? row["productId"] ?? "")
       );
-      const cantidadNum = Number(row.cantidad ?? 1) || 1;
+      const rawQty = (row as any).cantidad;
+      const cantidadNum =
+        rawQty === null || rawQty === undefined || rawQty === ""
+          ? 0
+          : Number(rawQty) || 0;
       const importeInput = Number(row.importe ?? (row as any)["importe"]);
       const hasImporte = Number.isFinite(importeInput);
       const costoFromProd = prod ? Number(prod.preCosto ?? 0) : null;
@@ -380,30 +411,47 @@ export default function ShoppingFormBase({
   const ImportCell = ({ getValue, row, table }: any) => {
     const initialValue = Number(getValue() ?? 0) || 0;
     const [value, setValue] = useState<string>(initialValue.toString());
+    const [isFocused, setIsFocused] = useState(false);
 
     useEffect(() => {
+      if (isFocused) return;
       setValue(initialValue.toString());
-    }, [initialValue]);
+    }, [initialValue, isFocused]);
 
-    const onBlur = () => {
-      const cantidad = Number(row.getValue("cantidad") ?? 1) || 1;
-      const importeNum = Number(value) || 0;
-      const newCosto =
-        cantidad > 0 ? Number((importeNum / cantidad).toFixed(2)) : 0;
+    const applyChange = useCallback(
+      (nextValue: string) => {
+        const cantidad = Number(row.getValue("cantidad") ?? 1) || 1;
+        const importeNum = Number(nextValue) || 0;
+        const newCosto =
+          cantidad > 0 ? Number((importeNum / cantidad).toFixed(2)) : 0;
 
-      table.options.meta?.updateRow(row.index, (r: any) => ({
-        ...r,
-        importe: importeNum,
-        preCosto: newCosto,
-      }));
+        table.options.meta?.updateRow(row.index, (r: any) => ({
+          ...r,
+          importe: importeNum,
+          preCosto: newCosto,
+        }));
+      },
+      [row, table]
+    );
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value;
+      setValue(next);
+      applyChange(next);
+    };
+
+    const handleBlur = () => {
+      setIsFocused(false);
+      applyChange(value);
     };
 
     return (
       <input
         type="number"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={onBlur}
+        onFocus={() => setIsFocused(true)}
+        onChange={handleChange}
+        onBlur={handleBlur}
         className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
       />
     );
@@ -415,31 +463,52 @@ export default function ShoppingFormBase({
   );
 
   const QuantityCell = ({ getValue, row, table }: any) => {
-    const initialValue = Number(getValue() ?? 0) || 0;
-    const [value, setValue] = useState<string>(initialValue.toString());
+    const raw = getValue();
+    const initialValue = Number(raw ?? 0) || 0;
+    const [value, setValue] = useState<string>(initialValue ? initialValue.toString() : "");
+    const [isFocused, setIsFocused] = useState(false);
 
     useEffect(() => {
-      setValue(initialValue.toString());
-    }, [initialValue]);
+      if (isFocused) return;
+      setValue(initialValue ? initialValue.toString() : "");
+    }, [initialValue, isFocused]);
 
-    const onBlur = () => {
-      const qty = Number(value) || 0;
-      const costo = Number(row.getValue("preCosto") ?? 0) || 0;
-      const importe = Number((qty * costo).toFixed(2));
+    const applyChange = useCallback(
+      (nextValue: string) => {
+        const qty = Number(nextValue) || 0;
+        const costo = Number(row.getValue("preCosto") ?? 0) || 0;
+        const importe = Number((qty * costo).toFixed(2));
 
-      table.options.meta?.updateRow(row.index, (r: any) => ({
-        ...r,
-        cantidad: qty,
-        importe,
-      }));
+        table.options.meta?.updateRow(row.index, (r: any) => ({
+          ...r,
+          cantidad: qty,
+          importe,
+        }));
+      },
+      [row, table]
+    );
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value;
+      setValue(next);
+      applyChange(next);
+    };
+
+    const handleBlur = () => {
+      setIsFocused(false);
+      applyChange(value);
     };
 
     return (
       <input
         type="number"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={onBlur}
+        onFocus={() => setIsFocused(true)}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        ref={(node) => {
+          quantityInputRefs.current[row.index] = node;
+        }}
         className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
       />
     );
@@ -448,29 +517,46 @@ export default function ShoppingFormBase({
   const CostCell = ({ getValue, row, table }: any) => {
     const initialValue = Number(getValue() ?? 0) || 0;
     const [value, setValue] = useState<string>(initialValue.toString());
+    const [isFocused, setIsFocused] = useState(false);
 
     useEffect(() => {
+      if (isFocused) return;
       setValue(initialValue.toString());
-    }, [initialValue]);
+    }, [initialValue, isFocused]);
 
-    const onBlur = () => {
-      const costo = Number(value) || 0;
-      const qty = Number(row.getValue("cantidad") ?? 0) || 0;
-      const importe = Number((qty * costo).toFixed(2));
+    const applyChange = useCallback(
+      (nextValue: string) => {
+        const costo = Number(nextValue) || 0;
+        const qty = Number(row.getValue("cantidad") ?? 0) || 0;
+        const importe = Number((qty * costo).toFixed(2));
 
-      table.options.meta?.updateRow(row.index, (r: any) => ({
-        ...r,
-        preCosto: costo,
-        importe,
-      }));
+        table.options.meta?.updateRow(row.index, (r: any) => ({
+          ...r,
+          preCosto: costo,
+          importe,
+        }));
+      },
+      [row, table]
+    );
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const next = e.target.value;
+      setValue(next);
+      applyChange(next);
+    };
+
+    const handleBlur = () => {
+      setIsFocused(false);
+      applyChange(value);
     };
 
     return (
       <input
         type="number"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={onBlur}
+        onFocus={() => setIsFocused(true)}
+        onChange={handleChange}
+        onBlur={handleBlur}
         className="w-full px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
       />
     );
@@ -487,6 +573,7 @@ export default function ShoppingFormBase({
           defaultValue: null,
           options: productOptions,
           width: "270px",
+          onProductSelected: focusQuantityInput,
         },
       },
       {
@@ -499,7 +586,7 @@ export default function ShoppingFormBase({
         accessorKey: "cantidad",
         header: "Cantidad",
         cell: QuantityCell,
-        meta: { defaultValue: 1 },
+        meta: { defaultValue: 0 },
       },
       {
         accessorKey: "preCosto",
@@ -520,7 +607,7 @@ export default function ShoppingFormBase({
         meta: { defaultValue: 0 },
       },
     ];
-  }, [productOptions]);
+  }, [productOptions, focusQuantityInput]);
 
   const onSubmit = (values: ShoppingFormData) => {
     const detail =
@@ -544,7 +631,7 @@ export default function ShoppingFormBase({
         stock: 0,
         preCosto: 0,
         preVenta: 0,
-        cantidad: 1,
+        cantidad: null,
         descuento: 0,
         importe: 0,
       };
@@ -581,7 +668,7 @@ export default function ShoppingFormBase({
       stock: 0,
       preCosto: 0,
       preVenta: 0,
-      cantidad: 1,
+      cantidad: null,
       descuento: 0,
       importe: 0,
     };
@@ -624,7 +711,6 @@ export default function ShoppingFormBase({
                 title="Guardar"
               >
                 <Save className="w-4 h-4" />
-                <span className="hidden sm:inline">Guardar</span>
               </button>
               {mode === "create" && (
                 <button
@@ -634,7 +720,6 @@ export default function ShoppingFormBase({
                   title="Nuevo"
                 >
                   <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
                 </button>
               )}
               {mode === "edit" && onDelete && (
@@ -645,7 +730,6 @@ export default function ShoppingFormBase({
                   title="Eliminar"
                 >
                   <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Eliminar</span>
                 </button>
               )}
             </div>
@@ -655,10 +739,60 @@ export default function ShoppingFormBase({
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 lg:gap-6 ">
               <div className="space-y-4 col-span-2  overflow-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="col-span-2">
+                  <div className="col-span-2 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-sm font-semibold text-gray-700">
+                        Proveedor
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={openProviderList}
+                          className="text-slate-600 text-sm font-semibold hover:underline"
+                        >
+                          Ver lista
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openDialog({
+                              title: "Registrar proveedor",
+                              content: (
+                                <ProviderForm
+                                  variant="modal"
+                                  mode="create"
+                                  onSave={() => {}}
+                                />
+                              ),
+                              onConfirm: async (data) => {
+                                if (!data || typeof data !== "object") return;
+                                await addProvider(data as Provider);
+                                await refetchProviders();
+                                const prov = data as Provider;
+                                if (prov.razon) {
+                                  setValue("proveedor", prov.razon, {
+                                    shouldDirty: true,
+                                  });
+                                }
+                                if (prov.ruc) {
+                                  setValue("ruc", prov.ruc, {
+                                    shouldDirty: true,
+                                  });
+                                }
+                              },
+                              maxWidth: "md",
+                              fullWidth: true,
+                            })
+                          }
+                          className="text-blue-600 text-sm font-semibold hover:underline"
+                        >
+                          Registrar
+                        </button>
+                      </div>
+                    </div>
                     <HookFormAutocomplete<ShoppingFormData>
                       name="proveedor"
-                      label="Proveedor"
+                      label=""
                       options={providerOptions}
                       placeholder="Seleccionar proveedor"
                       rules={{

@@ -6,6 +6,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { useDialogStore } from "@/store/app/dialog.store";
 import type { Client } from "@/types/customer";
 
 type CustomerFormValues = Omit<Client, "id"> & {
@@ -19,6 +20,7 @@ interface ClientFormBaseProps {
   onSave: (data: Omit<Client, "id">) => void;
   onNew?: () => void;
   onDelete?: () => void;
+  variant?: "page" | "modal";
 }
 
 const buildDefaults = (data?: Partial<Client>): CustomerFormValues => ({
@@ -42,8 +44,10 @@ export default function CustomerFormBase({
   onSave,
   onNew,
   onDelete,
+  variant = "page",
 }: ClientFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const setDialogData = useDialogStore((s) => s.setData);
 
   const defaults = useMemo(
     () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
@@ -68,6 +72,17 @@ export default function CustomerFormBase({
     reset(defaults);
   }, [defaults, reset]);
 
+  useEffect(() => {
+    if (variant !== "modal") return;
+    const subscription = formMethods.watch((values) => {
+      setDialogData({
+        ...values,
+        nombreRazon: values.nombreRazon?.toUpperCase() ?? "",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [variant, formMethods, setDialogData]);
+
   const handleSave = async (values: CustomerFormValues) => {
     const nombreRazonUpper = values.nombreRazon?.toUpperCase() ?? "";
     const payload: Omit<Client, "id"> = {
@@ -83,6 +98,7 @@ export default function CustomerFormBase({
       fecha: values.fecha ?? null,
     };
     await onSave(payload);
+    setDialogData(payload);
     focusFirstInput(containerRef.current);
   };
 
@@ -92,52 +108,62 @@ export default function CustomerFormBase({
     focusFirstInput(containerRef.current);
   };
 
+  const isModal = variant === "modal";
+
   return (
     <div
       ref={containerRef}
-      className="h-auto from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8"
+      className={`h-auto py-8 px-4 sm:px-6 lg:px-8 ${
+        isModal ? "" : "from-blue-50 via-indigo-50 to-purple-50"
+      }`}
     >
       <div className="max-w-5xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div
+          className={`bg-white overflow-hidden ${
+            isModal ? "" : "rounded-2xl shadow-xl"
+          }`}
+        >
           <HookForm methods={formMethods} onSubmit={handleSave}>
-            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <h1 className="text-base font-semibold">
-                {mode === "create"
-                  ? "Registrar Nuevo Cliente"
-                  : "Editar Cliente"}
-              </h1>
-              <div className="flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                  title="Guardar"
-                >
-                  <Save className="w-4 h-4" />
-                  <span className="hidden sm:inline">Guardar</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNew}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                  title="Nuevo"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
-                </button>
-                {mode === "edit" && onDelete && (
+            {!isModal && (
+              <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+                <h1 className="text-base font-semibold">
+                  {mode === "create"
+                    ? "Registrar Nuevo Cliente"
+                    : "Editar Cliente"}
+                </h1>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                    title="Guardar"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">Guardar</span>
+                  </button>
                   <button
                     type="button"
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                    title="Eliminar"
+                    onClick={handleNew}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Nuevo"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Eliminar</span>
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Nuevo</span>
                   </button>
-                )}
+                  {mode === "edit" && onDelete && (
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Eliminar</span>
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -225,7 +251,7 @@ export default function CustomerFormBase({
                     placeholder="Ingrese correo electronico"
                     rules={{
                       pattern: {
-                        value: /^[^\\s@]+@[^\\s@]+\\.com$/i,
+                        value: /^[^\s@]+@[^\s@]+\.com$/i,
                         message: "Debe incluir @ y terminar en .com",
                       },
                     }}

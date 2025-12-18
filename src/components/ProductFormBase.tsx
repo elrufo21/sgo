@@ -83,7 +83,6 @@ export default function ProductFormBase({
   } = formMethods;
   const openDialog = useDialogStore((s) => s.openDialog);
 
-  // Inicializar formulario / sincronizar cambios externos
   useEffect(() => {
     reset(defaults);
   }, [defaults, reset]);
@@ -92,14 +91,12 @@ export default function ProductFormBase({
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  // Cargar categorias desde mantenimiento
   useEffect(() => {
     if (!categories.length) {
       fetchCategories();
     }
   }, [categories.length, fetchCategories]);
 
-  // Sincroniza nombre de categoria cuando se selecciona idSubLinea
   const selectedSubLineaId = watch("idSubLinea");
   useEffect(() => {
     if (selectedSubLineaId === null || selectedSubLineaId === undefined) {

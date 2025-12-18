@@ -9,6 +9,7 @@ type Option = {
 
 const AutocompleteTableCell = ({ getValue, row, column, table }) => {
   const options: Option[] = column.columnDef.meta?.options || [];
+  const focusAfterSelect = column.columnDef.meta?.onProductSelected;
   const initialValue = getValue();
   const [value, setValue] = useState(initialValue);
   const [inputValue, setInputValue] = useState("");
@@ -104,6 +105,9 @@ const AutocompleteTableCell = ({ getValue, row, column, table }) => {
         setValue(option?.value ?? "");
         setInputValue(option?.label ?? "");
         applyProductToRow(option ?? null);
+        if (option && typeof focusAfterSelect === "function") {
+          focusAfterSelect(row.index);
+        }
       }}
       onInputChange={(_, newInputValue, reason) => {
         setInputValue(newInputValue);

@@ -39,6 +39,7 @@ const ProductList = () => {
       fetchData={fetchProducts}
       deleteItem={deleteProduct}
       columns={productColumns}
+      filterKeys={["codigo", "nombre", "cantidad", "preVenta"]}
       basePath="/products"
       createLabel="+ Añadir producto"
       deleteMessage="¿Estás seguro de eliminar este producto?"

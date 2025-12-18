@@ -37,7 +37,7 @@ interface MaintenanceState {
   fetchProviders: () => Promise<void>;
 
   addCategory: (data: Omit<Category, "id">) => Promise<boolean>;
-  updateCategory: (id: number, data: Partial<Category>) => Promise<void>;
+  updateCategory: (id: number, data: Partial<Category>) => Promise<boolean>;
   deleteCategory: (idSubLinea: number) => Promise<boolean>;
 
   addArea: (data: Omit<Area, "id">) => Promise<boolean>;
@@ -172,7 +172,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       codigoSunat: data.codigoSunat ?? "",
     };
 
-    const updated = await apiRequest<Category>({
+    const updated = await apiRequest<Category | string>({
       url: "http://localhost:5000/api/v1/Linea/registerlinea",
       method: "POST",
       data: payload,
@@ -185,6 +185,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
       fallback: { ...data, id },
     });
 
+    if (
+      typeof updated === "string" &&
+      updated.toLowerCase().includes("existe")
+    ) {
+      toast.error("Ya existe esa categoria");
+      return false;
+    }
+
     set((state) => ({
       categories: state.categories.map((c) =>
         String(c.id) === String(id)
@@ -196,6 +204,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => ({
     }));
 
     await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
+    return true;
   },
 
   deleteCategory: async (idSubLinea) => {

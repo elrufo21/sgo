@@ -27,9 +27,12 @@ export default function CategoryEdit() {
     }
   }, [categories, id]);
 
-  const handleSave = (data: Category) => {
+  const handleSave = async (data: Category) => {
     if (!id) return;
-    updateCategory(Number(id), data);
+    const res = await updateCategory(Number(id), data);
+    if (!res) {
+      return;
+    }
     toast.success("Categoria actualizada");
     navigate("/maintenance/categories");
   };

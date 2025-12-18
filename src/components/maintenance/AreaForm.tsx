@@ -53,7 +53,7 @@ export default function AreaForm({
       focusFirstInput(formRef.current);
     }
   };
-
+  console.log("mode", mode);
   return (
     <form
       ref={formRef}
@@ -67,14 +67,16 @@ export default function AreaForm({
               {mode === "create" ? "Crear area" : "Editar area"}
             </h1>
             <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title="Guardar"
-              >
-                <Save className="w-4 h-4" />
-                <span className="hidden sm:inline">Guardar</span>
-              </button>
+              {mode !== "edit" && (
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleClickNew}

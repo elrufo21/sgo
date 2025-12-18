@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,6 +20,7 @@ const EditableDataTable = ({
 }) => {
   const [data, setData] = useState(initialData);
   const [globalFilter, setGlobalFilter] = useState("");
+  const skipPropSyncRef = useRef(false);
 
   const createEmptyRow = useCallback(() => {
     return userColumns.reduce((acc, col) => {
@@ -49,6 +50,11 @@ const EditableDataTable = ({
   );
 
   useEffect(() => {
+    if (skipPropSyncRef.current) {
+      // Evita re-sincronizar cuando el cambio viene de la propia tabla
+      skipPropSyncRef.current = false;
+      return;
+    }
     setData((prev) => {
       const base =
         initialData && initialData.length ? initialData : [createEmptyRow()];
@@ -58,6 +64,7 @@ const EditableDataTable = ({
 
   const updateData = useCallback(
     (rowIndex, columnId, value) => {
+      skipPropSyncRef.current = true;
       setData((old) => {
         const mapped = old.map((row, index) => {
           if (index === rowIndex) {
@@ -78,6 +85,7 @@ const EditableDataTable = ({
 
   const updateRow = useCallback(
     (rowIndex, updater) => {
+      skipPropSyncRef.current = true;
       setData((old) => {
         const mapped = old.map((row, index) => {
           if (index === rowIndex) {
