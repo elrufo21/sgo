@@ -8,7 +8,135 @@ import {
 } from "@react-pdf/renderer";
 
 import QRCode from "qrcode";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePosStore, selectTotals } from "@/store/pos/pos.store";
+
+type TicketDocumentProps = {
+  clientName?: string;
+  clientId?: string;
+  docType?: "boleta" | "factura";
+  paymentMethod?: string;
+};
+
+const UNITS = [
+  "",
+  "UNO",
+  "DOS",
+  "TRES",
+  "CUATRO",
+  "CINCO",
+  "SEIS",
+  "SIETE",
+  "OCHO",
+  "NUEVE",
+];
+
+const TENS = [
+  "",
+  "DIEZ",
+  "VEINTE",
+  "TREINTA",
+  "CUARENTA",
+  "CINCUENTA",
+  "SESENTA",
+  "SETENTA",
+  "OCHENTA",
+  "NOVENTA",
+];
+
+const SPECIALS: Record<number, string> = {
+  10: "DIEZ",
+  11: "ONCE",
+  12: "DOCE",
+  13: "TRECE",
+  14: "CATORCE",
+  15: "QUINCE",
+  20: "VEINTE",
+};
+
+const HUNDREDS = [
+  "",
+  "CIENTO",
+  "DOSCIENTOS",
+  "TRESCIENTOS",
+  "CUATROCIENTOS",
+  "QUINIENTOS",
+  "SEISCIENTOS",
+  "SETECIENTOS",
+  "OCHOCIENTOS",
+  "NOVECIENTOS",
+];
+
+const threeDigitsToWords = (n: number) => {
+  if (n === 0) return "";
+  if (n === 100) return "CIEN";
+  const hundreds = Math.floor(n / 100);
+  const tens = Math.floor((n % 100) / 10);
+  const units = n % 10;
+
+  const hundredPart = HUNDREDS[hundreds];
+  const twoDigit = n % 100;
+
+  if (SPECIALS[twoDigit]) {
+    return [hundredPart, SPECIALS[twoDigit]].filter(Boolean).join(" ").trim();
+  }
+
+  const tensPart = TENS[tens];
+  const unitPart = units === 1 && tens === 0 ? "UNO" : UNITS[units];
+
+  if (!tensPart) {
+    return [hundredPart, unitPart].filter(Boolean).join(" ").trim();
+  }
+
+  if (tens === 2 && units > 0) {
+    return [hundredPart, `VEINTI${unitPart.toLowerCase()}`]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+      .toUpperCase();
+  }
+
+  const tensUnits =
+    units > 0 ? `${tensPart} Y ${unitPart}` : `${tensPart}`.trim();
+
+  return [hundredPart, tensUnits].filter(Boolean).join(" ").trim();
+};
+
+const numberToWords = (amount: number, currencyLabel = "SOLES") => {
+  if (Number.isNaN(amount)) return "";
+  const value = Math.max(0, Math.floor(amount * 100)) / 100;
+  const integerPart = Math.floor(value);
+  const cents = Math.round((value - integerPart) * 100)
+    .toString()
+    .padStart(2, "0");
+
+  if (integerPart === 0) {
+    return `CERO CON ${cents}/100 ${currencyLabel}`;
+  }
+
+  const millions = Math.floor(integerPart / 1_000_000);
+  const thousands = Math.floor((integerPart % 1_000_000) / 1_000);
+  const hundreds = integerPart % 1_000;
+
+  const parts: string[] = [];
+  if (millions > 0) {
+    parts.push(
+      millions === 1 ? "UN MILLON" : `${threeDigitsToWords(millions)} MILLONES`
+    );
+  }
+  if (thousands > 0) {
+    parts.push(
+      thousands === 1 ? "MIL" : `${threeDigitsToWords(thousands)} MIL`
+    );
+  }
+  if (hundreds > 0) {
+    parts.push(threeDigitsToWords(hundreds));
+  }
+
+  const integerWords = parts.join(" ").trim();
+
+  return `${integerWords} CON ${cents}/100 ${currencyLabel}`.toUpperCase();
+};
 const styles = StyleSheet.create({
   page: {
     backgroundColor: "#fff",
@@ -77,6 +205,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 4,
     fontSize: 8,
+    textTransform: "uppercase",
   },
   infoLabel: {
     width: "35%",
@@ -170,60 +299,73 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
 });
-const ticketData = {
-  logo: "/logo.jpg",
-  qrData: "https://tu-url.com/boleta?id=396548",
-  companyName: "CONSORCIO FERRETERO ROSITA E.I.R.L.",
-  ruc: "20601070155",
-  address: "Calle 2 Mz B Lote 1 ",
-  district: "Lima-Lima-Carabayllo",
-  phones: "Telef: 607-1883 / 943-296-081 / 944-284-915",
-  documentType: "BOLETA DE VENTA ELECTRONICA",
-  documentNumber: "BA01-00000012",
-  emissionDate: "19/02/2018",
-  currency: "SOLES",
-  paymentMethod: "AL CONTADO",
-  clientName: "ANDRE SCOT RAMIREZ CALLA",
-  clientAddress: "AV TUPAC 123",
-  clientDNI: "48065873",
-  seller: "ANDRE",
-  items: [
-    {
-      quantity: 10.0,
-      description: "UNI CHAPA CLASICA 250 CANTOL",
-      unitPrice: 79.0,
-      total: 790.0,
-    },
-    {
-      quantity: 10.0,
-      description: "UNI CHAPA CLASICA 250 CANTOL UNI CHAPA CLASICA 250 CANTOL",
-      unitPrice: 79.0,
-      total: 790.0,
-    },
-    {
-      quantity: 10.0,
-      description: "UNI CHAPA CLASICA 250 CANTOL UNI CHAPA CLASICA 250 CANTOL",
-      unitPrice: 79.0,
-      total: 790.0,
-    },
-    {
-      quantity: 10.0,
-      description:
-        "UNI CHAPA CLASICA 250 CANTOL UNI CHAPA CLASICA 250 CANTOL UNI CHAPA CLASICA 250 CANTOL",
-      unitPrice: 79.0,
-      total: 790.0,
-    },
-  ],
-  subtotal: 10000,
-  igv: 100000,
-  total: 100.0,
-  son: "VEINTISEIS CON 50/100 SOLES",
-  authorization:
-    "Autorizado mediante Resolución de Intendencia SUNAT N° 032-005-Representación impresa de la Boleta Electrónica Descarga tu Comprobante en -http://e-consulta.sunat.gob.pe/ol-ti-itconsvalicpe/ConsValiCpe.htm",
-  id: "396548",
-};
-const TicketDocument = () => {
+const TicketDocument = ({
+  clientName,
+  clientId,
+  docType = "boleta",
+  paymentMethod,
+}: TicketDocumentProps) => {
+  const items = usePosStore((s) => s.items);
+  const totals = usePosStore(selectTotals);
   const [qrBase64, setQrBase64] = useState("");
+
+  const ticketData = useMemo(() => {
+    const hasItems = items.length > 0;
+    const subtotalValue = hasItems ? totals.subTotal : 10000;
+    const totalValue = hasItems ? totals.total : 100.0;
+    const igvValue = hasItems
+      ? Math.max(0, totalValue - subtotalValue)
+      : 100000;
+    const docLabel = docType === "factura" ? "RUC" : "DNI";
+    const clientDoc =
+      clientId?.trim() || (docLabel === "RUC" ? "00000000000" : "00000000");
+    const amountInWords = numberToWords(totalValue, "SOLES");
+
+    return {
+      logo: "/logo.jpg",
+      qrData: "https://tu-url.com/boleta?id=396548",
+      companyName: "CONSORCIO FERRETERO ROSITA E.I.R.L.",
+      ruc: "20601070155",
+      address: "Calle 2 Mz B Lote 1 ",
+      district: "Lima-Lima-Carabayllo",
+      phones: "Telef: 607-1883 / 943-296-081 / 944-284-915",
+      documentType:
+        docType === "factura"
+          ? "FACTURA ELECTRONICA"
+          : "BOLETA DE VENTA ELECTRONICA",
+      documentNumber: "BA01-00000012",
+      emissionDate: new Date().toLocaleDateString("es-PE"),
+      currency: "SOLES",
+      paymentMethod: paymentMethod ?? "AL CONTADO",
+      clientName: clientName || "Ultimo cliente",
+      clientAddress: "AV TUPAC 123",
+      clientDNI: clientDoc,
+      clientDocLabel: docLabel,
+      seller: "ANDRE",
+      items: hasItems
+        ? items.map((item) => ({
+            quantity: Number(item.cantidad ?? 0),
+            description: item.nombre ?? "Producto",
+            unitPrice: Number(item.precio ?? 0),
+            total: Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
+          }))
+        : [
+            {
+              quantity: 10.0,
+              description: "UNI CHAPA CLASICA 250 CANTOL",
+              unitPrice: 79.0,
+              total: 790.0,
+            },
+          ],
+      subtotal: subtotalValue,
+      igv: igvValue,
+      total: totalValue,
+      son: amountInWords,
+      authorization:
+        "Autorizado mediante Resolución de Intendencia SUNAT N° 032-005-Representación impresa de la Boleta Electrónica Descarga tu Comprobante en -http://e-consulta.sunat.gob.pe/ol-ti-itconsvalicpe/ConsValiCpe.htm",
+      id: "396548",
+    };
+  }, [clientId, clientName, docType, items, paymentMethod, totals]);
 
   useEffect(() => {
     if (ticketData.qrBase64) {
@@ -237,7 +379,7 @@ const TicketDocument = () => {
         scale: 4,
       }).then((url) => setQrBase64(url));
     }
-  }, [ticketData]);
+  }, [ticketData.qrBase64, ticketData.qrData]);
 
   return (
     <Document>
@@ -278,17 +420,10 @@ const TicketDocument = () => {
           <Text style={styles.infoLabel}>Cliente</Text>
           <Text style={styles.infoValue}>: {ticketData.clientName}</Text>
         </View>
+
         <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Direccion</Text>
-          <Text style={styles.infoValue}>: {ticketData.clientAddress}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>DNI</Text>
+          <Text style={styles.infoLabel}>{ticketData.clientDocLabel}</Text>
           <Text style={styles.infoValue}>: {ticketData.clientDNI}</Text>
-        </View>
-        <View style={styles.infoRow}>
-          <Text style={styles.infoLabel}>Vendedor</Text>
-          <Text style={styles.infoValue}>: {ticketData.seller}</Text>
         </View>
 
         <View style={styles.divider} />

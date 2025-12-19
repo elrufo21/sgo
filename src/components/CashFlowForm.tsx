@@ -193,7 +193,7 @@ export default function CashFlowForm({
                 <Trash2 className="w-4 h-4" />
               </button>
             )}
-            {onNew && (
+            {mode !== "edit" && onNew && (
               <button
                 onClick={handleNewClick}
                 className="px-3 py-1.5 hover:bg-slate-700 rounded transition-colors text-sm ml-2"

@@ -19,7 +19,11 @@ const EmployeeCreate = () => {
 
   const handleSave = async (data: Personal) => {
     const { personalId, ...rest } = data;
-    await addEmployee(rest);
+    const created = await addEmployee(rest);
+    if (!created) {
+      toast.error("El DNI ya existe");
+      return;
+    }
     toast.success("Empleado creado correctamente");
     navigate("/maintenance/employees/create");
     setForm({

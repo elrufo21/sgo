@@ -17,6 +17,7 @@ import {
   ChevronDown,
   CopySlashIcon,
   NotebookPen,
+  LucideDollarSign,
 } from "lucide-react";
 import { useState } from "react";
 import { useAuthStore } from "@/store/auth/auth.store";
@@ -47,6 +48,11 @@ export default function MainLayout() {
 
   const navItems = [
     { label: "Dashboard", to: "/", icon: <Home size={18} /> },
+    {
+      label: "Punto de Venta",
+      to: "/pos",
+      icon: <LucideDollarSign size={18} />,
+    },
     { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
     {
       label: "Nota de pedido",

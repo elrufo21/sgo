@@ -115,7 +115,7 @@ export default function ProviderForm({
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div
-        className={`max-w-5xl mx-auto bg-white overflow-hidden ${
+        className={`w-full mx-auto bg-white overflow-hidden ${
           isModal ? "" : "rounded-2xl shadow-xl"
         }`}
       >
@@ -135,15 +135,17 @@ export default function ProviderForm({
                   <Save className="w-4 h-4" />
                   <span className="hidden sm:inline">Guardar</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleNew}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                  title="Nuevo"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
-                </button>
+                {mode !== "edit" && (
+                  <button
+                    type="button"
+                    onClick={handleNew}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Nuevo"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Nuevo</span>
+                  </button>
+                )}
                 {mode === "edit" && onDelete && (
                   <button
                     type="button"
@@ -160,8 +162,8 @@ export default function ProviderForm({
           )}
 
           <div className="p-6 sm:p-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 lg:order-1">
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+              <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 order-2 xl:order-1">
                 <HookFormInput<Provider>
                   name="razon"
                   label="Razon social"
@@ -215,53 +217,33 @@ export default function ProviderForm({
                   label="Estado"
                   options={estadoOptions}
                   rules={{ required: "El estado es obligatorio" }}
+                  disabled={mode !== "edit"}
                 />
               </div>
-              <div className="border-t-2 border-gray-100 pt-4 order-1 lg:order-2">
+              <div className="border-t-2 xl:border-t-0 xl:border-l-2 border-gray-100 pt-4 xl:pt-0 xl:pl-6 order-1 xl:order-2 xl:col-span-2">
                 <div className="space-y-4">
-                  <div className="flex items-center gap-6">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="ruc"
-                        defaultChecked
-                        {...formMethods.register("tipoDocumento")}
-                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
-                      />
-                      <span className="text-gray-700 font-medium">RUC</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        value="dni"
-                        {...formMethods.register("tipoDocumento")}
-                        className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
-                      />
-                      <span className="text-gray-700 font-medium">DNI</span>
-                    </label>
+                  <div className="flex flex-wrap items-center gap-4">
+                    Buscar por RUC
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <div className="relative w-full">
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        {...formMethods.register("numeroDocumento")}
-                        placeholder="Ingrese numero"
-                        className="w-full pr-32 px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      />
-                      <button
-                        type="button"
-                        className="absolute top-1/2 right-1.5 -translate-y-1/2 px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-                        onClick={() => {
-                          console.log("Consultar documento");
-                        }}
-                      >
-                        Consultar
-                      </button>
-                    </div>
+                  <div className="flex flex-col sm:flex-row gap-3 w-full">
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      {...formMethods.register("numeroDocumento")}
+                      placeholder="Ingrese numero"
+                      className="flex-1 w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    />
+                    <button
+                      type="button"
+                      className="px-6 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                      onClick={() => {
+                        console.log("Consultar documento");
+                      }}
+                    >
+                      Consultar
+                    </button>
                   </div>
                 </div>
               </div>

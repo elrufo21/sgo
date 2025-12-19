@@ -47,7 +47,7 @@ const conceptOptions = [
 const documentoOptions = [
   { value: "01", label: "Factura" },
   { value: "03", label: "Boleta" },
-  { value: "00", label: "Nota de credito" },
+  { value: "00", label: "Nota de venta" },
 ];
 
 const condicionOptions = [
@@ -91,7 +91,7 @@ export default function ShoppingFormBase({
       numero: initialData?.numero ?? "",
       condicion: initialData?.condicion ?? "",
       moneda: initialData?.moneda ?? "",
-      diasPlazo: initialData?.diasPlazo ?? 0,
+      diasPlazo: initialData?.diasPlazo ?? (mode === "create" ? "" : 0),
       fechaPago: initialData?.fechaPago ?? "",
       tipoIgv: initialData?.tipoIgv ?? "",
       tipoCambio: initialData?.tipoCambio ?? 0,
@@ -113,7 +113,7 @@ export default function ShoppingFormBase({
               },
             ],
     }),
-    [initialData]
+    [initialData, mode]
   );
 
   const formMethods = useForm<ShoppingFormData>({
@@ -233,6 +233,8 @@ export default function ShoppingFormBase({
   const rucValue = watch("ruc");
   const documento = watch("documento");
   const isBoleta = (documento ?? "").trim() === "03";
+  const isFactura = (documento ?? "").trim() === "01";
+  const requireNumeroSerie = isBoleta || isFactura;
   const isCredito = (condicion ?? "").toLowerCase() === "credito";
   const lastChangedRef = useRef<
     "diasPlazo" | "fechaPago" | "fechaEmision" | null
@@ -245,8 +247,9 @@ export default function ShoppingFormBase({
 
   useEffect(() => {
     if (!isCredito) {
+      const today = new Date().toISOString().slice(0, 10);
       setValue("diasPlazo", 0, { shouldDirty: true });
-      setValue("fechaPago", "", { shouldDirty: true });
+      setValue("fechaPago", today, { shouldDirty: true });
     }
   }, [isCredito, setValue]);
 
@@ -347,14 +350,33 @@ export default function ShoppingFormBase({
 
   useEffect(() => {
     const raw = numeroSerie ?? "";
-    const letters = raw
-      .replace(/[^a-zA-Z]/g, "")
+    if (!raw) return;
+
+    const cleaned = raw.replace(/[^a-zA-Z0-9-]/g, "");
+    const [serieRaw = "", correlativoRaw = ""] = cleaned.split("-", 2);
+
+    const serie = serieRaw
+      .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 4)
       .toUpperCase();
-    const numbers = raw.replace(/\D/g, "").slice(0, 4);
-    if (!letters && !numbers) return;
-    const formatted =
-      letters.length === 4 && numbers ? `${letters}-${numbers}` : letters;
+
+    const overflow =
+      !cleaned.includes("-") && serieRaw.length > 4
+        ? serieRaw.slice(4).replace(/\D/g, "")
+        : "";
+
+    const correlativo = (overflow + correlativoRaw.replace(/\D/g, "")).slice(
+      0,
+      8
+    );
+
+    let formatted = serie;
+    if (correlativo) {
+      formatted = `${serie}-${correlativo}`;
+    } else if (cleaned.includes("-") && serie) {
+      formatted = `${serie}-`;
+    }
+
     if (formatted !== raw) setValue("numero", formatted, { shouldDirty: true });
   }, [numeroSerie, setValue]);
 
@@ -465,7 +487,9 @@ export default function ShoppingFormBase({
   const QuantityCell = ({ getValue, row, table }: any) => {
     const raw = getValue();
     const initialValue = Number(raw ?? 0) || 0;
-    const [value, setValue] = useState<string>(initialValue ? initialValue.toString() : "");
+    const [value, setValue] = useState<string>(
+      initialValue ? initialValue.toString() : ""
+    );
     const [isFocused, setIsFocused] = useState(false);
 
     useEffect(() => {
@@ -572,7 +596,7 @@ export default function ShoppingFormBase({
         meta: {
           defaultValue: null,
           options: productOptions,
-          width: "270px",
+          width: "400px",
           onProductSelected: focusQuantityInput,
         },
       },
@@ -736,7 +760,7 @@ export default function ShoppingFormBase({
           </div>
 
           <div className="p-6 sm:p-7">
-            <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 lg:gap-6 ">
+            <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 lg:gap-6 ">
               <div className="space-y-4 col-span-2  overflow-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1">
@@ -850,10 +874,21 @@ export default function ShoppingFormBase({
                   />
 
                   <HookFormInput<ShoppingFormData>
-                    name="numero"
-                    label="Numero de serie"
-                    placeholder="Numero"
-                    rules={{ required: "El numero es obligatorio" }}
+                  name="numero"
+                  label="Numero de serie"
+                  placeholder="Numero"
+                  rules={{
+                      required: requireNumeroSerie
+                        ? "El numero es obligatorio"
+                        : false,
+                      validate: (value) => {
+                        if (!requireNumeroSerie && !value?.trim()) return true;
+                        return (
+                          /^[A-Za-z0-9]{4}-\d{1,8}$/.test(value ?? "") ||
+                          "Formato invalido. Use 4 caracteres y hasta 8 digitos despues del guion"
+                        );
+                      },
+                    }}
                   />
 
                   <HookFormSelect<ShoppingFormData>
@@ -907,7 +942,7 @@ export default function ShoppingFormBase({
                 />
               </div>
 
-              <div className="space-y-3 col-span-3">
+              <div className="space-y-3 col-span-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <HookFormAutocomplete<ShoppingFormData>
                     name="concepto"

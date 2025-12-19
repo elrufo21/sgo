@@ -3,7 +3,6 @@ import { create } from "zustand";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { queryClient } from "@/shared/queryClient";
 import type { Employee, Personal } from "@/types/employees";
-import { toast } from "sonner";
 
 export const employeesQueryKey = ["employees"] as const;
 
@@ -12,8 +11,8 @@ interface EmployeesState {
   loading: boolean;
 
   fetchEmployees: () => Promise<void>;
-  addEmployee: (employee: Omit<Employee, "personalId">) => Promise<void>;
-  updateEmployee: (id: number, data: Partial<Employee>) => Promise<void>;
+  addEmployee: (employee: Omit<Employee, "personalId">) => Promise<boolean>;
+  updateEmployee: (id: number, data: Partial<Employee>) => Promise<boolean>;
   deleteEmployee: (id: number) => Promise<boolean>;
 }
 
@@ -107,10 +106,18 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
       fallback: { ...payload, personalId: Date.now() },
     });
 
+    if (
+      typeof created === "string" &&
+      created.toLowerCase().includes("existe dni")
+    ) {
+      return false;
+    }
+
     set((state) => ({
       employees: [...state.employees, mapApiToEmployee(created ?? payload)],
     }));
     await queryClient.invalidateQueries({ queryKey: employeesQueryKey });
+    return true;
   },
 
   updateEmployee: async (id, data) => {
@@ -132,8 +139,8 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
     };
 
     const updated = await apiRequest<Personal>({
-      url: `http://localhost:5000/api/v1/Personal/${id}`,
-      method: "PUT",
+      url: "http://localhost:5000/api/v1/Personal/registerpersonal",
+      method: "POST",
       data: payload,
       config: {
         headers: {
@@ -144,6 +151,13 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
       fallback: { ...payload },
     });
 
+    if (
+      typeof updated === "string" &&
+      updated.toLowerCase().includes("existe dni")
+    ) {
+      return false;
+    }
+
     set((state) => ({
       employees: state.employees.map((e) =>
         String(e.personalId) === String(id)
@@ -152,6 +166,7 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
       ),
     }));
     await queryClient.invalidateQueries({ queryKey: employeesQueryKey });
+    return true;
   },
 
   deleteEmployee: async (id) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Camera, Plus, Save, Trash2, Upload, X } from "lucide-react";
 
@@ -45,10 +45,9 @@ const buildDefaults = (initialData?: Partial<Personal>): Personal => ({
   personalApellidos: initialData?.personalApellidos ?? "",
   areaId: initialData?.areaId ?? 0,
   personalCodigo: initialData?.personalCodigo ?? "",
-  personalNacimiento:
-    initialData?.personalNacimiento !== undefined
-      ? formatDateForInput(initialData?.personalNacimiento)
-      : today(),
+  personalNacimiento: initialData?.personalNacimiento?.toString().trim()
+    ? formatDateForInput(initialData.personalNacimiento)
+    : today(),
   personalIngreso: initialData?.personalIngreso ?? "",
   personalDni: initialData?.personalDni ?? "",
   personalDireccion: initialData?.personalDireccion ?? "",
@@ -241,15 +240,17 @@ export default function EmployeeFormBase({
                 <Save className="w-4 h-4" />
                 <span className="hidden sm:inline">Guardar</span>
               </button>
-              <button
-                type="button"
-                onClick={handleNew}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title="Nuevo"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Nuevo</span>
-              </button>
+              {mode !== "edit" && (
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </button>
+              )}
               {mode === "edit" && onDelete && (
                 <button
                   type="button"

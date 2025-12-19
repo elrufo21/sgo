@@ -25,14 +25,21 @@ const ProductList = () => {
       },
       tdClassName: "text-right",
     },
+    { key: "unidadMedida", header: "Unidad. M" },
     {
       key: "preVenta",
       header: "Precio",
       render: (row: Product) => `S/ ${Number(row.preVenta).toFixed(2)}`,
       tdClassName: "text-right",
     },
+    {
+      key: "preCosto",
+      header: "Costo",
+      render: (row: Product) => `S/ ${Number(row.preCosto).toFixed(2)}`,
+      tdClassName: "text-right",
+    },
   ];
-
+  console.log("products", products);
   return (
     <CrudList
       data={products}

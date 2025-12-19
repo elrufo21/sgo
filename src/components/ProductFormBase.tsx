@@ -171,15 +171,17 @@ export default function ProductFormBase({
                   <Save className="w-4 h-4" />
                   <span className="hidden sm:inline">Guardar</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleNewClick}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                  title="Nuevo"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
-                </button>
+                {mode !== "edit" && (
+                  <button
+                    type="button"
+                    onClick={handleNewClick}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Nuevo"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Nuevo</span>
+                  </button>
+                )}
                 {mode === "edit" && onDelete && (
                   <button
                     type="button"

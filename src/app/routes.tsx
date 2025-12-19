@@ -4,6 +4,7 @@ import cashFlowRoutes from "@/features/cashFlow/routes";
 import maintenanceRoutes from "@/features/maintenance/routes";
 import productRoutes from "@/features/products/routes";
 import customerRoutes from "../features/customers/routes";
+import posRoutes from "../features/pos/routes";
 import purchansesRoutes from "../features/purchanses/routes";
 import shoppingRoutes from "../features/shopping/routes";
 import sendNoteRoutes from "../features/sendNote/routes";
@@ -31,6 +32,7 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       ...productRoutes,
       ...customerRoutes,
+      ...posRoutes,
       ...purchansesRoutes,
       ...shoppingRoutes,
       ...sendNoteRoutes,

@@ -33,7 +33,11 @@ const EmployeeEdit = () => {
   if (!form) return <div>Cargando empleado...</div>;
 
   const handleSave = async (data: Personal) => {
-    await updateEmployee(Number(id), data);
+    const updated = await updateEmployee(Number(id), data);
+    if (!updated) {
+      toast.error("El DNI ya existe");
+      return;
+    }
     toast.success("Empleado guardado correctamente");
     navigate("/maintenance/employees");
   };
