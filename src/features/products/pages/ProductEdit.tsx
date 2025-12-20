@@ -37,7 +37,7 @@ export default function ProductEdit() {
       toast.success("Producto guardado correctamente");
       navigate("/products");
     } else {
-      toast.error("No se pudo guardar el producto.");
+      toast.error("El codigo de producto ya existe.");
     }
   };
 

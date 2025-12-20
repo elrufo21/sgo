@@ -5,7 +5,9 @@ import type {
   Control,
 } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
-import Autocomplete from "@mui/material/Autocomplete";
+import Autocomplete, {
+  createFilterOptions,
+} from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
@@ -32,7 +34,11 @@ interface HookFormAutocompleteProps<
   className?: string;
   control?: Control<T>;
 
-  /** 🔹 MODAL */
+  allowCreate?: boolean;
+  createLabel?: (value: string) => string;
+  onCreateOption?: (value: string) => void;
+
+  /** ĞY"û MODAL */
   onOpenModal?: (option: TOption) => void;
   modalIcon?: React.ReactNode;
   modalTitle?: string;
@@ -54,6 +60,10 @@ export function HookFormAutocomplete<
   className,
   control,
 
+  allowCreate = false,
+  createLabel = (value) => `Agregar "${value}"`,
+  onCreateOption,
+
   onOpenModal,
   modalIcon,
   modalTitle = "Editar",
@@ -71,6 +81,8 @@ export function HookFormAutocomplete<
     ((option: TOption, value: any) =>
       option?.value === (value?.value ?? value));
 
+  const filter = createFilterOptions<TOption & { inputValue?: string }>();
+
   return (
     <Controller
       control={ctrl}
@@ -79,6 +91,14 @@ export function HookFormAutocomplete<
       render={({ field, fieldState }) => {
         const selectedOption =
           options.find((opt) => defaultIsEqual(opt, field.value)) ?? null;
+
+        const normalizedValue =
+          allowCreate && !selectedOption && field.value
+            ? ({
+                label: String(field.value),
+                value: field.value,
+              } as unknown as TOption)
+            : selectedOption;
 
         return (
           <div className={`space-y-2 ${className ?? ""}`}>
@@ -90,13 +110,65 @@ export function HookFormAutocomplete<
             <Autocomplete
               size="small"
               options={options}
-              value={selectedOption}
+              value={normalizedValue}
+              freeSolo={allowCreate}
               disableClearable={disableClearable}
-              getOptionLabel={defaultGetOptionLabel}
+              getOptionLabel={(option) => {
+                if (allowCreate && (option as any)?.inputValue) {
+                  return (option as any)?.label ?? (option as any).inputValue;
+                }
+                return defaultGetOptionLabel(option as TOption);
+              }}
               isOptionEqualToValue={defaultIsEqual}
+              filterOptions={
+                allowCreate
+                  ? (opts, params) => {
+                      const filtered = filter(opts, params);
+                      const input = params.inputValue.trim();
+                      const exists = opts.some((opt) =>
+                        defaultIsEqual(opt, {
+                          value: input,
+                          label: input,
+                        } as unknown as TOption)
+                      );
+
+                      if (input !== "" && !exists) {
+                        filtered.push({
+                          label: createLabel(input),
+                          value: input,
+                          inputValue: input,
+                        } as TOption & { inputValue?: string });
+                      }
+
+                      return filtered;
+                    }
+                  : undefined
+              }
               onChange={(_, option) => {
-                field.onChange(option ? (option as any).value ?? option : null);
-                onOptionSelected?.(option);
+                if (!option) {
+                  field.onChange(null);
+                  onOptionSelected?.(null);
+                  return;
+                }
+
+                if (
+                  allowCreate &&
+                  typeof option === "object" &&
+                  (option as any).inputValue
+                ) {
+                  const inputVal = (option as any).inputValue as string;
+                  field.onChange(inputVal);
+                  onCreateOption?.(inputVal);
+                  onOptionSelected?.({
+                    label: inputVal,
+                    value: inputVal,
+                  } as unknown as TOption);
+                  return;
+                }
+
+                const nextValue = (option as any).value ?? option;
+                field.onChange(nextValue);
+                onOptionSelected?.(option as TOption);
               }}
               renderInput={(params) => (
                 <TextField

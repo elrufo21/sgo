@@ -33,8 +33,16 @@ interface ProductsState {
   products: Product[];
   loading: boolean;
   fetchProducts: () => Promise<void>;
-  addProduct: (product: Omit<Product, "id">) => Promise<boolean>;
-  updateProduct: (id: number, data: Omit<Product, "id">) => Promise<boolean>;
+  addProduct: (
+    product: Omit<Product, "id"> & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    }
+  ) => Promise<boolean>;
+  updateProduct: (
+    id: number,
+    data: Omit<Product, "id"> & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => Promise<boolean>;
   deleteProduct: (id: number) => Promise<boolean>;
 }
 
@@ -93,6 +101,34 @@ const mapProductToApi = (
 
 const baseUrl = `${API_BASE_URL}/Productos`;
 
+const buildProductFormData = (
+  product: Partial<Product> & {
+    imageFile?: File | null;
+    imageRemoved?: boolean;
+  },
+  idOverride?: number
+) => {
+  const payload = mapProductToApi(product, idOverride);
+  const formData = new FormData();
+
+  Object.entries(payload).forEach(([key, value]) => {
+    // El backend asigna la imagen; no enviar productoImagen.
+    if (key === "productoImagen") return;
+    const normalized =
+      value === undefined || value === null ? "" : (value as any).toString();
+    formData.append(key, normalized);
+  });
+
+  if (product.imageFile instanceof File) {
+    formData.append("imagen", product.imageFile);
+  }
+  if (product.imageRemoved) {
+    formData.append("eliminarImagen", "true");
+  }
+
+  return { formData, payload };
+};
+
 export const useProductsStore = create<ProductsState>((set, get) => ({
   products: [],
   loading: false,
@@ -115,19 +151,21 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
 
   addProduct: async (product) => {
     try {
-      const payload = mapProductToApi(product, 0);
+      set({ loading: true });
+      const { formData, payload } = buildProductFormData(product, 0);
       const created = await apiRequest<ApiProduct>({
         url: `${baseUrl}/register`,
         method: "POST",
-        data: payload,
-        config: {
-          headers: {
-            Accept: "*/*",
-            "Content-Type": "application/json",
-          },
-        },
+        data: formData,
         fallback: payload,
       });
+
+      if (
+        typeof created === "string" &&
+        created.toLowerCase().includes("existe")
+      ) {
+        return false;
+      }
 
       const newItem = mapApiToProduct(created ?? payload);
       set((state) => ({ products: [...state.products, newItem] }));
@@ -135,24 +173,28 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     } catch (error) {
       console.error("Error creating product", error);
       return false;
+    } finally {
+      set({ loading: false });
     }
   },
 
   updateProduct: async (id, data) => {
     try {
-      const payload = mapProductToApi(data, id);
+      set({ loading: true });
+      const { formData, payload } = buildProductFormData(data, id);
       const updated = await apiRequest<ApiProduct>({
-        url: `${baseUrl}/${id}`,
-        method: "PUT",
-        data: payload,
-        config: {
-          headers: {
-            Accept: "*/*",
-            "Content-Type": "application/json",
-          },
-        },
+        url: `${baseUrl}/register`,
+        method: "POST",
+        data: formData,
         fallback: payload,
       });
+
+      if (
+        typeof updated === "string" &&
+        updated.toLowerCase().includes("existe")
+      ) {
+        return false;
+      }
 
       const updatedItem = mapApiToProduct(updated ?? payload);
       set((state) => ({
@@ -162,6 +204,8 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
     } catch (error) {
       console.error("Error updating product", error);
       return false;
+    } finally {
+      set({ loading: false });
     }
   },
 

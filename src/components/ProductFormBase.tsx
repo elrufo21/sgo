@@ -5,6 +5,7 @@ import type { Product } from "@/types/product";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { useProductsStore } from "@/store/products/products.store";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
@@ -15,7 +16,9 @@ import type { Category } from "@/types/maintenance";
 interface ProductFormBaseProps {
   initialData?: Partial<Product>;
   mode: "create" | "edit";
-  onSave: (data: Omit<Product, "id"> & { images?: string[] }) => void;
+  onSave: (
+    data: Omit<Product, "id"> & { images?: string[]; imageFile?: File | null }
+  ) => void;
   onNew?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
@@ -23,9 +26,13 @@ interface ProductFormBaseProps {
 
 const unidadesMedida = ["Unidad", "Kg", "Litro", "Caja", "Docena"];
 
+const buildUserDate = () => `user-${new Date().toISOString().slice(0, 10)}`;
+
 type ProductFormValues = Omit<Product, "id"> & {
   images?: string[];
   preVentaB?: number | null;
+  imageFile?: File | null;
+  imageRemoved?: boolean;
 };
 
 export default function ProductFormBase({
@@ -40,6 +47,9 @@ export default function ProductFormBase({
   const [codeEditable, setCodeEditable] = useState(false);
   const { categories, fetchCategories, addCategory, updateCategory } =
     useMaintenanceStore();
+  const { products, fetchProducts } = useProductsStore();
+  const fallbackUser = useMemo(buildUserDate, []);
+  const productsLoading = useProductsStore((s) => s.loading);
 
   const generateCode = () => {
     const randomNumber = Math.floor(1000 + Math.random() * 9000);
@@ -63,11 +73,13 @@ export default function ProductFormBase({
       preVentaB: (initialData as any)?.preVentaB ?? null,
       aplicaINV: initialData?.aplicaINV ?? "bien",
       cantidad: initialData?.cantidad ?? null,
-      usuario: initialData?.usuario ?? "",
-      estado: initialData?.estado ?? "BUENO",
+      usuario: initialData?.usuario ?? fallbackUser,
+      estado: initialData?.estado ?? "ACTIVO",
       images: initialData?.images ?? [],
+      imageFile: null,
+      imageRemoved: false,
     }),
-    [initialData, mode]
+    [initialData, mode, fallbackUser]
   );
 
   const formMethods = useForm<ProductFormValues>({
@@ -97,7 +109,31 @@ export default function ProductFormBase({
     }
   }, [categories.length, fetchCategories]);
 
+  useEffect(() => {
+    if (!products.length) {
+      fetchProducts();
+    }
+  }, [products.length, fetchProducts]);
+
   const selectedSubLineaId = watch("idSubLinea");
+  const unidadMedidaActual = watch("unidadMedida");
+
+  const unidadMedidaOptions = useMemo(() => {
+    const opciones = new Set<string>();
+    unidadesMedida.forEach((u) => u && opciones.add(u));
+    products.forEach((p) => {
+      const unidad = (p.unidadMedida ?? "").trim();
+      if (unidad) opciones.add(unidad);
+    });
+    const valorActual = (unidadMedidaActual ?? "").trim();
+    if (valorActual) opciones.add(valorActual);
+
+    return [
+      { value: "", label: "Seleccionar..." },
+      ...Array.from(opciones).map((u) => ({ value: u, label: u })),
+    ];
+  }, [products, unidadMedidaActual]);
+
   useEffect(() => {
     if (selectedSubLineaId === null || selectedSubLineaId === undefined) {
       setValue("categoria", "");
@@ -111,15 +147,25 @@ export default function ProductFormBase({
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    const files = Array.from(e.target.files);
-    const urls = files.map((file) => URL.createObjectURL(file));
-    setValue("images", [...(watch("images") || []), ...urls]);
+    const file = e.target.files[0];
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    setValue("images", [previewUrl]);
+    setValue("imageFile", file, { shouldDirty: true, shouldValidate: true });
+    setValue("imageRemoved", false, { shouldDirty: true, shouldValidate: true });
   };
 
   const removeImage = (index: number) => {
     const images = watch("images") || [];
     const updatedImages = images.filter((_, i) => i !== index);
     setValue("images", updatedImages);
+    if (index === 0) {
+      setValue("imageFile", null, { shouldDirty: true, shouldValidate: true });
+      setValue("imageRemoved", true, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
   };
 
   const resetForm = () => {
@@ -155,7 +201,18 @@ export default function ProductFormBase({
       className="h-auto from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8"
     >
       <div className="max-w-5xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden relative">
+          {productsLoading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
+              <div className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-lg">
+                <div className="w-6 h-6 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-slate-700">
+                  Procesando, por favor espera...
+                </span>
+              </div>
+            </div>
+          )}
+
           <HookForm methods={formMethods} onSubmit={onSubmit}>
             <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
@@ -301,6 +358,21 @@ export default function ProductFormBase({
                         {...formMethods.register("codigo")}
                         disabled={!codeEditable}
                         placeholder="AUTO-GENERADO"
+                        onKeyDown={(e) => {
+                          if (e.key === " ") {
+                            e.preventDefault();
+                          }
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData?.getData("text") ?? "";
+                          const cleaned = pasted.replace(/\s+/g, "");
+                          e.currentTarget.value = cleaned;
+                          setValue("codigo", cleaned, {
+                            shouldValidate: true,
+                            shouldDirty: true,
+                          });
+                        }}
                         className={`w-full pr-12 px-4 py-3 border-2 rounded-lg transition-all outline-none ${
                           codeEditable
                             ? "border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
@@ -332,15 +404,16 @@ export default function ProductFormBase({
                     />
                   </div>
 
-                  <HookFormSelect<ProductFormValues>
+                  <HookFormAutocomplete<ProductFormValues>
                     name="unidadMedida"
                     label="Unidad de Medida"
-                    options={[
-                      { value: "", label: "Seleccionar..." },
-                      ...unidadesMedida.map((u) => ({ value: u, label: u })),
-                    ]}
+                    options={unidadMedidaOptions}
+                    placeholder="Selecciona o escribe una unidad"
                     rules={{ required: "La unidad de medida es obligatoria" }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                    allowCreate
+                    createLabel={(v) => `Agregar "${v}"`}
+                    onCreateOption={(v) => setValue("unidadMedida", v)}
+                    className="w-full"
                   />
 
                   <HookFormInput<ProductFormValues>
@@ -503,8 +576,8 @@ export default function ProductFormBase({
                     label="Estado del Producto"
                     disabled={mode === "create"}
                     options={[
-                      { value: "BUENO", label: "Activo" },
-                      { value: "DESCONTINUADO", label: "Inactivo" },
+                      { value: "ACTIVO", label: "Activo" },
+                      { value: "INACTIVO", label: "Inactivo" },
                     ]}
                     rules={{ required: "El estado es obligatorio" }}
                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
