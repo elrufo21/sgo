@@ -215,14 +215,6 @@ const POSPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <section className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-slate-700 bg-white px-3 py-2 rounded-lg shadow-sm">
-              <ShoppingCart className="w-4 h-4" />
-              <span>{totals.itemCount} ítems</span>
-              <span className="text-gray-300">|</span>
-              <span className="font-semibold">
-                S/ {totals.total.toFixed(2)}
-              </span>
-            </div>
             <div className="flex items-center gap-2">
               <div className="flex rounded-lg border bg-gray-50 overflow-hidden">
                 <button
@@ -250,6 +242,14 @@ const POSPage = () => {
                   Tabla
                 </button>
               </div>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-700 bg-white px-3 py-2 rounded-lg shadow-sm">
+              <ShoppingCart className="w-4 h-4" />
+              <span>{totals.itemCount} ítems</span>
+              <span className="text-gray-300">|</span>
+              <span className="font-semibold">
+                S/ {totals.total.toFixed(2)}
+              </span>
             </div>
           </div>
 
@@ -343,7 +343,10 @@ const POSPage = () => {
                   />
                 )}
                 {hasMoreProducts && (
-                  <div ref={loadMoreRef} className="mt-3 h-10 flex items-center justify-center text-xs text-gray-500">
+                  <div
+                    ref={loadMoreRef}
+                    className="mt-3 h-10 flex items-center justify-center text-xs text-gray-500"
+                  >
                     Cargando más productos...
                   </div>
                 )}

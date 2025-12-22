@@ -22,21 +22,26 @@ const CustomerCreate = () => {
   });
 
   const handleSave = async (data: Omit<typeof form, "id">) => {
-    await addClient(data);
-    toast.success("Cliente creado correctamente");
-    navigate("/customers/create");
-    setForm({
-      nombreRazon: "",
-      ruc: "",
-      dni: "",
-      direccionFiscal: "",
-      direccionDespacho: "",
-      telefonoMovil: "",
-      email: "",
-      registradoPor: "Admin",
-      estado: "activo",
-      fecha: null as string | null,
-    });
+    const result = await addClient(data);
+    if (result.ok) {
+      toast.success("Cliente creado correctamente");
+      navigate("/customers/create");
+      setForm({
+        nombreRazon: "",
+        ruc: "",
+        dni: "",
+        direccionFiscal: "",
+        direccionDespacho: "",
+        telefonoMovil: "",
+        email: "",
+        registradoPor: "Admin",
+        estado: "activo",
+        fecha: null as string | null,
+      });
+    } else {
+      toast.error(result.error ?? "El DNI o RUC ya existe.");
+    }
+    return result.ok;
   };
 
   const handleNew = () => {

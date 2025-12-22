@@ -101,11 +101,13 @@ export default function MainLayout() {
         to={item.to}
         className={`
           flex items-center gap-3 p-3 rounded-lg transition-all duration-200
-          justify-center ${!open && !alwaysShowLabel ? "" : "justify-start"}
+          justify-center text-white ${
+            !open && !alwaysShowLabel ? "" : "justify-start"
+          }
           ${
             active
               ? "bg-slate-600 text-white shadow"
-              : "text-gray-700 hover:bg-gray-200"
+              : "text-gray-700 hover:bg-gray-600"
           }
         `}
         title={!open && !alwaysShowLabel ? item.label : undefined}
@@ -119,14 +121,14 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 text-gray-800">
+    <div className="flex h-screen bg-gray-100">
       <aside
-        className={`hidden md:flex flex-col bg-white shadow-xl transition-all duration-300
+        className={`hidden md:flex flex-col bg-black  shadow-xl transition-all duration-300
           ${open ? "w-60" : "w-16"}`}
       >
-        <div className="relative flex items-center justify-around p-4 border-b">
+        <div className="relative bg-black flex items-center justify-around p-4 border-b">
           <h1
-            className={`text-lg font-semibold text-slate-600 transition-opacity duration-300 ${
+            className={`text-lg font-semibold text-white transition-opacity duration-300 ${
               open ? "opacity-100" : "opacity-0"
             }`}
           >
@@ -135,7 +137,7 @@ export default function MainLayout() {
 
           <button
             onClick={() => setOpen(!open)}
-            className={`p-2 rounded hover:bg-gray-100 transition-colors 
+            className={`p-2 rounded hover:bg-gray-800 text-white transition-colors 
             ${!open ? "absolute right-2 top-1/2 -translate-y-1/2" : ""}`}
           >
             <Menu size={20} />
@@ -143,11 +145,11 @@ export default function MainLayout() {
         </div>
 
         {open && (
-          <div className="px-3 mt-4">
+          <div className="px-3 mt-4 ">
             <input
               type="text"
               placeholder="Buscar módulo..."
-              className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring focus:ring-slate-300"
+              className="w-full px-3 py-2 text-sm border text-white rounded-md focus:outline-none focus:ring focus:ring-slate-300"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -155,7 +157,7 @@ export default function MainLayout() {
         )}
 
         {/* Navegación */}
-        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1">
+        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1 text-white bg-black">
           {(search ? filteredItems : navItems).map((item) =>
             renderNavItem(item)
           )}
@@ -174,13 +176,13 @@ export default function MainLayout() {
       )}
 
       <aside
-        className={`fixed z-50 top-0 left-0 h-full bg-white shadow-xl transition-transform duration-300 md:hidden
+        className={`fixed z-50 top-0 left-0 h-full bg-black shadow-xl text-white transition-transform duration-300 md:hidden
           ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           } w-64 flex flex-col`}
       >
-        <div className="flex items-center justify-between p-4 border-b">
-          <h1 className="text-lg font-semibold text-slate-600">Mi Sistema</h1>
+        <div className="flex items-center justify-between p-4 border-b ">
+          <h1 className="text-lg font-semibold text-white">Mi Sistema</h1>
           <button
             onClick={() => setMobileOpen(false)}
             className="p-2 rounded hover:bg-gray-100 transition-colors"
@@ -207,7 +209,7 @@ export default function MainLayout() {
       </aside>
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="h-16 bg-slate-700 shadow px-6 flex items-center justify-between text-white">
+        <header className="h-16 bg-[#96312a] shadow px-6 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <button
               className="md:hidden p-2 rounded hover:bg-slate-500 transition-colors"

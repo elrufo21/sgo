@@ -9,13 +9,15 @@ import {
 
 import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
-import { usePosStore, selectTotals } from "@/store/pos/pos.store";
+import type { PosCartItem, PosTotals } from "@/types/pos";
 
 type TicketDocumentProps = {
   clientName?: string;
   clientId?: string;
   docType?: "boleta" | "factura";
   paymentMethod?: string;
+  items?: PosCartItem[];
+  totals?: PosTotals;
 };
 
 const UNITS = [
@@ -304,15 +306,17 @@ const TicketDocument = ({
   clientId,
   docType = "boleta",
   paymentMethod,
+  items,
+  totals,
 }: TicketDocumentProps) => {
-  const items = usePosStore((s) => s.items);
-  const totals = usePosStore(selectTotals);
   const [qrBase64, setQrBase64] = useState("");
 
   const ticketData = useMemo(() => {
-    const hasItems = items.length > 0;
-    const subtotalValue = hasItems ? totals.subTotal : 10000;
-    const totalValue = hasItems ? totals.total : 100.0;
+    const hasItems = Boolean(items?.length);
+    const subtotalValue = hasItems
+      ? Number(totals?.subTotal ?? 0)
+      : 10000;
+    const totalValue = hasItems ? Number(totals?.total ?? 0) : 100.0;
     const igvValue = hasItems
       ? Math.max(0, totalValue - subtotalValue)
       : 100000;
@@ -343,7 +347,7 @@ const TicketDocument = ({
       clientDocLabel: docLabel,
       seller: "ANDRE",
       items: hasItems
-        ? items.map((item) => ({
+        ? (items ?? []).map((item) => ({
             quantity: Number(item.cantidad ?? 0),
             description: item.nombre ?? "Producto",
             unitPrice: Number(item.precio ?? 0),

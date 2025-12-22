@@ -7,8 +7,13 @@ interface ClientsState {
   clients: Client[];
   loading: boolean;
   fetchClients: () => Promise<void>;
-  addClient: (client: Omit<Client, "id">) => Promise<void>;
-  updateClient: (id: number, data: Partial<Client>) => Promise<void>;
+  addClient: (
+    client: Omit<Client, "id">
+  ) => Promise<{ ok: boolean; error?: string }>;
+  updateClient: (
+    id: number,
+    data: Partial<Client>
+  ) => Promise<{ ok: boolean; error?: string }>;
   deleteClient: (id: number) => Promise<boolean>;
 }
 
@@ -40,6 +45,15 @@ const mapClientToApi = (client: Partial<Client>): ApiClient => ({
   clienteFecha: client.fecha ?? null,
 });
 
+const parseExistsMessage = (payload: any): string | null => {
+  if (typeof payload !== "string") return null;
+  const lower = payload.toLowerCase();
+  if (lower.includes("dni")) return "Ese DNI ya existe.";
+  if (lower.includes("ruc")) return "Ese RUC ya existe.";
+  if (lower.includes("existe")) return "El cliente ya existe.";
+  return null;
+};
+
 export const useClientsStore = create<ClientsState>((set) => ({
   clients: [],
   loading: false,
@@ -61,49 +75,80 @@ export const useClientsStore = create<ClientsState>((set) => ({
   },
 
   addClient: async (client) => {
-    const payload = mapClientToApi(client);
-    const created = await apiRequest<ApiClient>({
-      url: `${API_BASE_URL}/Cliente/register`,
-      method: "POST",
-      data: payload,
-      config: {
-        headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
+    try {
+      set({ loading: true });
+      const payload = mapClientToApi(client);
+      const created = await apiRequest<ApiClient>({
+        url: `${API_BASE_URL}/Cliente/register`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
         },
-      },
-      fallback: payload,
-    });
+        fallback: payload,
+      });
 
-    set((state) => ({
-      clients: [
-        ...state.clients,
-        mapApiToClient(created ?? { ...payload, clienteId: Date.now() }),
-      ],
-    }));
+      if (
+        typeof created === "string" &&
+        created.toLowerCase().includes("existe")
+      ) {
+        return { ok: false, error: parseExistsMessage(created) ?? undefined };
+      }
+
+      set((state) => ({
+        clients: [
+          ...state.clients,
+          mapApiToClient(created ?? { ...payload, clienteId: Date.now() }),
+        ],
+      }));
+      return { ok: true };
+    } catch (error) {
+      console.error("Error creating client", error);
+      return { ok: false, error: "No se pudo crear el cliente." };
+    } finally {
+      set({ loading: false });
+    }
   },
 
   updateClient: async (id, data) => {
-    const payload = mapClientToApi({ ...data, id });
-    const updated = await apiRequest<ApiClient>({
-      // Backend usa mismo endpoint para crear/editar: id=0 crea, >0 actualiza
-      url: `${API_BASE_URL}/Cliente/register`,
-      method: "POST",
-      data: payload,
-      config: {
-        headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
+    try {
+      set({ loading: true });
+      const payload = mapClientToApi({ ...data, id });
+      const updated = await apiRequest<ApiClient>({
+        url: `${API_BASE_URL}/Cliente/register`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
         },
-      },
-      fallback: payload,
-    });
+        fallback: payload,
+      });
 
-    set((state) => ({
-      clients: state.clients.map((c) =>
-        c.id === id ? mapApiToClient(updated ?? payload) : c
-      ),
-    }));
+      if (
+        typeof updated === "string" &&
+        updated.toLowerCase().includes("existe")
+      ) {
+        return { ok: false, error: parseExistsMessage(updated) ?? undefined };
+      }
+
+      set((state) => ({
+        clients: state.clients.map((c) =>
+          c.id === id ? mapApiToClient(updated ?? payload) : c
+        ),
+      }));
+      return { ok: true };
+    } catch (error) {
+      console.error("Error updating client", error);
+      return { ok: false, error: "No se pudo actualizar el cliente." };
+    } finally {
+      set({ loading: false });
+    }
   },
 
   deleteClient: async (id) => {

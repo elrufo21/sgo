@@ -14,10 +14,18 @@ type CustomerFormValues = Omit<Client, "id"> & {
   numeroDocumento?: string;
 };
 
+const buildRegistradoPorDefault = () => {
+  const now = new Date();
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const year = now.getFullYear();
+  return `user-${day}${month}${year}`;
+};
+
 interface ClientFormBaseProps {
   initialData?: Partial<Client>;
   mode: "create" | "edit";
-  onSave: (data: Omit<Client, "id">) => void;
+  onSave: (data: Omit<Client, "id">) => Promise<boolean> | boolean;
   onNew?: () => void;
   onDelete?: () => void;
   variant?: "page" | "modal";
@@ -31,8 +39,8 @@ const buildDefaults = (data?: Partial<Client>): CustomerFormValues => ({
   direccionDespacho: data?.direccionDespacho ?? "",
   telefonoMovil: data?.telefonoMovil ?? "",
   email: data?.email ?? "",
-  registradoPor: data?.registradoPor ?? "",
-  estado: data?.estado ?? "activo",
+  registradoPor: data?.registradoPor ?? buildRegistradoPorDefault(),
+  estado: data?.estado ?? "ACTIVO",
   fecha: data?.fecha ?? null,
   tipoDocumento: "ruc",
   numeroDocumento: "",
@@ -97,7 +105,8 @@ export default function CustomerFormBase({
       estado: values.estado,
       fecha: values.fecha ?? null,
     };
-    await onSave(payload);
+    const saved = await onSave(payload);
+    if (saved === false) return;
     setDialogData(payload);
     focusFirstInput(containerRef.current);
   };
@@ -125,7 +134,7 @@ export default function CustomerFormBase({
         >
           <HookForm methods={formMethods} onSubmit={handleSave}>
             {!isModal && (
-              <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
                 <h1 className="text-base font-semibold">
                   {mode === "create"
                     ? "Registrar Nuevo Cliente"
@@ -264,15 +273,14 @@ export default function CustomerFormBase({
                     label="Registrado por"
                     placeholder="Nombre del usuario"
                     disabled
-                    className="w-full px-4 py-3 border-2 bg-gray-50 border-gray-200 cursor-not-allowed"
                   />
 
                   <HookFormSelect<CustomerFormValues>
                     name="estado"
                     label="Estado"
                     options={[
-                      { value: "activo", label: "Activo" },
-                      { value: "inactivo", label: "Inactivo" },
+                      { value: "ACTIVO", label: "Activo" },
+                      { value: "INACTIVO", label: "Inactivo" },
                     ]}
                     disabled={mode === "create"}
                   />

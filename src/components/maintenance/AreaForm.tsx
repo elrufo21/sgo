@@ -62,7 +62,7 @@ export default function AreaForm({
     >
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
             <h1 className="text-base font-semibold">
               {mode === "create" ? "Crear area" : "Editar area"}
             </h1>

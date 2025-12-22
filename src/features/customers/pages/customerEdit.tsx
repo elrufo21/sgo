@@ -42,9 +42,14 @@ const CustomerEdit = () => {
   if (!form) return <div>Cargando cliente...</div>;
 
   const handleSave = async (data: Omit<typeof form, "id">) => {
-    await updateClient(Number(id), data);
-    toast.success("Cliente guardado correctamente");
-    navigate("/customers");
+    const result = await updateClient(Number(id), data);
+    if (result.ok) {
+      toast.success("Cliente guardado correctamente");
+      navigate("/customers");
+    } else {
+      toast.error(result.error ?? "El DNI o RUC ya existe.");
+    }
+    return result.ok;
   };
 
   const handleDelete = async () => {

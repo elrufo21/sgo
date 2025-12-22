@@ -6,6 +6,7 @@ import {
   UserCheck2Icon,
   Icon,
   Building2,
+  CalendarDays,
 } from "lucide-react";
 import { useNavigate } from "react-router";
 
@@ -48,6 +49,12 @@ export default function MaintenanceDashboard() {
       desc: "Gestiona proveedores y contactos.",
       icon: <Building2 className="w-10 h-10 text-amber-600" />,
       route: "/maintenance/providers",
+    },
+    {
+      title: "Feriados",
+      desc: "Administra días feriados y motivos.",
+      icon: <CalendarDays className="w-10 h-10 text-red-500" />,
+      route: "/maintenance/holidays",
     },
   ];
 

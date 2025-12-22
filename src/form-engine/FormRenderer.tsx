@@ -76,7 +76,10 @@ export function FormRenderer({
   onNew?: () => void;
 }) {
   const defaults = useMemo(
-    () => (config.defaults ? config.defaults(initialValues, mode) : initialValues ?? {}),
+    () =>
+      config.defaults
+        ? config.defaults(initialValues, mode)
+        : initialValues ?? {},
     [config, initialValues, mode]
   );
 
@@ -90,7 +93,7 @@ export function FormRenderer({
 
   return (
     <HookForm methods={methods} onSubmit={handleSubmit(onSubmit)}>
-      <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
         <h1 className="text-base font-semibold">
           {mode === "create" ? config.title.create : config.title.edit}
         </h1>
@@ -111,15 +114,17 @@ export function FormRenderer({
               Nuevo
             </button>
           )}
-          {mode === "edit" && onDelete && config.actions?.showDelete !== false && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 transition-colors"
-            >
-              Eliminar
-            </button>
-          )}
+          {mode === "edit" &&
+            onDelete &&
+            config.actions?.showDelete !== false && (
+              <button
+                type="button"
+                onClick={onDelete}
+                className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 transition-colors"
+              >
+                Eliminar
+              </button>
+            )}
         </div>
       </div>
 
@@ -129,7 +134,9 @@ export function FormRenderer({
             key={section.id}
             className="grid gap-4"
             style={{
-              gridTemplateColumns: `repeat(${section.columns ?? 2}, minmax(0, 1fr))`,
+              gridTemplateColumns: `repeat(${
+                section.columns ?? 2
+              }, minmax(0, 1fr))`,
             }}
           >
             {section.title && (
@@ -140,7 +147,14 @@ export function FormRenderer({
             {section.fields.map((fname) => {
               const field = config.fields.find((f) => f.name === fname);
               if (!field) return null;
-              return <FieldRenderer key={fname} field={field} mode={mode} values={values} />;
+              return (
+                <FieldRenderer
+                  key={fname}
+                  field={field}
+                  mode={mode}
+                  values={values}
+                />
+              );
             })}
           </div>
         ))}

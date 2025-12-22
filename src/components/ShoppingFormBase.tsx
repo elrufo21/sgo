@@ -723,7 +723,7 @@ export default function ShoppingFormBase({
     <div ref={containerRef} className="py-6 px-3 sm:px-4 lg:px-6 w-full">
       <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
             <h1 className="text-base font-semibold">
               {mode === "create" ? "Nueva Compra" : "Editar Compra"}
             </h1>
@@ -874,10 +874,10 @@ export default function ShoppingFormBase({
                   />
 
                   <HookFormInput<ShoppingFormData>
-                  name="numero"
-                  label="Numero de serie"
-                  placeholder="Numero"
-                  rules={{
+                    name="numero"
+                    label="Numero de serie"
+                    placeholder="Numero"
+                    rules={{
                       required: requireNumeroSerie
                         ? "El numero es obligatorio"
                         : false,

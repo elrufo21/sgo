@@ -3,11 +3,13 @@ import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useCategoriesQuery } from "@/features/maintenance/categories/useCategoriesQuery";
 import { useAreasQuery } from "@/features/maintenance/areas/useAreasQuery";
 import { useProvidersQuery } from "@/features/maintenance/providers/useProvidersQuery";
+import { useHolidaysQuery } from "@/features/maintenance/holidays/useHolidaysQuery";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { employeeListConfig } from "@/features/maintenance/employees/employee.list.config";
 import { categoryListConfig } from "@/features/maintenance/categories/categories.list.config";
 import { areaListConfig } from "@/features/maintenance/areas/area.list.config";
 import { providerListConfig } from "@/features/maintenance/providers/provider.list.config";
+import { holidaysListConfig } from "@/features/maintenance/holidays/holidays.list.config";
 import { customerListConfig } from "@/features/customers/customer.list.config";
 import type { ModuleListConfig } from "@/shared/config/listConfig";
 
@@ -71,6 +73,19 @@ export const listRegistry = {
         data,
         fetchData: refetch,
         deleteItem: deleteProvider,
+      };
+    },
+  } satisfies ListModuleEntry<any>,
+
+  holidays: {
+    config: holidaysListConfig,
+    useDeps: () => {
+      const { deleteHoliday } = useMaintenanceStore();
+      const { data = [], refetch } = useHolidaysQuery();
+      return {
+        data,
+        fetchData: refetch,
+        deleteItem: deleteHoliday,
       };
     },
   } satisfies ListModuleEntry<any>,

@@ -5,12 +5,16 @@ import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "sonner";
 import TicketDocument from "@/components/Ticket";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 const PaymentPage = () => {
   const items = usePosStore((s) => s.items);
   const totals = usePosStore(selectTotals);
   const clearCart = usePosStore((s) => s.clearCart);
   const navigate = useNavigate();
+  const openDialog = useDialogStore((s) => s.openDialog);
+  const [purchasedItems, setPurchasedItems] = useState(items);
+  const [paidTotals, setPaidTotals] = useState(totals);
   const [docType, setDocType] = useState<"boleta" | "factura">("boleta");
   const [paymentMethod, setPaymentMethod] = useState<
     "efectivo" | "tarjeta" | "transferencia"
@@ -21,18 +25,38 @@ const PaymentPage = () => {
   const [bankEntity, setBankEntity] = useState("");
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
+
+  const hasLiveItems = items.length > 0;
+  const itemsToRender = hasLiveItems ? items : purchasedItems;
+  const totalsToRender = hasLiveItems ? totals : paidTotals;
 
   const docLabel = docType === "factura" ? "RUC" : "DNI";
-  const igvAmount = Math.max(0, totals.total - totals.subTotal);
-  const ticketPreviewProps = useMemo(
-    () => ({
+  const igvAmount = Math.max(
+    0,
+    (totalsToRender?.total ?? 0) - (totalsToRender?.subTotal ?? 0)
+  );
+  const ticketPreviewProps = useMemo(() => {
+    const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
+    const safeTotals = itemsToRender.length ? totalsToRender : paidTotals;
+    return {
       clientName: customerName.trim() || "Ultimo cliente",
       clientId: customerId.trim(),
       docType,
       paymentMethod,
-    }),
-    [customerId, customerName, docType, paymentMethod]
-  );
+      items: safeItems,
+      totals: safeTotals,
+    };
+  }, [
+    customerId,
+    customerName,
+    docType,
+    paymentMethod,
+    itemsToRender,
+    totalsToRender,
+    purchasedItems,
+    paidTotals,
+  ]);
   const previewKey = useMemo(
     () =>
       [
@@ -40,16 +64,16 @@ const PaymentPage = () => {
         paymentMethod,
         ticketPreviewProps.clientName,
         ticketPreviewProps.clientId,
-        totals.total.toFixed(2),
-        items.length,
+        totalsToRender.total.toFixed(2),
+        itemsToRender.length,
       ].join("|"),
     [
       docType,
-      items.length,
+      itemsToRender.length,
       paymentMethod,
       ticketPreviewProps.clientId,
       ticketPreviewProps.clientName,
-      totals.total,
+      totalsToRender.total,
     ]
   );
 
@@ -58,18 +82,45 @@ const PaymentPage = () => {
   }, []);
 
   const confirmPayment = () => {
+    const sourceItems = items.length ? items : purchasedItems;
+    const sourceTotals = items.length ? totals : paidTotals;
+    setPurchasedItems(sourceItems);
+    setPaidTotals(sourceTotals);
     toast.success("Pago registrado");
+    if (items.length) {
+      clearCart();
+    }
+    setIsConfirmed(true);
+  };
+
+  const handleBackToPos = () => {
+    if (items.length) {
+      setPurchasedItems(items);
+      setPaidTotals(totals);
+    }
     clearCart();
     navigate("/pos");
+  };
+
+  const handleEnableEditing = () => {
+    openDialog({
+      title: "Confirmar edición",
+      content: "¿Desea editar?",
+      confirmText: "Editar",
+      cancelText: "Cancelar",
+      onConfirm: () => setIsConfirmed(false),
+    });
   };
 
   const handlePrint = async (printerName = "Canon G2060 series HTTP") => {
     try {
       setIsPrinting(true);
-      const blob = await pdf(<TicketDocument {...ticketPreviewProps} />).toBlob();
+      const blob = await pdf(
+        <TicketDocument {...ticketPreviewProps} />
+      ).toBlob();
       const arrayBuffer = await blob.arrayBuffer();
       const base64 = btoa(
-        String.fromCharCode(...new Uint8Array(arrayBuffer) as any)
+        String.fromCharCode(...(new Uint8Array(arrayBuffer) as any))
       );
 
       const res = await fetch("http://localhost:3000/print", {
@@ -91,7 +142,7 @@ const PaymentPage = () => {
     }
   };
 
-  if (!items.length) {
+  if (!itemsToRender.length) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-slate-700">
@@ -149,7 +200,7 @@ const PaymentPage = () => {
               Items a cobrar
             </h2>
             <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {items.map((item) => (
+              {itemsToRender.map((item) => (
                 <div
                   key={item.productId}
                   className="border rounded-lg p-3 flex justify-between gap-3 bg-gray-50"
@@ -194,11 +245,12 @@ const PaymentPage = () => {
                 ].map((opt) => (
                   <button
                     key={opt.value}
+                    disabled={isConfirmed}
                     className={`border rounded-lg px-3 py-2 text-sm text-left ${
                       docType === opt.value
                         ? "border-slate-700 bg-slate-700 text-white"
                         : "border-slate-200 bg-white text-slate-800"
-                    }`}
+                    } ${isConfirmed ? "opacity-70 cursor-not-allowed" : ""}`}
                     onClick={() => setDocType(opt.value as typeof docType)}
                   >
                     {opt.label}
@@ -212,8 +264,9 @@ const PaymentPage = () => {
                 Forma de pago
               </p>
               <select
-                className="w-full mt-2 border rounded-lg px-3 py-2 text-sm"
+                className="w-full mt-2 border rounded-lg px-3 py-2 text-sm text-black"
                 value={paymentMethod}
+                disabled={isConfirmed}
                 onChange={(e) =>
                   setPaymentMethod(e.target.value as typeof paymentMethod)
                 }
@@ -230,8 +283,9 @@ const PaymentPage = () => {
                   Nombre del cliente
                 </p>
                 <input
-                  className="w-full mt-2 border rounded-lg px-3 py-2 text-sm"
+                  className="w-full text-black mt-2 border rounded-lg px-3 py-2 text-sm"
                   value={customerName}
+                  disabled={isConfirmed}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Nombre o razón social"
                 />
@@ -241,8 +295,9 @@ const PaymentPage = () => {
                   {docLabel}
                 </p>
                 <input
-                  className="w-full mt-2 border rounded-lg px-3 py-2 text-sm"
+                  className="w-full mt-2 border text-black rounded-lg px-3 py-2 text-sm"
                   value={customerId}
+                  disabled={isConfirmed}
                   onChange={(e) => setCustomerId(e.target.value)}
                   placeholder={`Número de ${docLabel}`}
                 />
@@ -255,8 +310,9 @@ const PaymentPage = () => {
                   Entidad bancaria
                 </p>
                 <input
-                  className="w-full mt-2 border rounded-lg px-3 py-2 text-sm"
+                  className="w-full mt-2 border text-black rounded-lg px-3 py-2 text-sm"
                   value={bankEntity}
+                  disabled={isConfirmed}
                   onChange={(e) => setBankEntity(e.target.value)}
                   placeholder="Banco emisor"
                 />
@@ -268,10 +324,11 @@ const PaymentPage = () => {
                 Notas / referencia
               </p>
               <textarea
-                className="w-full mt-2 border rounded-lg px-3 py-2 text-sm resize-none"
+                className="w-full mt-2 border text-black   rounded-lg px-3 py-2 text-sm resize-none"
                 rows={3}
                 placeholder="Cliente, referencia, observaciones..."
                 value={notes}
+                disabled={isConfirmed}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
@@ -280,7 +337,7 @@ const PaymentPage = () => {
               <div className="flex justify-between text-sm text-gray-700">
                 <span>Subtotal</span>
                 <span className="font-semibold">
-                  S/ {totals.subTotal.toFixed(2)}
+                  S/ {totalsToRender.subTotal.toFixed(2)}
                 </span>
               </div>
               <div className="flex justify-between text-sm text-gray-700">
@@ -289,17 +346,27 @@ const PaymentPage = () => {
               </div>
               <div className="flex justify-between text-base text-slate-800 font-bold">
                 <span>Total</span>
-                <span>S/ {totals.total.toFixed(2)}</span>
+                <span>S/ {totalsToRender.total.toFixed(2)}</span>
               </div>
             </div>
 
-            <button
-              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
-              onClick={confirmPayment}
-            >
-              <CheckCircle2 className="w-5 h-5" />
-              Confirmar pago
-            </button>
+            {!isConfirmed && (
+              <button
+                className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+                onClick={confirmPayment}
+              >
+                <CheckCircle2 className="w-5 h-5" />
+                Confirmar pago
+              </button>
+            )}
+            {isConfirmed && (
+              <button
+                className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-50 transition-colors"
+                onClick={handleEnableEditing}
+              >
+                Editar
+              </button>
+            )}
             <button
               className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
               onClick={() => handlePrint()}
@@ -307,6 +374,13 @@ const PaymentPage = () => {
             >
               <Printer className="w-5 h-5" />
               {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
+            </button>
+            <button
+              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors"
+              onClick={handleBackToPos}
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Volver al POS
             </button>
           </div>
         </section>

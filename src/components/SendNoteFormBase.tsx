@@ -25,6 +25,7 @@ import { useProductsStore } from "@/store/products/products.store";
 import { useClientsStore } from "@/store/customers/customers.store";
 import type { Client } from "@/types/customer";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { toast } from "sonner";
 
 const entidadOptions = [
   { value: "Banco 1", label: "Banco 1" },
@@ -293,15 +294,19 @@ export default function SendNoteFormBase({
       fullWidth: true,
       cancelText: "Cerrar",
       content: (
-        <CustomerFormBase
-          mode="create"
-          variant="modal"
-          onSave={async (data) => {
-            await addClient(data);
-            await fetchClients();
-            if (data.nombreRazon) {
-              setValue("cliente", data.nombreRazon, { shouldDirty: true });
-            }
+          <CustomerFormBase
+            mode="create"
+            variant="modal"
+            onSave={async (data) => {
+              const result = await addClient(data);
+              if (!result.ok) {
+                toast.error(result.error ?? "El DNI o RUC ya existe.");
+                return false;
+              }
+              await fetchClients();
+              if (data.nombreRazon) {
+                setValue("cliente", data.nombreRazon, { shouldDirty: true });
+              }
             if (data.ruc) setValue("ruc", data.ruc, { shouldDirty: true });
             if (data.dni) setValue("dni", data.dni, { shouldDirty: true });
             if (data.direccionFiscal)
@@ -315,6 +320,7 @@ export default function SendNoteFormBase({
             if (data.telefonoMovil)
               setValue("telefono", data.telefonoMovil, { shouldDirty: true });
             closeDialog();
+            return true;
           }}
           onNew={() => {}}
         />
@@ -632,7 +638,7 @@ export default function SendNoteFormBase({
     <div ref={containerRef} className=" px-3 sm:px-4 lg:px-6 w-full">
       <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
             <h1 className="text-base font-semibold">
               {mode === "create"
                 ? "Nueva nota de pedido"

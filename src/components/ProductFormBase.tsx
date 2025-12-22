@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Save, Plus, Trash2, X, FileEdit } from "lucide-react";
+import { Save, Plus, Trash2, X, FileEdit, Camera, Upload } from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { Product } from "@/types/product";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
@@ -50,6 +50,10 @@ export default function ProductFormBase({
   const { products, fetchProducts } = useProductsStore();
   const fallbackUser = useMemo(buildUserDate, []);
   const productsLoading = useProductsStore((s) => s.loading);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [takingPhoto, setTakingPhoto] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
 
   const generateCode = () => {
     const randomNumber = Math.floor(1000 + Math.random() * 9000);
@@ -117,6 +121,11 @@ export default function ProductFormBase({
 
   const selectedSubLineaId = watch("idSubLinea");
   const unidadMedidaActual = watch("unidadMedida");
+  const placeholderImage =
+    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>";
+  const currentImage = (watch("images")?.[0] ?? "").trim();
+  const displayImage = currentImage !== "" ? currentImage : placeholderImage;
+  const hasImage = currentImage !== "";
 
   const unidadMedidaOptions = useMemo(() => {
     const opciones = new Set<string>();
@@ -152,21 +161,91 @@ export default function ProductFormBase({
     const previewUrl = URL.createObjectURL(file);
     setValue("images", [previewUrl]);
     setValue("imageFile", file, { shouldDirty: true, shouldValidate: true });
-    setValue("imageRemoved", false, { shouldDirty: true, shouldValidate: true });
+    setValue("imageRemoved", false, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
-  const removeImage = (index: number) => {
-    const images = watch("images") || [];
-    const updatedImages = images.filter((_, i) => i !== index);
-    setValue("images", updatedImages);
-    if (index === 0) {
-      setValue("imageFile", null, { shouldDirty: true, shouldValidate: true });
-      setValue("imageRemoved", true, {
-        shouldDirty: true,
-        shouldValidate: true,
-      });
+  const removeImage = () => {
+    setValue("images", []);
+    setValue("imageFile", null, { shouldDirty: true, shouldValidate: true });
+    setValue("imageRemoved", true, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const openImageModal = () => {
+    if (!hasImage) return;
+    setModalImageSrc(currentImage);
+    setIsImageModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false);
+    setModalImageSrc(null);
+  };
+
+  const stopCamera = () => {
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((t) => t.stop());
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setTakingPhoto(false);
+  };
+
+  const startCamera = async () => {
+    try {
+      setTakingPhoto(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("No se pudo iniciar la camara", error);
+      setTakingPhoto(false);
     }
   };
+
+  const dataUrlToFile = (dataUrl: string, fileName: string) => {
+    const arr = dataUrl.split(",");
+    const mimeMatch = arr[0]?.match(/:(.*?);/);
+    const mime = mimeMatch?.[1] ?? "image/png";
+    const bstr = atob(arr[1] ?? "");
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], fileName, { type: mime });
+  };
+
+  const takePhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const file = dataUrlToFile(dataUrl, `producto-${Date.now()}.png`);
+
+    setValue("images", [dataUrl], { shouldDirty: true });
+    setValue("imageFile", file, { shouldDirty: true, shouldValidate: true });
+    setValue("imageRemoved", false, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    stopCamera();
+  };
+
+  useEffect(() => stopCamera, []);
 
   const resetForm = () => {
     reset(defaults);
@@ -214,7 +293,7 @@ export default function ProductFormBase({
           )}
 
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear Nuevo Producto" : "Editar Producto"}
               </h1>
@@ -590,10 +669,34 @@ export default function ProductFormBase({
                   />
                 </div>
                 <div className="border-t-2 border-gray-100">
-                  <div className="space-y-4">
-                    <div className="mb-4">
-                      <label className="cursor-pointer inline-block px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                        Agregar imagenes
+                  <div className="space-y-5">
+                    <h3 className="text-lg font-semibold">Foto del producto</h3>
+
+                    <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
+                      <img
+                        src={displayImage}
+                        onClick={openImageModal}
+                        className={`w-full h-full object-cover ${
+                          hasImage ? "cursor-zoom-in" : ""
+                        }`}
+                        alt="Foto producto"
+                      />
+                      {hasImage && (
+                        <button
+                          onClick={removeImage}
+                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
+                          title="Eliminar imagen"
+                          type="button"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="cursor-pointer flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        <Upload className="w-5 h-5" />
+                        Subir Foto
                         <input
                           type="file"
                           accept="image/*"
@@ -602,38 +705,76 @@ export default function ProductFormBase({
                           className="hidden"
                         />
                       </label>
-                    </div>
 
-                    {watch("images")?.length > 0 && (
-                      <div className="flex flex-wrap gap-4 justify-start sm:justify-center">
-                        {watch("images")!.map((img, i) => (
-                          <div
-                            key={i}
-                            className="relative group w-[300px] h-[300px]"
-                          >
-                            <div className="w-full h-full rounded-lg overflow-hidden border-2 border-gray-200 hover:border-blue-400 transition-colors shadow-sm hover:shadow-md">
-                              <img
-                                src={img}
-                                alt={`Imagen ${i + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
+                      {!takingPhoto ? (
+                        <button
+                          type="button"
+                          onClick={startCamera}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        >
+                          <Camera className="w-5 h-5" />
+                          Tomar Foto
+                        </button>
+                      ) : (
+                        <div className="space-y-3">
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            className="w-full h-64 bg-black rounded-lg"
+                          />
+                          <div className="flex gap-3">
                             <button
-                              onClick={() => removeImage(i)}
-                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Eliminar imagen"
+                              type="button"
+                              onClick={takePhoto}
+                              className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                             >
-                              <X className="w-5 h-5" />
+                              Capturar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={stopCamera}
+                              className="flex-1 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
+                            >
+                              Cancelar
                             </button>
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </HookForm>
+          {isImageModalOpen && modalImageSrc && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+              onClick={closeImageModal}
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="relative max-w-4xl w-full max-h-[90vh]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={closeImageModal}
+                  className="absolute top-3 right-3 text-white hover:text-gray-200"
+                  title="Cerrar"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+                <div className="bg-black rounded-lg overflow-hidden">
+                  <img
+                    src={modalImageSrc}
+                    alt="Foto producto ampliada"
+                    className="w-full h-full max-h-[80vh] object-contain"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

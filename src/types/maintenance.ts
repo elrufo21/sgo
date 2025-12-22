@@ -22,6 +22,16 @@ export interface Computer {
   areaId: number;
 }
 
+export interface ProviderBankAccount {
+  cuentaId?: number;
+  proveedorId?: number;
+  entidad: string;
+  tipoCuenta: string;
+  moneda: string;
+  nroCuenta: string;
+  action?: "i" | "u" | "d";
+}
+
 export interface Provider {
   id: number;
   razon: string;
@@ -32,4 +42,11 @@ export interface Provider {
   correo: string;
   direccion: string;
   estado: string;
+  cuentasBancarias?: ProviderBankAccount[];
+}
+
+export interface Holiday {
+  id: number;
+  fecha: string;
+  motivo: string;
 }

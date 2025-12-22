@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import { toast } from "sonner";
 import ProviderForm from "@/components/maintenance/ProviderForm";
-import type { Provider } from "@/types/maintenance";
+import type { Provider, ProviderBankAccount } from "@/types/maintenance";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useProvidersQuery } from "./useProvidersQuery";
 import { useDialogStore } from "@/store/app/dialog.store";
@@ -25,7 +25,9 @@ export default function ProviderEdit() {
 
   if (!initialData) return <div>Cargando proveedor...</div>;
 
-  const handleSave = async (formData: Provider) => {
+  const handleSave = async (
+    formData: Provider & { cuentasBancarias?: ProviderBankAccount[] }
+  ) => {
     if (!id) return;
     await updateProvider(Number(id), formData);
     toast.success("Proveedor actualizado correctamente");

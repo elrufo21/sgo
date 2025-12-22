@@ -14,6 +14,8 @@ import CategoryEdit from "./categories/categoriesEdit";
 import { GenericList } from "@/shared/listing/GenericList";
 import ProviderCreate from "./providers/providerCreate";
 import ProviderEdit from "./providers/providerEdit";
+import HolidayCreate from "./holidays/holidayCreate";
+import HolidayEdit from "./holidays/holidayEdit";
 
 export default [
   {
@@ -119,6 +121,39 @@ export default [
         { label: "Mantenimiento", to: "/maintenance" },
         { label: "Proveedores", to: "/maintenance/providers" },
         { label: "Editar proveedor" },
+      ],
+    },
+  },
+
+  {
+    path: "maintenance/holidays",
+    element: <GenericList moduleKey="holidays" />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Feriados" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/holidays/create",
+    element: <HolidayCreate />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Feriados", to: "/maintenance/holidays" },
+        { label: "Crear feriado" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/holidays/:id/edit",
+    element: <HolidayEdit />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Feriados", to: "/maintenance/holidays" },
+        { label: "Editar feriado" },
       ],
     },
   },
