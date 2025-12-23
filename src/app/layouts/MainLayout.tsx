@@ -123,10 +123,10 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen bg-gray-100">
       <aside
-        className={`hidden md:flex flex-col bg-black  shadow-xl transition-all duration-300
+        className={`hidden md:flex flex-col bg-[#222d32]  shadow-xl transition-all duration-300
           ${open ? "w-60" : "w-16"}`}
       >
-        <div className="relative bg-black flex items-center justify-around p-4 border-b">
+        <div className="relative bg-[#222d32] flex items-center justify-around p-4 border-b">
           <h1
             className={`text-lg font-semibold text-white transition-opacity duration-300 ${
               open ? "opacity-100" : "opacity-0"
@@ -157,7 +157,7 @@ export default function MainLayout() {
         )}
 
         {/* Navegación */}
-        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1 text-white bg-black">
+        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1 text-white bg-[#222d32]">
           {(search ? filteredItems : navItems).map((item) =>
             renderNavItem(item)
           )}
@@ -170,13 +170,13 @@ export default function MainLayout() {
 
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-[#222d32]/50 md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
       <aside
-        className={`fixed z-50 top-0 left-0 h-full bg-black shadow-xl text-white transition-transform duration-300 md:hidden
+        className={`fixed z-50 top-0 left-0 h-full bg-[#222d32] shadow-xl text-white transition-transform duration-300 md:hidden
           ${
             mobileOpen ? "translate-x-0" : "-translate-x-full"
           } w-64 flex flex-col`}

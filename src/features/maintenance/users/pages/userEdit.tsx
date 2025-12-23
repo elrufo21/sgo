@@ -29,8 +29,13 @@ const UserEdit = () => {
 
   if (!form) return <div>Cargando empleado...</div>;
 
-  const handleSave = (data: Omit<User, "id">) => {
-    updateUser(Number(id), data);
+  const handleSave = async (data: Omit<User, "id">) => {
+    const updated = await updateUser(Number(id), data);
+    if (!updated) {
+      toast.error("No se pudo guardar el usuario.");
+      return;
+    }
+
     toast.success("Empleado guardado correctamente");
     navigate("/maintenance/users");
   };

@@ -53,8 +53,8 @@ export function LoginPage() {
         </div>
 
         <p className="text-sm text-slate-600 mt-4 leading-relaxed">
-          <span className="font-semibold text-slate-900"> admin/admin123 </span>
-          o<span className="font-semibold text-slate-900"> demo/demo123</span>.
+          Usa las credenciales de tu cuenta. Ejemplo de prueba:
+          <span className="font-semibold text-slate-900"> admin / admin</span>
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -63,7 +63,7 @@ export function LoginPage() {
               htmlFor="username"
               className="block text-sm font-medium text-slate-700 mb-1"
             >
-              Usuario
+              Usuario / Email
             </label>
             <div className="relative">
               <input

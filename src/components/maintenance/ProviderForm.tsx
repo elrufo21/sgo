@@ -290,7 +290,7 @@ export default function ProviderForm({
       >
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
           {!isModal && (
-            <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
               </h1>
@@ -346,7 +346,6 @@ export default function ProviderForm({
                   placeholder="Ingrese RUC"
                   inputMode="numeric"
                   rules={{
-                    required: "El RUC es obligatorio",
                     validate: (value) =>
                       !value?.trim() ||
                       /^\d{8,20}$/.test(value.trim()) ||

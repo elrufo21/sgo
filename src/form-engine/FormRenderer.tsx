@@ -93,7 +93,7 @@ export function FormRenderer({
 
   return (
     <HookForm methods={methods} onSubmit={handleSubmit(onSubmit)}>
-      <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
         <h1 className="text-base font-semibold">
           {mode === "create" ? config.title.create : config.title.edit}
         </h1>

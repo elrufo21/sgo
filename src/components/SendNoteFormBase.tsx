@@ -25,6 +25,7 @@ import { useProductsStore } from "@/store/products/products.store";
 import { useClientsStore } from "@/store/customers/customers.store";
 import type { Client } from "@/types/customer";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { useAuthStore } from "@/store/auth/auth.store";
 import { toast } from "sonner";
 
 const entidadOptions = [
@@ -66,6 +67,7 @@ export default function SendNoteFormBase({
   const [isEditable, setIsEditable] = useState(true);
   const openDialog = useDialogStore((s) => s.openDialog);
   const closeDialog = useDialogStore((s) => s.closeDialog);
+  const authUser = useAuthStore((s) => s.user);
 
   const defaultRow: SendNoteItem = {
     productId: null,
@@ -77,6 +79,13 @@ export default function SendNoteFormBase({
     descuento: 0,
     importe: 0,
   };
+
+  const responsibleUser =
+    initialData?.usuarioResponsable ??
+    initialData?.atendidoPor ??
+    authUser?.displayName ??
+    authUser?.username ??
+    "";
 
   const defaults = useMemo<SendNoteFormValues>(
     () => ({
@@ -97,8 +106,10 @@ export default function SendNoteFormBase({
         initialData?.items && initialData.items.length > 0
           ? initialData.items
           : [defaultRow],
+      usuarioResponsable: responsibleUser,
+      atendidoPor: responsibleUser,
     }),
-    [initialData]
+    [initialData, responsibleUser]
   );
 
   const formMethods = useForm<SendNoteFormValues>({
@@ -294,19 +305,19 @@ export default function SendNoteFormBase({
       fullWidth: true,
       cancelText: "Cerrar",
       content: (
-          <CustomerFormBase
-            mode="create"
-            variant="modal"
-            onSave={async (data) => {
-              const result = await addClient(data);
-              if (!result.ok) {
-                toast.error(result.error ?? "El DNI o RUC ya existe.");
-                return false;
-              }
-              await fetchClients();
-              if (data.nombreRazon) {
-                setValue("cliente", data.nombreRazon, { shouldDirty: true });
-              }
+        <CustomerFormBase
+          mode="create"
+          variant="modal"
+          onSave={async (data) => {
+            const result = await addClient(data);
+            if (!result.ok) {
+              toast.error(result.error ?? "El DNI o RUC ya existe.");
+              return false;
+            }
+            await fetchClients();
+            if (data.nombreRazon) {
+              setValue("cliente", data.nombreRazon, { shouldDirty: true });
+            }
             if (data.ruc) setValue("ruc", data.ruc, { shouldDirty: true });
             if (data.dni) setValue("dni", data.dni, { shouldDirty: true });
             if (data.direccionFiscal)
@@ -604,6 +615,8 @@ export default function SendNoteFormBase({
       cliente: values.cliente?.toUpperCase() ?? "",
       direccionFiscal: values.direccionFiscal?.toUpperCase() ?? "",
       direccionDespacho: values.direccionDespacho?.toUpperCase() ?? "",
+      usuarioResponsable: responsibleUser,
+      atendidoPor: responsibleUser,
       items: detail,
     });
     if (mode === "create") {
@@ -627,18 +640,15 @@ export default function SendNoteFormBase({
     }
   };
 
-  const estadoLabel = (initialData as any)?.estado ?? "Emitido";
-  const fechaEmitidoLabel = (initialData as any)?.fechaEmitido ?? "";
-  const atendidoPorLabel =
-    (initialData as any)?.atendidoPor ??
-    (initialData as any)?.usuarioResponsable ??
-    "";
+  const estadoLabel = initialData?.estado ?? "Emitido";
+  const fechaEmitidoLabel = initialData?.fechaEmitido ?? "";
+  const atendidoPorLabel = responsibleUser;
 
   return (
     <div ref={containerRef} className=" px-3 sm:px-4 lg:px-6 w-full">
       <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
             <h1 className="text-base font-semibold">
               {mode === "create"
                 ? "Nueva nota de pedido"

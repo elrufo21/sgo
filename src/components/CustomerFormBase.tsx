@@ -7,6 +7,7 @@ import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { useAuthStore } from "@/store/auth/auth.store";
 import type { Client } from "@/types/customer";
 
 type CustomerFormValues = Omit<Client, "id"> & {
@@ -14,7 +15,8 @@ type CustomerFormValues = Omit<Client, "id"> & {
   numeroDocumento?: string;
 };
 
-const buildRegistradoPorDefault = () => {
+const buildRegistradoPorDefault = (preferredName?: string | null) => {
+  if (preferredName) return preferredName;
   const now = new Date();
   const day = String(now.getDate()).padStart(2, "0");
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -31,7 +33,10 @@ interface ClientFormBaseProps {
   variant?: "page" | "modal";
 }
 
-const buildDefaults = (data?: Partial<Client>): CustomerFormValues => ({
+const buildDefaults = (
+  data?: Partial<Client>,
+  registradoPor?: string | null
+): CustomerFormValues => ({
   nombreRazon: data?.nombreRazon ?? "",
   ruc: data?.ruc ?? "",
   dni: data?.dni ?? "",
@@ -39,7 +44,8 @@ const buildDefaults = (data?: Partial<Client>): CustomerFormValues => ({
   direccionDespacho: data?.direccionDespacho ?? "",
   telefonoMovil: data?.telefonoMovil ?? "",
   email: data?.email ?? "",
-  registradoPor: data?.registradoPor ?? buildRegistradoPorDefault(),
+  registradoPor:
+    data?.registradoPor ?? buildRegistradoPorDefault(registradoPor),
   estado: data?.estado ?? "ACTIVO",
   fecha: data?.fecha ?? null,
   tipoDocumento: "ruc",
@@ -56,10 +62,21 @@ export default function CustomerFormBase({
 }: ClientFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const setDialogData = useDialogStore((s) => s.setData);
+  const authUser = useAuthStore((s) => s.user);
+  const registradoPorUser = authUser?.displayName ?? authUser?.username ?? null;
 
   const defaults = useMemo(
-    () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
-    [initialData, mode]
+    () =>
+      mode === "edit"
+        ? buildDefaults(initialData, registradoPorUser)
+        : buildDefaults(
+            {
+              ...initialData,
+              registradoPor: buildRegistradoPorDefault(registradoPorUser),
+            },
+            registradoPorUser
+          ),
+    [initialData, mode, registradoPorUser]
   );
 
   const formMethods = useForm<CustomerFormValues>({
@@ -134,7 +151,7 @@ export default function CustomerFormBase({
         >
           <HookForm methods={formMethods} onSubmit={handleSave}>
             {!isModal && (
-              <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
                 <h1 className="text-base font-semibold">
                   {mode === "create"
                     ? "Registrar Nuevo Cliente"

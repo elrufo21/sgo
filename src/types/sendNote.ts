@@ -26,4 +26,8 @@ export interface SendNote {
   buscarCodigo: string;
   radioOpcion: string;
   items: SendNoteItem[];
+  usuarioResponsable?: string;
+  atendidoPor?: string;
+  estado?: string;
+  fechaEmitido?: string;
 }

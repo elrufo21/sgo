@@ -79,11 +79,11 @@ interface MaintenanceState {
   updateComputer: (id: number, data: Partial<Computer>) => Promise<void>;
   deleteComputer: (id: number) => Promise<boolean>;
 
-  addProvider: (data: ProviderWithAccounts) => Promise<void>;
+  addProvider: (data: ProviderWithAccounts) => Promise<boolean>;
   updateProvider: (
     id: number,
     data: Partial<ProviderWithAccounts>
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   fetchProviderAccounts: (providerId: number) => Promise<ProviderBankAccount[]>;
   deleteProvider: (id: number) => Promise<boolean>;
 
@@ -659,6 +659,15 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         fallback: { ...data, id: Date.now() },
       });
 
+      if (
+        typeof created === "string" &&
+        created.toLowerCase().includes("existe") &&
+        created.toLowerCase().includes("ruc")
+      ) {
+        toast.error(created);
+        return false;
+      }
+
       const hasCreatedId =
         created &&
         typeof created === "object" &&
@@ -696,6 +705,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }));
 
       await queryClient.invalidateQueries({ queryKey: providersQueryKey });
+      return true;
     },
 
     updateProvider: async (id, data) => {
@@ -712,8 +722,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       };
 
       const updated = await apiRequest<any>({
-        url: `http://localhost:5000/api/v1/Proveedor/${id}`,
-        method: "PUT",
+        url: "http://localhost:5000/api/v1/Proveedor/register",
+        method: "POST",
         data: payload,
         config: {
           headers: {
@@ -723,6 +733,15 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         },
         fallback: { ...data, id },
       });
+
+      if (
+        typeof updated === "string" &&
+        updated.toLowerCase().includes("existe") &&
+        updated.toLowerCase().includes("ruc")
+      ) {
+        toast.error(updated);
+        return false;
+      }
 
       if (data.cuentasBancarias?.length) {
         await sendProviderAccounts(id, data.cuentasBancarias);
@@ -763,17 +782,18 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
               estado:
                 (updated as any).proveedorEstado ?? data.estado ?? p.estado,
               cuentasBancarias: data.cuentasBancarias ?? p.cuentasBancarias,
-            };
-          }
-          return {
-            ...p,
-            ...data,
+          };
+        }
+        return {
+          ...p,
+          ...data,
             cuentasBancarias: data.cuentasBancarias ?? p.cuentasBancarias,
           };
         }),
       }));
 
       await queryClient.invalidateQueries({ queryKey: providersQueryKey });
+      return true;
     },
 
     deleteProvider: async (id) => {

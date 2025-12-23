@@ -29,7 +29,10 @@ export default function ProviderEdit() {
     formData: Provider & { cuentasBancarias?: ProviderBankAccount[] }
   ) => {
     if (!id) return;
-    await updateProvider(Number(id), formData);
+    const rs = await updateProvider(Number(id), formData);
+    if (!rs) {
+      return;
+    }
     toast.success("Proveedor actualizado correctamente");
     navigate("/maintenance/providers");
   };

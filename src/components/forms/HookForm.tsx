@@ -11,6 +11,7 @@ interface HookFormProps<T extends FieldValues> {
   onSubmit: SubmitHandler<T>;
   children: ReactNode;
   className?: string;
+  formId?: string;
 }
 
 export function HookForm<T extends FieldValues>({
@@ -18,11 +19,13 @@ export function HookForm<T extends FieldValues>({
   onSubmit,
   children,
   className,
+  formId,
 }: HookFormProps<T>) {
   return (
     <FormProvider {...methods}>
       <form
         className={className}
+        id={formId}
         onSubmit={methods.handleSubmit(onSubmit)}
         noValidate
       >
@@ -31,4 +34,3 @@ export function HookForm<T extends FieldValues>({
     </FormProvider>
   );
 }
-

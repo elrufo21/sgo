@@ -11,7 +11,10 @@ export default function ProviderCreate() {
   const handleSave = async (
     data: Provider & { cuentasBancarias?: ProviderBankAccount[] }
   ) => {
-    await addProvider(data);
+    const rs = await addProvider(data);
+    if (!rs) {
+      return;
+    }
     toast.success("Proveedor creado correctamente");
   };
 
@@ -19,7 +22,5 @@ export default function ProviderCreate() {
     navigate("/maintenance/providers/create");
   };
 
-  return (
-    <ProviderForm mode="create" onSave={handleSave} onNew={handleNew} />
-  );
+  return <ProviderForm mode="create" onSave={handleSave} onNew={handleNew} />;
 }

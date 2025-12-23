@@ -6,6 +6,7 @@ import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useProductsStore } from "@/store/products/products.store";
+import { useAuthStore } from "@/store/auth/auth.store";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
@@ -45,10 +46,14 @@ export default function ProductFormBase({
 }: ProductFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [codeEditable, setCodeEditable] = useState(false);
+  const authUser = useAuthStore((s) => s.user);
   const { categories, fetchCategories, addCategory, updateCategory } =
     useMaintenanceStore();
   const { products, fetchProducts } = useProductsStore();
-  const fallbackUser = useMemo(buildUserDate, []);
+  const fallbackUser = useMemo(
+    () => authUser?.displayName ?? authUser?.username ?? buildUserDate(),
+    [authUser]
+  );
   const productsLoading = useProductsStore((s) => s.loading);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
@@ -293,7 +298,7 @@ export default function ProductFormBase({
           )}
 
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear Nuevo Producto" : "Editar Producto"}
               </h1>

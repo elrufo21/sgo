@@ -24,8 +24,13 @@ const UserCreate = () => {
     Administrador: 0,
   });
 
-  const handleSave = (data: Omit<User, "UsuarioID">) => {
-    addUser(data);
+  const handleSave = async (data: Omit<User, "UsuarioID">) => {
+    const created = await addUser(data);
+    if (!created) {
+      toast.error("No se pudo crear el usuario.");
+      return;
+    }
+
     toast.success("Usuario creado correctamente");
     navigate("/maintenance/users");
   };

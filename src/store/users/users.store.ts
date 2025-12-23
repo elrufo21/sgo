@@ -1,47 +1,43 @@
 import { create } from "zustand";
-import type { User } from "../employees/employees.store";
+
+import { API_BASE_URL } from "@/config";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import type { User } from "../employees/employees.store";
+export type { User } from "../employees/employees.store";
 
 interface UsersState {
   users: User[];
   loading: boolean;
 
   fetchUsers: () => Promise<void>;
-  addUser: (user: Omit<User, "UsuarioID">) => void;
-  updateUser: (id: number, data: Partial<User>) => void;
-  deleteUser: (id: number) => void;
+  addUser: (user: Omit<User, "UsuarioID">) => Promise<boolean>;
+  updateUser: (id: number, data: Partial<User>) => Promise<boolean>;
+  deleteUser: (id: number) => Promise<boolean>;
 }
 
-const LOCAL_MOCK_USERS: User[] = [
-  {
-    UsuarioID: 1,
-    PersonalId: 1,
-    UsuarioAlias: "andre",
-    UsuarioClave: "HASH123...",
-    UsuarioFechaReg: "2021-08-01 12:49:45.833",
-    UsuarioEstado: "ACTIVO",
-    UsuarioSerie: "B001",
-    EnviaBoleta: 1,
-    EnviarFactura: 1,
-    EnviaNC: 0,
-    EnviaND: 0,
-    Administrador: 1,
-  },
-  {
-    UsuarioID: 2,
-    PersonalId: 2,
-    UsuarioAlias: "joaquin",
-    UsuarioClave: "HASH456...",
-    UsuarioFechaReg: "2022-07-15 13:52:09.447",
-    UsuarioEstado: "ACTIVO",
-    UsuarioSerie: "B001",
-    EnviaBoleta: 1,
-    EnviarFactura: 1,
-    EnviaNC: 0,
-    EnviaND: 0,
-    Administrador: 0,
-  },
-];
+const mapApiToUser = (item: any): User => ({
+  UsuarioID: item?.usuarioID ?? item?.UsuarioID ?? item?.id ?? 0,
+  PersonalId: item?.personalId ?? item?.PersonalId ?? item?.personalID ?? 0,
+  UsuarioAlias: item?.usuarioAlias ?? item?.UsuarioAlias ?? "",
+  UsuarioClave: item?.usuarioClave ?? item?.UsuarioClave ?? "",
+  UsuarioFechaReg: item?.usuarioFechaReg ?? item?.UsuarioFechaReg ?? "",
+  UsuarioEstado: item?.usuarioEstado ?? item?.UsuarioEstado ?? "",
+  UsuarioSerie: item?.usuarioSerie ?? item?.UsuarioSerie ?? "B001",
+  EnviaBoleta: item?.enviaBoleta ?? item?.EnviaBoleta ?? 0,
+  EnviarFactura: item?.enviarFactura ?? item?.EnviarFactura ?? 0,
+  EnviaNC: item?.enviaNC ?? item?.EnviaNC ?? 0,
+  EnviaND: item?.enviaND ?? item?.EnviaND ?? 0,
+  Administrador: item?.administrador ?? item?.Administrador ?? 0,
+});
+
+const mapUserToApiPayload = (user: Partial<User>) => ({
+  usuarioID: user.UsuarioID ?? 0,
+  personalId: user.PersonalId ?? 0,
+  usuarioAlias: user.UsuarioAlias ?? "",
+  usuarioClave: user.UsuarioClave ?? "",
+  usuarioFechaReg: user.UsuarioFechaReg ?? new Date().toISOString(),
+  usuarioEstado: user.UsuarioEstado ?? "ACTIVO",
+});
 
 export const useUsersStore = create<UsersState>((set, get) => ({
   users: [],
@@ -51,43 +47,104 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     set({ loading: true });
 
     try {
-      const response = await apiRequest<User[]>({
-        url: "/users",
+      const response = await apiRequest<any[]>({
+        url: `${API_BASE_URL}/UsuariosCrud/list`,
         method: "GET",
-        fallback: LOCAL_MOCK_USERS,
+        fallback: [],
       });
 
-      console.log("Users loaded:", response);
-
-      set({ users: response.data, loading: false });
+      const parsed = Array.isArray(response) ? response : [];
+      set({ users: parsed.map(mapApiToUser) });
     } catch (err) {
-      console.warn("⚠️ Error inesperado → fallback", err);
-
-      set({ users: LOCAL_MOCK_USERS, loading: false });
+      console.error("Error loading users", err);
+    } finally {
+      set({ loading: false });
     }
   },
 
-  addUser: (newUser) =>
-    set((state) => {
-      const newId =
-        state.users.length > 0
-          ? Math.max(...state.users.map((u) => u.UsuarioID)) + 1
-          : 1;
+  addUser: async (newUser) => {
+    try {
+      const payload = mapUserToApiPayload({ ...newUser, UsuarioID: 0 });
 
-      return {
-        users: [...state.users, { ...newUser, UsuarioID: newId }],
-      };
-    }),
+      const created = await apiRequest<any>({
+        url: `${API_BASE_URL}/UsuariosCrud/register`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "text/plain",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
 
-  updateUser: (id, data) =>
-    set((state) => ({
-      users: state.users.map((u) =>
-        u.UsuarioID === id ? { ...u, ...data } : u
-      ),
-    })),
+      if (created === null || created === false) {
+        return false;
+      }
 
-  deleteUser: (id) =>
-    set((state) => ({
-      users: state.users.filter((u) => u.UsuarioID !== id),
-    })),
+      await get().fetchUsers();
+      return true;
+    } catch (err) {
+      console.error("Error creating user", err);
+      return false;
+    }
+  },
+
+  updateUser: async (id, data) => {
+    try {
+      const payload = mapUserToApiPayload({ ...data, UsuarioID: id });
+
+      const updated = await apiRequest<any>({
+        url: `${API_BASE_URL}/UsuariosCrud/${id}`,
+        method: "PUT",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      if (updated === null || updated === false) {
+        return false;
+      }
+
+      await get().fetchUsers();
+      return true;
+    } catch (err) {
+      console.error("Error updating user", err);
+      return false;
+    }
+  },
+
+  deleteUser: async (id) => {
+    try {
+      const result = await apiRequest({
+        url: `${API_BASE_URL}/UsuariosCrud/${id}`,
+        method: "DELETE",
+        config: {
+          headers: {
+            Accept: "*/*",
+          },
+        },
+        fallback: null,
+      });
+
+      if (result === false) {
+        return false;
+      }
+
+      set((state) => ({
+        users: state.users.filter((u) => String(u.UsuarioID) !== String(id)),
+      }));
+
+      return true;
+    } catch (err) {
+      console.error("Error deleting user", err);
+      return false;
+    }
+  },
 }));

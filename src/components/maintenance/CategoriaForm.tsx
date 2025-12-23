@@ -74,7 +74,7 @@ export default function CategoriaForm({
 
   const Header = () =>
     isModal ? null : (
-      <div className="bg-[#DB564D]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
         <h1 className="text-base font-semibold">
           {mode === "create" ? "Crear Categoria" : "Editar Categoria"}
         </h1>
