@@ -13,7 +13,9 @@ import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 interface Props {
   initialData?: Partial<Personal>;
   mode: "create" | "edit";
-  onSave: (data: Personal) => void;
+  onSave: (
+    data: Personal & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => void;
   onNew?: () => void;
   onDelete?: () => void;
 }
@@ -85,6 +87,10 @@ export default function EmployeeFormBase({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageRemoved, setImageRemoved] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAreas();
@@ -130,6 +136,8 @@ export default function EmployeeFormBase({
 
   useEffect(() => {
     reset(buildDefaults(initialData));
+    setImageFile(null);
+    setImageRemoved(false);
   }, [initialData, reset]);
 
   useEffect(() => {
@@ -139,13 +147,12 @@ export default function EmployeeFormBase({
   const handleUploadPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setValue("personalImagen", reader.result as string, {
-        shouldDirty: true,
-      });
-    };
-    reader.readAsDataURL(file);
+    setImageFile(file);
+    setImageRemoved(false);
+    const previewUrl = URL.createObjectURL(file);
+    setValue("personalImagen", previewUrl, {
+      shouldDirty: true,
+    });
   };
 
   const startCamera = async () => {
@@ -168,6 +175,18 @@ export default function EmployeeFormBase({
     if (ctx) {
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = canvas.toDataURL("image/png");
+      // Convert dataURL to File for upload
+      const arr = imageData.split(",");
+      const mime = arr[0].match(/:(.*?);/)?.[1] ?? "image/png";
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const file = new File([u8arr], "captura.png", { type: mime });
+      setImageFile(file);
+      setImageRemoved(false);
       setValue("personalImagen", imageData, { shouldDirty: true });
     }
 
@@ -176,8 +195,22 @@ export default function EmployeeFormBase({
     setTakingPhoto(false);
   };
 
-  const removePhoto = () =>
+  const removePhoto = () => {
+    setImageFile(null);
+    setImageRemoved(true);
     setValue("personalImagen", "", { shouldDirty: true });
+  };
+
+  const openImageModal = () => {
+    if (!watchedImagen || !watchedImagen.trim()) return;
+    setModalImageSrc(watchedImagen);
+    setIsImageModalOpen(true);
+  };
+
+  const closeImageModal = () => {
+    setIsImageModalOpen(false);
+    setModalImageSrc(null);
+  };
 
   const calcularEdad = (fecha: string | null | undefined) => {
     if (!fecha) return "";
@@ -218,6 +251,8 @@ export default function EmployeeFormBase({
       personalApellidos: values.personalApellidos?.toUpperCase() ?? "",
       personalNacimiento: normalizeDateForApi(values.personalNacimiento),
       personalIngreso: values.personalIngreso?.trim() || null,
+      imageFile,
+      imageRemoved,
     });
     focusFirstInput(formContainerRef.current);
   };
@@ -395,8 +430,13 @@ export default function EmployeeFormBase({
                         ? watchedImagen
                         : "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>"
                     }
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full object-cover ${
+                      watchedImagen && watchedImagen.trim() !== ""
+                        ? "cursor-zoom-in"
+                        : ""
+                    }`}
                     alt="Foto empleado"
+                    onClick={openImageModal}
                   />
                   {watchedImagen && watchedImagen.trim() !== "" && (
                     <button
@@ -449,6 +489,35 @@ export default function EmployeeFormBase({
             </div>
           </div>
         </HookForm>
+        {isImageModalOpen && modalImageSrc && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={closeImageModal}
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              className="relative max-w-4xl w-full max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={closeImageModal}
+                className="absolute top-3 right-3 text-white hover:text-gray-200"
+                title="Cerrar"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <div className="bg-black rounded-lg overflow-hidden">
+                <img
+                  src={modalImageSrc}
+                  alt="Foto empleado ampliada"
+                  className="w-full h-full max-h-[80vh] object-contain"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

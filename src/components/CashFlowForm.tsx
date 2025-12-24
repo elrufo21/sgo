@@ -97,17 +97,17 @@ const HookFormSelect = ({
 );
 
 const DEFAULT_CONTEO = [
-  { cantidad: 0, denominacion: 200.0 },
-  { cantidad: 0, denominacion: 100.0 },
-  { cantidad: 0, denominacion: 50.0 },
-  { cantidad: 0, denominacion: 20.0 },
-  { cantidad: 0, denominacion: 10.0 },
-  { cantidad: 0, denominacion: 5.0 },
-  { cantidad: 0, denominacion: 2.0 },
-  { cantidad: 0, denominacion: 1.0 },
-  { cantidad: 0, denominacion: 0.5 },
-  { cantidad: 0, denominacion: 0.2 },
-  { cantidad: 0, denominacion: 0.1 },
+  { cantidad: "", denominacion: 200.0 },
+  { cantidad: "", denominacion: 100.0 },
+  { cantidad: "", denominacion: 50.0 },
+  { cantidad: "", denominacion: 20.0 },
+  { cantidad: "", denominacion: 10.0 },
+  { cantidad: "", denominacion: 5.0 },
+  { cantidad: "", denominacion: 2.0 },
+  { cantidad: "", denominacion: 1.0 },
+  { cantidad: "", denominacion: 0.5 },
+  { cantidad: "", denominacion: 0.2 },
+  { cantidad: "", denominacion: 0.1 },
 ];
 
 const DEFAULT_VENTA_TOTAL = {
@@ -146,7 +146,7 @@ export default function CashFlowForm({
   });
 
   const handleCantidadChange = (index, valor) => {
-    const cantidad = parseInt(valor, 10) || 0;
+    const cantidad = valor === "" ? "" : parseInt(valor, 10) || 0;
     const updated = [...formData.conteoMonedas];
     updated[index] = { ...updated[index], cantidad };
     setFormData((prev) => ({ ...prev, conteoMonedas: updated }));
@@ -180,10 +180,10 @@ export default function CashFlowForm({
     }
   };
 
-  const totalEfectivo = formData.conteoMonedas.reduce(
-    (sum, item) => sum + (item.cantidad ?? 0) * item.denominacion,
-    0
-  );
+  const totalEfectivo = formData.conteoMonedas.reduce((sum, item) => {
+    const cantidad = Number(item.cantidad || 0);
+    return sum + cantidad * item.denominacion;
+  }, 0);
   const totalIngresos = formData.ingresos.reduce(
     (sum, item) => sum + item.importe,
     0
@@ -201,10 +201,16 @@ export default function CashFlowForm({
   const totalVenta = ventasBO_FA;
   const totalBilletes = formData.conteoMonedas
     .filter((item) => item.denominacion >= 5)
-    .reduce((sum, item) => sum + (item.cantidad ?? 0) * item.denominacion, 0);
+    .reduce((sum, item) => {
+      const cantidad = Number(item.cantidad || 0);
+      return sum + cantidad * item.denominacion;
+    }, 0);
   const totalSencillo = formData.conteoMonedas
     .filter((item) => item.denominacion < 5)
-    .reduce((sum, item) => sum + (item.cantidad ?? 0) * item.denominacion, 0);
+    .reduce((sum, item) => {
+      const cantidad = Number(item.cantidad || 0);
+      return sum + cantidad * item.denominacion;
+    }, 0);
 
   const userOptions = useMemo(
     () =>
@@ -235,7 +241,7 @@ export default function CashFlowForm({
   return (
     <div
       ref={containerRef}
-      className="h-screen bg-gray-50 flex flex-col overflow-hidden"
+      className=" bg-gray-50 flex flex-col overflow-hidden"
     >
       <div className="bg-[#B23636] text-white px-2 sm:px-4 py-2 flex items-center justify-between flex-shrink-0">
         <h1 className="text-xs sm:text-sm font-semibold">
@@ -267,21 +273,8 @@ export default function CashFlowForm({
       <div className="flex-1 overflow-y-auto">
         <div className="p-2 sm:p-3">
           <div className="space-y-3">
-            {/* Primera fila - Info básica */}
             <div className="bg-white rounded border border-gray-200 p-2 mb-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                <div>
-                  <HookFormInput
-                    name="caja"
-                    label="Caja"
-                    value={formData.caja}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, caja: e.target.value }))
-                    }
-                    inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
-                    labelClassName="text-xs font-semibold text-gray-700"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
                 <div>
                   <HookFormAutocomplete
                     name="encargado"
@@ -338,9 +331,6 @@ export default function CashFlowForm({
                     }`}
                   />
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                   <HookFormInput
                     name="fechaApertura"
@@ -364,6 +354,8 @@ export default function CashFlowForm({
                   />
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3"></div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -388,36 +380,40 @@ export default function CashFlowForm({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {formData.conteoMonedas.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="py-0.5 px-2 w-1/3">
-                              <input
-                                ref={(el) =>
-                                  (monedaInputRefs.current[idx] = el)
-                                }
-                                type="number"
-                                value={item.cantidad ?? ""}
-                                onChange={(e) =>
-                                  handleCantidadChange(idx, e.target.value)
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    focusNextMoneda(idx);
+                        {formData.conteoMonedas.map((item, idx) => {
+                          const cantidad = Number(item.cantidad || 0);
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50">
+                              <td className="py-0.5 px-2 w-1/3">
+                                <input
+                                  ref={(el) =>
+                                    (monedaInputRefs.current[idx] = el)
                                   }
-                                }}
-                                className="w-full min-w-0 px-1 py-0.5 border border-gray-200 rounded text-center focus:border-slate-500 focus:outline-none text-xs"
-                                min="0"
-                              />
-                            </td>
-                            <td className="py-0.5 px-2 text-right text-gray-700 text-xs w-1/3">
-                              {item.denominacion.toFixed(2)}
-                            </td>
-                            <td className="py-0.5 px-2 text-right font-semibold text-slate-800 text-xs w-1/3">
-                              {(item.cantidad * item.denominacion).toFixed(2)}
-                            </td>
-                          </tr>
-                        ))}
+                                  type="number"
+                                  value={
+                                    item.cantidad === "" ? "" : item.cantidad
+                                  }
+                                  onChange={(e) =>
+                                    handleCantidadChange(idx, e.target.value)
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      focusNextMoneda(idx);
+                                    }
+                                  }}
+                                  className="w-full min-w-0 px-1 py-0.5 border border-gray-200 rounded text-center focus:border-slate-500 focus:outline-none text-xs"
+                                />
+                              </td>
+                              <td className="py-0.5 px-2 text-right text-gray-700 text-xs w-1/3">
+                                {item.denominacion.toFixed(2)}
+                              </td>
+                              <td className="py-0.5 px-2 text-right font-semibold text-slate-800 text-xs w-1/3">
+                                {(cantidad * item.denominacion).toFixed(2)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

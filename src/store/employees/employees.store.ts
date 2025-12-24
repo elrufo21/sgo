@@ -11,8 +11,16 @@ interface EmployeesState {
   loading: boolean;
 
   fetchEmployees: () => Promise<void>;
-  addEmployee: (employee: Omit<Employee, "personalId">) => Promise<boolean>;
-  updateEmployee: (id: number, data: Partial<Employee>) => Promise<boolean>;
+  addEmployee: (
+    employee: Omit<Employee, "personalId"> & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    }
+  ) => Promise<boolean>;
+  updateEmployee: (
+    id: number,
+    data: Partial<Employee> & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => Promise<boolean>;
   deleteEmployee: (id: number) => Promise<boolean>;
 }
 
@@ -47,6 +55,41 @@ const mapApiToEmployee = (item: any): Personal => ({
   companiaId: item?.companiaId ?? item?.CompaniaId ?? null,
 });
 
+const buildPersonalFormData = (
+  data: Partial<Employee> & { imageFile?: File | null; imageRemoved?: boolean },
+  idOverride?: number
+) => {
+  const payload = {
+    personalId: idOverride ?? data.personalId ?? 0,
+    personalNombres: data.personalNombres ?? "",
+    personalApellidos: data.personalApellidos ?? "",
+    areaId: data.areaId ?? 0,
+    personalCodigo: data.personalCodigo ?? "",
+    personalNacimiento: data.personalNacimiento ?? "",
+    personalIngreso: data.personalIngreso ?? "",
+    personalDNI: data.personalDni ?? "",
+    personalDireccion: data.personalDireccion ?? "",
+    personalTelefono: data.personalTelefono ?? "",
+    personalEmail: data.personalEmail ?? "",
+    personalEstado: data.personalEstado ?? "activo",
+    companiaId: data.companiaId ?? 1,
+  };
+
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    formData.append(key, value === null || value === undefined ? "" : String(value));
+  });
+
+  if (data.imageFile instanceof File) {
+    formData.append("imagen", data.imageFile);
+  }
+  if (data.imageRemoved) {
+    formData.append("eliminarImagen", "true");
+  }
+
+  return { formData, payload };
+};
+
 export const useEmployeesStore = create<EmployeesState>((set) => ({
   employees: [],
   loading: false,
@@ -76,33 +119,12 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
   },
 
   addEmployee: async (employee) => {
-    const payload = {
-      personalId: 0,
-      personalNombres: employee.personalNombres ?? "",
-      personalApellidos: employee.personalApellidos ?? "",
-      areaId: employee.areaId ?? 0,
-      personalCodigo: employee.personalCodigo ?? "",
-      personalNacimiento: employee.personalNacimiento ?? null,
-      personalIngreso: employee.personalIngreso ?? null,
-      personalDNI: employee.personalDni ?? "",
-      personalDireccion: employee.personalDireccion ?? "",
-      personalTelefono: employee.personalTelefono ?? "",
-      personalEstado: employee.personalEstado ?? "activo",
-      personalEmail: employee.personalEmail ?? "",
-      personalImagen: employee.personalImagen ?? "",
-      companiaId: employee.companiaId ?? 1,
-    };
+    const { formData, payload } = buildPersonalFormData(employee, 0);
 
     const created = await apiRequest<Personal>({
       url: "http://localhost:5000/api/v1/Personal/registerpersonal",
       method: "POST",
-      data: payload,
-      config: {
-        headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
-        },
-      },
+      data: formData,
       fallback: { ...payload, personalId: Date.now() },
     });
 
@@ -121,33 +143,12 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
   },
 
   updateEmployee: async (id, data) => {
-    const payload = {
-      personalId: id,
-      personalNombres: data.personalNombres ?? "",
-      personalApellidos: data.personalApellidos ?? "",
-      areaId: data.areaId ?? 0,
-      personalCodigo: data.personalCodigo ?? "",
-      personalNacimiento: data.personalNacimiento ?? null,
-      personalIngreso: data.personalIngreso ?? null,
-      personalDNI: data.personalDni ?? "",
-      personalDireccion: data.personalDireccion ?? "",
-      personalTelefono: data.personalTelefono ?? "",
-      personalEmail: data.personalEmail ?? "",
-      personalEstado: data.personalEstado ?? "activo",
-      personalImagen: data.personalImagen ?? "",
-      companiaId: data.companiaId ?? 1,
-    };
+    const { formData, payload } = buildPersonalFormData(data, id);
 
     const updated = await apiRequest<Personal>({
       url: "http://localhost:5000/api/v1/Personal/registerpersonal",
       method: "POST",
-      data: payload,
-      config: {
-        headers: {
-          Accept: "*/*",
-          "Content-Type": "application/json",
-        },
-      },
+      data: formData,
       fallback: { ...payload },
     });
 

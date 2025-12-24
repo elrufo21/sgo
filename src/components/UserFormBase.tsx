@@ -1,9 +1,15 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Save, Plus, Trash2, Eye, EyeOff } from "lucide-react";
-import { useUsersStore } from "@/store/users/users.store";
-import DataTable from "./DataTable";
+import { useForm } from "react-hook-form";
 import { createColumnHelper } from "@tanstack/react-table";
 import { toast } from "sonner";
+import { useUsersStore } from "@/store/users/users.store";
+import { useEmployeesStore } from "@/store/employees/employees.store";
+import DataTable from "./DataTable";
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
+import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface UserFormBaseProps {
@@ -12,7 +18,22 @@ interface UserFormBaseProps {
   onSave: (data: any) => void;
   onNew?: () => void;
   onDelete?: () => void;
+  onSelectUser?: (user: any) => void;
 }
+
+type UserFormValues = {
+  PersonalId: string | number;
+  UsuarioAlias: string;
+  UsuarioClave: string;
+  ConfirmClave: string;
+  UsuarioEstado: string;
+  UsuarioSerie: string;
+  EnviaBoleta: number;
+  EnviarFactura: number;
+  EnviaNC: number;
+  EnviaND: number;
+  Administrador: number;
+};
 
 export default function UserFormBase({
   initialData,
@@ -20,69 +41,74 @@ export default function UserFormBase({
   onSave,
   onNew,
   onDelete,
+  onSelectUser,
 }: UserFormBaseProps) {
   const { users, fetchUsers } = useUsersStore();
+  const { employees, fetchEmployees } = useEmployeesStore();
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [showPass, setShowPass] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
 
-  const [form, setForm] = useState({
-    PersonalId: "",
-    UsuarioAlias: "",
-    UsuarioClave: "",
-    ConfirmClave: "",
-    UsuarioEstado: "ACTIVO",
-    UsuarioSerie: "B001",
-    EnviaBoleta: 0,
-    EnviarFactura: 0,
-    EnviaNC: 0,
-    EnviaND: 0,
-    Administrador: 0,
+  const defaults = useMemo<UserFormValues>(
+    () => ({
+      PersonalId: initialData?.PersonalId ?? "",
+      UsuarioAlias: initialData?.UsuarioAlias ?? "",
+      UsuarioClave: initialData?.UsuarioClave ?? "",
+      ConfirmClave: initialData?.UsuarioClave ?? "",
+      UsuarioEstado: initialData?.UsuarioEstado ?? "ACTIVO",
+      UsuarioSerie: initialData?.UsuarioSerie ?? "B001",
+      EnviaBoleta: initialData?.EnviaBoleta ?? 0,
+      EnviarFactura: initialData?.EnviarFactura ?? 0,
+      EnviaNC: initialData?.EnviaNC ?? 0,
+      EnviaND: initialData?.EnviaND ?? 0,
+      Administrador: initialData?.Administrador ?? 0,
+    }),
+    [initialData]
+  );
+
+  const formMethods = useForm<UserFormValues>({
+    defaultValues: defaults,
   });
+
+  const { handleSubmit, reset, watch } = formMethods;
+
+  const passwordsMatch =
+    (watch("UsuarioClave") ?? "") === (watch("ConfirmClave") ?? "");
 
   useEffect(() => {
     if (users.length === 0) fetchUsers();
-  }, []);
+  }, [fetchUsers, users.length]);
 
   useEffect(() => {
-    if (initialData) {
-      setForm((prev) => ({
-        ...prev,
-        ...initialData,
-        ConfirmClave: initialData.UsuarioClave ?? "",
-      }));
+    if (!employees.length) {
+      fetchEmployees();
     }
-  }, [initialData]);
+  }, [employees.length, fetchEmployees]);
+
+  useEffect(() => {
+    reset(defaults);
+  }, [defaults, reset]);
 
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  const handleChange = (e: any) => {
-    const { name, value, type, checked } = e.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? (checked ? 1 : 0) : value,
-    }));
-  };
-
-  const handleSave = () => {
-    if (form.UsuarioClave !== form.ConfirmClave) {
+  const onSubmit = (values: UserFormValues) => {
+    if ((values.UsuarioClave ?? "") !== (values.ConfirmClave ?? "")) {
       toast.error("Las contrasenas no coinciden");
       return;
     }
 
-    const payload = { ...form };
-    delete payload.ConfirmClave;
+    const payload = { ...values };
+    delete (payload as any).ConfirmClave;
 
     onSave(payload);
     focusFirstInput(containerRef.current);
   };
 
   const handleNew = () => {
-    setForm({
+    reset({
       PersonalId: "",
       UsuarioAlias: "",
       UsuarioClave: "",
@@ -95,12 +121,9 @@ export default function UserFormBase({
       EnviaND: 0,
       Administrador: 0,
     });
-
     onNew?.();
     focusFirstInput(containerRef.current);
   };
-
-  const passwordsMatch = form.UsuarioClave === form.ConfirmClave;
 
   const columnHelper = createColumnHelper<any>();
   const columns = [
@@ -116,24 +139,23 @@ export default function UserFormBase({
 
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create" ? "Crear Usuario" : "Editar Usuario"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title="Guardar"
-              >
-                <Save className="w-4 h-4" />
-                <span className="hidden sm:inline">Guardar</span>
-              </button>
+          <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
+            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <h1 className="text-base font-semibold">
+                {mode === "create" ? "Crear Usuario" : "Editar Usuario"}
+              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Guardar"
+                >
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
+                </button>
 
-              {mode !== "edit" && (
                 <button
                   type="button"
                   onClick={handleNew}
@@ -143,130 +165,131 @@ export default function UserFormBase({
                   <Plus className="w-4 h-4" />
                   <span className="hidden sm:inline">Nuevo</span>
                 </button>
-              )}
 
-              {mode === "edit" && onDelete && (
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                  title="Eliminar"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Eliminar</span>
-                </button>
-              )}
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-full md:w-[40%] space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Personal ID
-                  </label>
-                  <input
-                    data-focus-first="true"
-                    type="number"
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-[40%] space-y-4">
+                  <HookFormAutocomplete
                     name="PersonalId"
-                    value={form.PersonalId}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    label="Personal"
+                    placeholder="Buscar personal"
+                    options={employees.map((p) => ({
+                      label:
+                        `${p.personalNombres ?? ""} ${p.personalApellidos ?? ""}`.trim() ||
+                        p.personalCodigo ||
+                        `Personal ${p.personalId}`,
+                      value: p.personalId,
+                      data: p,
+                    }))}
+                    rules={{ required: "Seleccione personal" }}
+                    data-focus-first
                   />
-                </div>
 
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Usuario / Alias
-                  </label>
-                  <input
-                    type="text"
+                  <HookFormInput
                     name="UsuarioAlias"
-                    value={form.UsuarioAlias}
-                    onChange={handleChange}
+                    label="Usuario / Alias"
                     placeholder="ej: jramirez"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2 relative">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Contrasena
-                  </label>
-
-                  <input
-                    type={showPass ? "text" : "password"}
-                    name="UsuarioClave"
-                    value={form.UsuarioClave}
-                    onChange={handleChange}
-                    placeholder="Ingrese contrasena"
-                    className={`w-full px-4 py-3 border-2 rounded-lg pr-10
-                      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
-                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
+                    rules={{ required: "El alias es obligatorio" }}
                   />
 
-                  <span
-                    onClick={() => setShowPass(!showPass)}
-                    className="absolute right-3 top-10 text-gray-500 cursor-pointer"
-                  >
-                    {showPass ? <EyeOff /> : <Eye />}
-                  </span>
-                </div>
+                  <div className="relative space-y-2">
+                    <HookFormInput
+                      name="UsuarioClave"
+                      label="Contrasena"
+                      type={showPass ? "text" : "password"}
+                      placeholder="Ingrese contrasena"
+                      className={`w-full px-4 py-3 border-2 rounded-lg pr-10 ${
+                        !passwordsMatch ? "border-red-500" : "border-gray-200"
+                      } focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
+                      rules={{ required: "La contrasena es obligatoria" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((v) => !v)}
+                      className="absolute right-3 top-9 text-gray-500"
+                      tabIndex={-1}
+                    >
+                      {showPass ? <EyeOff /> : <Eye />}
+                    </button>
+                  </div>
 
-                <div className="space-y-2 relative">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Confirmar contrasena
-                  </label>
+                  <div className="relative space-y-2">
+                    <HookFormInput
+                      name="ConfirmClave"
+                      label="Confirmar contrasena"
+                      type={showPassConfirm ? "text" : "password"}
+                      placeholder="Repita la contrasena"
+                      className={`w-full px-4 py-3 border-2 rounded-lg pr-10 ${
+                        !passwordsMatch ? "border-red-500" : "border-gray-200"
+                      } focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
+                      rules={{
+                        validate: (value) =>
+                          value === watch("UsuarioClave") ||
+                          "Las contrasenas no coinciden",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassConfirm((v) => !v)}
+                      className="absolute right-3 top-9 text-gray-500"
+                      tabIndex={-1}
+                    >
+                      {showPassConfirm ? <EyeOff /> : <Eye />}
+                    </button>
+                  </div>
 
-                  <input
-                    type={showPassConfirm ? "text" : "password"}
-                    name="ConfirmClave"
-                    value={form.ConfirmClave}
-                    onChange={handleChange}
-                    placeholder="Repita la contrasena"
-                    className={`w-full px-4 py-3 border-2 rounded-lg pr-10
-                      ${!passwordsMatch ? "border-red-500" : "border-gray-200"}
-                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
-                  />
-
-                  <span
-                    onClick={() => setShowPassConfirm(!showPassConfirm)}
-                    className="absolute right-3 top-10 text-gray-500 cursor-pointer"
-                  >
-                    {showPassConfirm ? <EyeOff /> : <Eye />}
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Estado
-                  </label>
-                  <select
+                  <HookFormSelect
                     name="UsuarioEstado"
-                    value={form.UsuarioEstado}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg 
-                      focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    label="Estado"
+                    options={[
+                      { value: "ACTIVO", label: "Activo" },
+                      { value: "INACTIVO", label: "Inactivo" },
+                    ]}
                     disabled={mode === "create"}
-                  >
-                    <option value="ACTIVO">Activo</option>
-                    <option value="INACTIVO">Inactivo</option>
-                  </select>
+                  />
                 </div>
-              </div>
 
-              <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                <DataTable
-                  columns={columns}
-                  data={users}
-                  onRowClick={(row) => setForm({ ...form, ...row })}
-                />
+                <div className="w-full md:w-[60%] mt-6 md:mt-0">
+                  <DataTable
+                    columns={columns}
+                    data={users}
+                    onRowClick={(row) =>
+                      {
+                        reset({
+                          PersonalId: row.PersonalId ?? "",
+                          UsuarioAlias: row.UsuarioAlias ?? "",
+                          UsuarioClave: row.UsuarioClave ?? "",
+                          ConfirmClave: row.UsuarioClave ?? "",
+                          UsuarioEstado: row.UsuarioEstado ?? "ACTIVO",
+                          UsuarioSerie: row.UsuarioSerie ?? "B001",
+                          EnviaBoleta: row.EnviaBoleta ?? 0,
+                          EnviarFactura: row.EnviarFactura ?? 0,
+                          EnviaNC: row.EnviaNC ?? 0,
+                          EnviaND: row.EnviaND ?? 0,
+                          Administrador: row.Administrador ?? 0,
+                        });
+                        onSelectUser?.(row);
+                      }
+                    }
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </HookForm>
         </div>
       </div>
     </div>

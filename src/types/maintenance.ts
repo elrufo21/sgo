@@ -42,6 +42,8 @@ export interface Provider {
   correo: string;
   direccion: string;
   estado: string;
+  imagen?: string | null;
+  images?: string[];
   cuentasBancarias?: ProviderBankAccount[];
 }
 
@@ -49,4 +51,9 @@ export interface Holiday {
   id: number;
   fecha: string;
   motivo: string;
+}
+
+export interface BankEntity {
+  id: number;
+  nombre: string;
 }

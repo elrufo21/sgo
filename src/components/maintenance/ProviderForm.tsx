@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { createColumnHelper } from "@tanstack/react-table";
 import type { Provider, ProviderBankAccount } from "@/types/maintenance";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
-import DataTable from "@/components/DataTable";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
@@ -35,6 +33,8 @@ export default function ProviderForm({
   const fetchProviderAccounts = useMaintenanceStore(
     (s) => s.fetchProviderAccounts
   );
+  const bankEntities = useMaintenanceStore((s) => s.bankEntities);
+  const fetchBankEntities = useMaintenanceStore((s) => s.fetchBankEntities);
   const isModal = variant === "modal";
 
   const defaults = useMemo<Provider>(
@@ -71,15 +71,6 @@ export default function ProviderForm({
       []
     )?.map((c: ProviderBankAccount) => ({ ...c, action: undefined })) ?? []
   );
-  const [cuentaTemp, setCuentaTemp] = useState<ProviderBankAccount>({
-    cuentaId: undefined,
-    proveedorId: undefined,
-    entidad: "",
-    moneda: "",
-    tipoCuenta: "",
-    nroCuenta: "",
-    action: undefined,
-  });
 
   useEffect(() => {
     reset(defaults);
@@ -110,6 +101,12 @@ export default function ProviderForm({
   }, [mode, initialData]);
 
   useEffect(() => {
+    if (!bankEntities.length) {
+      fetchBankEntities();
+    }
+  }, [bankEntities.length, fetchBankEntities]);
+
+  useEffect(() => {
     if (!isModal) return;
     const subscription = formMethods.watch((values) => {
       setDialogData({
@@ -137,15 +134,6 @@ export default function ProviderForm({
       estado: "ACTIVO",
     });
     setCuentasBancarias([]);
-    setCuentaTemp({
-      cuentaId: undefined,
-      proveedorId: undefined,
-      entidad: "",
-      moneda: "",
-      tipoCuenta: "",
-      nroCuenta: "",
-      action: undefined,
-    });
     onNew?.();
     focusFirstInput(containerRef.current);
   };
@@ -170,37 +158,30 @@ export default function ProviderForm({
     { value: "INACTIVO", label: "Inactivo" },
   ];
 
-  const columnHelper = createColumnHelper<ProviderBankAccount>();
-  const columns = [
-    columnHelper.accessor("entidad", { header: "Entidad bancaria" }),
-    columnHelper.accessor("tipoCuenta", { header: "Tipo de cuenta" }),
-    columnHelper.accessor("moneda", { header: "Moneda" }),
-    columnHelper.accessor("nroCuenta", { header: "Numero de cuenta" }),
+  const bancoOptions =
+    bankEntities.length > 0
+      ? bankEntities
+      : [
+          { id: 1, nombre: "BCP" },
+          { id: 2, nombre: "Interbank" },
+          { id: 3, nombre: "Scotiabank" },
+        ];
 
-    {
-      id: "acciones",
-      header: "Acciones",
-      cell: ({ row }: any) => (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            eliminarCuenta(row.original as ProviderBankAccount);
-          }}
-          className="text-red-600 hover:underline text-sm"
-        >
-          Eliminar
-        </button>
-      ),
-      meta: { tdClassName: "text-right" },
-    },
-  ];
-
-  const handleCuentaChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  const updateCuentaField = (
+    index: number,
+    field: keyof ProviderBankAccount,
+    value: string
   ) => {
-    const { name, value } = e.target;
-    setCuentaTemp((prev) => ({ ...prev, [name]: value }));
+    setCuentasBancarias((prev) => {
+      if (!prev[index] || prev[index].action === "d") return prev;
+      const updated = { ...prev[index], [field]: value };
+      const nextAction =
+        updated.action === "i" || !updated.cuentaId ? "i" : "u";
+      updated.action = nextAction;
+      const copy = [...prev];
+      copy[index] = updated;
+      return copy;
+    });
   };
 
   const findCuentaIndex = (
@@ -218,51 +199,18 @@ export default function ProviderForm({
   };
 
   const agregarCuenta = () => {
-    if (
-      !cuentaTemp.entidad ||
-      !cuentaTemp.moneda ||
-      !cuentaTemp.tipoCuenta ||
-      !cuentaTemp.nroCuenta
-    ) {
-      alert("Complete todos los campos de la cuenta");
-      return;
-    }
-
-    setCuentasBancarias((prev) => {
-      const idx = findCuentaIndex(prev, cuentaTemp);
-      if (idx !== -1) {
-        const existing = prev[idx];
-        const nextAction =
-          existing.action === "i" || existing.cuentaId === undefined
-            ? "i"
-            : "u";
-        const updated: ProviderBankAccount = {
-          ...existing,
-          ...cuentaTemp,
-          action: nextAction,
-        };
-        const copy = [...prev];
-        copy[idx] = updated;
-        return copy;
-      }
-      return [
-        ...prev,
-        {
-          ...cuentaTemp,
-          action: "i",
-        },
-      ];
-    });
-
-    setCuentaTemp({
-      cuentaId: undefined,
-      proveedorId: undefined,
-      entidad: "",
-      moneda: "",
-      tipoCuenta: "",
-      nroCuenta: "",
-      action: undefined,
-    });
+    setCuentasBancarias((prev) => [
+      ...prev,
+      {
+        cuentaId: undefined,
+        proveedorId: initialData?.id,
+        entidad: "",
+        moneda: "",
+        tipoCuenta: "",
+        nroCuenta: "",
+        action: "i",
+      },
+    ]);
   };
 
   const eliminarCuenta = (cuenta: ProviderBankAccount) => {
@@ -270,6 +218,14 @@ export default function ProviderForm({
       const idx = findCuentaIndex(prev, cuenta);
       if (idx === -1) return prev;
       const target = prev[idx];
+
+      // Si ya estaba marcado para eliminar, revertimos a estado sin cambios
+      if (target.action === "d") {
+        const copy = [...prev];
+        copy[idx] = { ...target, action: undefined };
+        return copy;
+      }
+
       if (target.action === "i" && !target.cuentaId) {
         const copy = [...prev];
         copy.splice(idx, 1);
@@ -383,88 +339,120 @@ export default function ProviderForm({
                 />
               </div>
 
-              <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                <div className="flex flex-col md:flex-row gap-4 mb-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Entidad Bancaria
-                    </label>
-                    <select
-                      name="entidad"
-                      value={cuentaTemp.entidad}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione banco</option>
-                      <option value="BCP">BCP</option>
-                      <option value="Interbank">Interbank</option>
-                      <option value="Scotiabank">Scotiabank</option>
-                    </select>
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Moneda
-                    </label>
-                    <select
-                      name="moneda"
-                      value={cuentaTemp.moneda}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione moneda</option>
-                      <option value="PEN">Soles (PEN)</option>
-                      <option value="USD">Dolares (USD)</option>
-                    </select>
+              {mode !== "create" && (
+                <div className="w-full md:w-[60%] mt-6 md:mt-0">
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 text-gray-700">
+                        <tr>
+                          <th className="py-2 px-3 text-left">Entidad bancaria</th>
+                          <th className="py-2 px-3 text-left">Tipo de cuenta</th>
+                          <th className="py-2 px-3 text-left">Moneda</th>
+                          <th className="py-2 px-3 text-left">Numero de cuenta</th>
+                          <th className="py-2 px-3 text-right w-32">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {cuentasBancarias.map((cuenta, idx) => {
+                          const isDeleted = cuenta.action === "d";
+                          return (
+                            <tr
+                              key={`${cuenta.cuentaId ?? "new"}-${idx}`}
+                              className={`border-t border-gray-100 ${
+                                isDeleted ? "text-gray-400 line-through" : ""
+                              }`}
+                            >
+                              <td className="py-2 px-3">
+                                <select
+                                  value={cuenta.entidad}
+                                  onChange={(e) =>
+                                    updateCuentaField(idx, "entidad", e.target.value)
+                                  }
+                                  disabled={isDeleted}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                                >
+                                  <option value="">Seleccione banco</option>
+                                  {bancoOptions.map((banco) => (
+                                    <option key={banco.id} value={banco.nombre}>
+                                      {banco.nombre}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="py-2 px-3">
+                                <select
+                                  value={cuenta.tipoCuenta}
+                                  onChange={(e) =>
+                                    updateCuentaField(
+                                      idx,
+                                      "tipoCuenta",
+                                      e.target.value
+                                    )
+                                  }
+                                  disabled={isDeleted}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                                >
+                                  <option value="">Seleccione tipo</option>
+                                  <option value="Ahorros">Ahorros</option>
+                                  <option value="Corriente">Corriente</option>
+                                </select>
+                              </td>
+                              <td className="py-2 px-3">
+                                <select
+                                  value={cuenta.moneda}
+                                  onChange={(e) =>
+                                    updateCuentaField(idx, "moneda", e.target.value)
+                                  }
+                                  disabled={isDeleted}
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                                >
+                                  <option value="">Seleccione moneda</option>
+                                  <option value="PEN">Soles (PEN)</option>
+                                  <option value="USD">Dolares (USD)</option>
+                                </select>
+                              </td>
+                              <td className="py-2 px-3">
+                                <input
+                                  type="text"
+                                  value={cuenta.nroCuenta}
+                                  onChange={(e) =>
+                                    updateCuentaField(idx, "nroCuenta", e.target.value)
+                                  }
+                                  disabled={isDeleted}
+                                  placeholder="Ingrese numero de cuenta"
+                                  className="w-full px-2 py-1.5 border border-gray-300 rounded focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
+                                />
+                              </td>
+                              <td className="py-2 px-3">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => eliminarCuenta(cuenta)}
+                                    className="px-2 py-1 text-red-600 hover:underline text-sm"
+                                  >
+                                    {isDeleted ? "Revertir" : "Eliminar"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        <tr className="border-t bg-gray-50">
+                          <td colSpan={5} className="py-2 px-3 text-right">
+                            <button
+                              type="button"
+                              onClick={agregarCuenta}
+                              className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                            >
+                              Agregar fila
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
-
-                <div className="flex flex-col md:flex-row gap-4 mb-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Tipo de Cuenta
-                    </label>
-                    <select
-                      name="tipoCuenta"
-                      value={cuentaTemp.tipoCuenta}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione tipo</option>
-                      <option value="Ahorros">Ahorros</option>
-                      <option value="Corriente">Corriente</option>
-                    </select>
-                  </div>
-
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Numero de Cuenta
-                    </label>
-                    <input
-                      type="text"
-                      name="nroCuenta"
-                      value={cuentaTemp.nroCuenta}
-                      onChange={handleCuentaChange}
-                      placeholder="Ingrese numero de cuenta"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={agregarCuenta}
-                  className="mb-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
-                >
-                  Agregar / Actualizar Cuenta
-                </button>
-
-                <DataTable
-                  columns={columns}
-                  data={cuentasBancarias}
-                  onRowClick={(row) => setCuentaTemp(row)}
-                />
-              </div>
+              )}
             </div>
           </div>
         </HookForm>

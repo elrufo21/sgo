@@ -17,9 +17,11 @@ const EmployeeCreate = () => {
     personalIngreso: today(),
   });
 
-  const handleSave = async (data: Personal) => {
-    const { personalId, ...rest } = data;
-    const created = await addEmployee(rest);
+  const handleSave = async (
+    data: Personal & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => {
+    const { personalId, imageFile, imageRemoved, ...rest } = data;
+    const created = await addEmployee({ ...rest, imageFile, imageRemoved });
     if (!created) {
       toast.error("El DNI ya existe");
       return;

@@ -15,11 +15,15 @@ interface HolidayFormProps {
   variant?: "page" | "modal";
 }
 
-const buildDefaults = (data?: Partial<Holiday>): Holiday => ({
-  id: data?.id ?? 0,
-  fecha: data?.fecha ?? "",
-  motivo: data?.motivo ?? "",
-});
+const buildDefaults = (data?: Partial<Holiday>): Holiday => {
+  const today = new Date().toISOString().split("T")[0];
+
+  return {
+    id: data?.id ?? 0,
+    fecha: data?.fecha ?? today,
+    motivo: data?.motivo ?? "",
+  };
+};
 
 export default function HolidayForm({
   initialData,
@@ -70,10 +74,7 @@ export default function HolidayForm({
   };
 
   return (
-    <div
-      ref={containerRef}
-      className="h-auto py-8 px-4 sm:px-6 lg:px-8"
-    >
+    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div
         className={`w-full mx-auto bg-white overflow-hidden ${
           isModal ? "" : "rounded-2xl shadow-xl"
@@ -81,7 +82,7 @@ export default function HolidayForm({
       >
         <HookForm methods={formMethods} onSubmit={handleSubmit(handleSave)}>
           {!isModal && (
-            <div className="bg-slate-700 text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear feriado" : "Editar feriado"}
               </h1>
@@ -124,13 +125,13 @@ export default function HolidayForm({
           <div className="p-6 sm:p-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <HookFormInput<Holiday>
-                data-focus-first
                 name="fecha"
                 label="Fecha"
                 type="date"
                 rules={{ required: "La fecha es obligatoria" }}
               />
               <HookFormInput<Holiday>
+                data-focus-first
                 name="motivo"
                 label="Motivo"
                 placeholder="Motivo del feriado"

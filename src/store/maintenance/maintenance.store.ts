@@ -6,6 +6,7 @@ import type {
   Provider,
   ProviderBankAccount,
   Holiday,
+  BankEntity,
 } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { toast } from "sonner";
@@ -54,18 +55,21 @@ interface MaintenanceState {
   computers: Computer[];
   providers: Provider[];
   holidays: Holiday[];
+  bankEntities: BankEntity[];
   loading: boolean;
   setCategories: (items: Category[]) => void;
   setAreas: (items: Area[]) => void;
   setComputers: (items: Computer[]) => void;
   setProviders: (items: Provider[]) => void;
   setHolidays: (items: Holiday[]) => void;
+  setBankEntities: (items: BankEntity[]) => void;
 
   fetchCategories: () => Promise<void>;
   fetchAreas: () => Promise<void>;
   fetchComputers: () => Promise<void>;
   fetchProviders: () => Promise<void>;
   fetchHolidays: () => Promise<void>;
+  fetchBankEntities: () => Promise<void>;
 
   addCategory: (data: Omit<Category, "id">) => Promise<boolean>;
   updateCategory: (id: number, data: Partial<Category>) => Promise<boolean>;
@@ -79,10 +83,12 @@ interface MaintenanceState {
   updateComputer: (id: number, data: Partial<Computer>) => Promise<void>;
   deleteComputer: (id: number) => Promise<boolean>;
 
-  addProvider: (data: ProviderWithAccounts) => Promise<boolean>;
+  addProvider: (
+    data: ProviderWithAccounts & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => Promise<boolean>;
   updateProvider: (
     id: number,
-    data: Partial<ProviderWithAccounts>
+    data: Partial<ProviderWithAccounts> & { imageFile?: File | null; imageRemoved?: boolean }
   ) => Promise<boolean>;
   fetchProviderAccounts: (providerId: number) => Promise<ProviderBankAccount[]>;
   deleteProvider: (id: number) => Promise<boolean>;
@@ -96,10 +102,10 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
   const sendProviderAccounts = async (
     providerId: number | undefined,
     accounts?: ProviderBankAccount[]
-  ) => {
-    if (!providerId || !accounts?.length) return;
+  ): Promise<boolean> => {
+    if (!providerId || !accounts?.length) return true;
     const accountsToSend = accounts.filter((a) => a.action);
-    if (!accountsToSend.length) return;
+    if (!accountsToSend.length) return true;
     for (const account of accountsToSend) {
       const payload = {
         cuentaId: account.cuentaId ?? 0,
@@ -111,8 +117,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       };
 
       if (account.action === "i") {
-        await apiRequest({
-          url: `http://localhost:5000/api/v1/Proveedor/${providerId}/cuentas`,
+        const created = await apiRequest<any>({
+          url: "http://localhost:5000/api/v1/Proveedor/registerCuenta",
           method: "POST",
           data: payload,
           config: {
@@ -120,17 +126,30 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
           },
           fallback: account,
         });
+        if (
+          typeof created === "string" &&
+          created.toLowerCase().includes("existe cuenta")
+        ) {
+          toast.error("La cuenta bancaria ya existe");
+          return false;
+        }
       } else if (account.action === "u") {
-        if (!account.cuentaId) continue;
-        await apiRequest({
-          url: `http://localhost:5000/api/v1/Proveedor/${providerId}/cuentas/${account.cuentaId}`,
-          method: "PUT",
+        const updated = await apiRequest<any>({
+          url: "http://localhost:5000/api/v1/Proveedor/registerCuenta",
+          method: "POST",
           data: payload,
           config: {
             headers: providerAccountHeaders,
           },
           fallback: account,
         });
+        if (
+          typeof updated === "string" &&
+          updated.toLowerCase().includes("existe cuenta")
+        ) {
+          toast.error("La cuenta bancaria ya existe");
+          return false;
+        }
       } else if (account.action === "d") {
         if (!account.cuentaId) continue;
         await apiRequest({
@@ -145,6 +164,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         });
       }
     }
+    return true;
   };
 
   const fetchProviderAccountsFn = async (
@@ -170,12 +190,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     computers: [],
     providers: [],
     holidays: [],
+    bankEntities: [],
     loading: false,
     setCategories: (items) => set({ categories: items }),
     setAreas: (items) => set({ areas: items }),
     setComputers: (items) => set({ computers: items }),
     setProviders: (items) => set({ providers: items }),
     setHolidays: (items) => set({ holidays: items }),
+    setBankEntities: (items) => set({ bankEntities: items }),
 
     fetchCategories: async () => {
       set({ loading: true });
@@ -239,6 +261,31 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       // Local-only: no API call; just ensure loading resets.
       set({ loading: true });
       set({ loading: false });
+    },
+    fetchBankEntities: async () => {
+      try {
+        const response = await apiRequest<any[]>({
+          url: "http://localhost:5000/api/v1/Banco/list",
+          method: "GET",
+          fallback: [
+            { id: 1, nombre: "BCP" },
+            { id: 2, nombre: "Interbank" },
+            { id: 3, nombre: "Scotiabank" },
+          ],
+        });
+
+        const mapped =
+          response?.map((item) => ({
+            id: Number(item?.id ?? item?.bancoId ?? item?.BancoID ?? 0) || 0,
+            nombre: String(
+              item?.nombre ?? item?.bancoNombre ?? item?.descripcion ?? ""
+            ),
+          })) ?? [];
+
+        set({ bankEntities: mapped.filter((b) => b.nombre) });
+      } catch (err) {
+        console.error("Error al obtener bancos", err);
+      }
     },
 
     // CRUD
@@ -633,7 +680,9 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       return true;
     },
 
-    addProvider: async (data) => {
+    addProvider: async (
+      data: ProviderWithAccounts & { imageFile?: File | null; imageRemoved?: boolean }
+    ) => {
       const payload = {
         proveedorId: 0,
         proveedorRazon: data.razon,
@@ -646,16 +695,21 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         proveedorEstado: data.estado,
       };
 
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        formData.append(key, value ?? "");
+      });
+      if (data.imageFile instanceof File) {
+        formData.append("imagen", data.imageFile);
+      }
+      if (data.imageRemoved) {
+        formData.append("eliminarImagen", "true");
+      }
+
       const created = await apiRequest<any>({
         url: "http://localhost:5000/api/v1/Proveedor/register",
         method: "POST",
-        data: payload,
-        config: {
-          headers: {
-            Accept: "*/*",
-            "Content-Type": "application/json",
-          },
-        },
+        data: formData,
         fallback: { ...data, id: Date.now() },
       });
 
@@ -677,38 +731,56 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         : undefined;
 
       if (data.cuentasBancarias?.length) {
-        await sendProviderAccounts(providerId, data.cuentasBancarias);
+        const okAccounts = await sendProviderAccounts(
+          providerId,
+          data.cuentasBancarias
+        );
+        if (!okAccounts) return false;
       }
 
+      const mapped = hasCreatedId
+        ? {
+            id: (created as any).id ?? (created as any).proveedorId,
+            razon:
+              (created as any).proveedorRazon ??
+              (created as any).razon ??
+              data.razon,
+            ruc: (created as any).proveedorRuc ?? data.ruc,
+            contacto: (created as any).proveedorContacto ?? data.contacto,
+            celular: (created as any).proveedorCelular ?? data.celular,
+            telefono: (created as any).proveedorTelefono ?? data.telefono,
+            correo: (created as any).proveedorCorreo ?? data.correo,
+            direccion: (created as any).proveedorDireccion ?? data.direccion,
+            estado: (created as any).proveedorEstado ?? data.estado,
+            imagen:
+              (created as any).proveedorImagen ?? (created as any).imagen ?? null,
+            images:
+              (created as any).proveedorImagen || (created as any).imagen
+                ? [
+                    String(
+                      (created as any).proveedorImagen ?? (created as any).imagen
+                    ),
+                  ]
+                : [],
+            cuentasBancarias: data.cuentasBancarias,
+          }
+        : { ...data, id: Date.now(), images: [], imagen: null };
+
       set((state) => ({
-        providers: [
-          ...state.providers,
-          hasCreatedId
-            ? {
-                id: (created as any).id ?? (created as any).proveedorId,
-                razon:
-                  (created as any).proveedorRazon ??
-                  (created as any).razon ??
-                  data.razon,
-                ruc: (created as any).proveedorRuc ?? data.ruc,
-                contacto: (created as any).proveedorContacto ?? data.contacto,
-                celular: (created as any).proveedorCelular ?? data.celular,
-                telefono: (created as any).proveedorTelefono ?? data.telefono,
-                correo: (created as any).proveedorCorreo ?? data.correo,
-                direccion:
-                  (created as any).proveedorDireccion ?? data.direccion,
-                estado: (created as any).proveedorEstado ?? data.estado,
-                cuentasBancarias: data.cuentasBancarias,
-              }
-            : { ...data, id: Date.now() },
-        ],
+        providers: [...state.providers, mapped as Provider],
       }));
 
       await queryClient.invalidateQueries({ queryKey: providersQueryKey });
       return true;
     },
 
-    updateProvider: async (id, data) => {
+    updateProvider: async (
+      id,
+      data: Partial<ProviderWithAccounts> & {
+        imageFile?: File | null;
+        imageRemoved?: boolean;
+      }
+    ) => {
       const payload = {
         proveedorId: id,
         proveedorRazon: data.razon ?? "",
@@ -721,16 +793,21 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         proveedorEstado: data.estado ?? "",
       };
 
+      const formData = new FormData();
+      Object.entries(payload).forEach(([key, value]) => {
+        formData.append(key, value ?? "");
+      });
+      if (data.imageFile instanceof File) {
+        formData.append("imagen", data.imageFile);
+      }
+      if (data.imageRemoved) {
+        formData.append("eliminarImagen", "true");
+      }
+
       const updated = await apiRequest<any>({
         url: "http://localhost:5000/api/v1/Proveedor/register",
         method: "POST",
-        data: payload,
-        config: {
-          headers: {
-            Accept: "*/*",
-            "Content-Type": "application/json",
-          },
-        },
+        data: formData,
         fallback: { ...data, id },
       });
 
@@ -744,7 +821,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }
 
       if (data.cuentasBancarias?.length) {
-        await sendProviderAccounts(id, data.cuentasBancarias);
+        const okAccounts = await sendProviderAccounts(id, data.cuentasBancarias);
+        if (!okAccounts) return false;
       }
 
       set((state) => ({
@@ -781,12 +859,26 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
                 p.direccion,
               estado:
                 (updated as any).proveedorEstado ?? data.estado ?? p.estado,
+              imagen:
+                (updated as any).proveedorImagen ??
+                (updated as any).imagen ??
+                p.imagen ??
+                null,
+              images:
+                (updated as any).proveedorImagen || (updated as any).imagen
+                  ? [
+                      String(
+                        (updated as any).proveedorImagen ??
+                          (updated as any).imagen
+                      ),
+                    ]
+                  : p.images ?? [],
               cuentasBancarias: data.cuentasBancarias ?? p.cuentasBancarias,
-          };
-        }
-        return {
-          ...p,
-          ...data,
+            };
+          }
+          return {
+            ...p,
+            ...data,
             cuentasBancarias: data.cuentasBancarias ?? p.cuentasBancarias,
           };
         }),

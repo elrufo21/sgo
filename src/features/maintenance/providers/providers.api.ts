@@ -33,6 +33,11 @@ export const fetchProvidersApi = async (): Promise<Provider[]> => {
       correo: String(item.proveedorCorreo ?? ""),
       direccion: String(item.proveedorDireccion ?? ""),
       estado: String(item.proveedorEstado ?? ""),
+      imagen: (item as any).proveedorImagen ?? (item as any).imagen ?? null,
+      images:
+        (item as any).proveedorImagen || (item as any).imagen
+          ? [String((item as any).proveedorImagen ?? (item as any).imagen)]
+          : [],
     })) ?? []
   );
 };

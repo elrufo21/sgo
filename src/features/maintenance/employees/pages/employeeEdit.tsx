@@ -32,7 +32,9 @@ const EmployeeEdit = () => {
 
   if (!form) return <div>Cargando empleado...</div>;
 
-  const handleSave = async (data: Personal) => {
+  const handleSave = async (
+    data: Personal & { imageFile?: File | null; imageRemoved?: boolean }
+  ) => {
     const updated = await updateEmployee(Number(id), data);
     if (!updated) {
       toast.error("El DNI ya existe");
