@@ -13,4 +13,6 @@ export interface ModuleListConfig<T> {
   idKey?: keyof T & string;
   createLabel?: string;
   deleteMessage?: string;
+   filterKeys?: (keyof T & string)[];
+  renderFilters?: ReactNode;
 }

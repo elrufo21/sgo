@@ -12,16 +12,39 @@ export default function ProviderEdit() {
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
 
-  const { updateProvider, deleteProvider, providers } = useMaintenanceStore();
+  const {
+    updateProvider,
+    deleteProvider,
+    providers,
+    fetchProviderAccounts,
+  } = useMaintenanceStore();
   const { data = [] } = useProvidersQuery();
 
   const [initialData, setInitialData] = useState<Provider | undefined>();
+  const [initialAccounts, setInitialAccounts] = useState<
+    ProviderBankAccount[]
+  >([]);
 
   useEffect(() => {
     const source = providers.length ? providers : data;
     const provider = source.find((p) => Number(p.id) === Number(id));
     if (provider) setInitialData(provider);
   }, [providers, data, id]);
+
+  useEffect(() => {
+    const loadAccounts = async () => {
+      if (!id) return;
+      const providerId = Number(id);
+      if (Number.isNaN(providerId)) return;
+      const accounts = await fetchProviderAccounts(providerId);
+      if (Array.isArray(accounts)) {
+        setInitialAccounts(
+          accounts.map((c) => ({ ...c, action: undefined }))
+        );
+      }
+    };
+    loadAccounts();
+  }, [id, fetchProviderAccounts]);
 
   if (!initialData) return <div>Cargando proveedor...</div>;
 
@@ -63,6 +86,7 @@ export default function ProviderEdit() {
     <ProviderForm
       mode="edit"
       initialData={initialData}
+      initialAccounts={initialAccounts}
       onSave={handleSave}
       onNew={() => navigate("/maintenance/providers/create")}
       onDelete={handleDelete}

@@ -140,7 +140,10 @@ export default function CashFlowForm({
     fechaCierre: "",
     observaciones: "",
     conteoMonedas: DEFAULT_CONTEO,
-    ingresos: [],
+    ingresos: [
+      { id: Date.now(), descripcion: "Ingreso inicial", importe: 150 },
+      { id: Date.now() + 1, descripcion: "Venta referencial", importe: 320 },
+    ],
     gastos: [],
     ventaTotal: DEFAULT_VENTA_TOTAL,
   });
@@ -152,12 +155,21 @@ export default function CashFlowForm({
     setFormData((prev) => ({ ...prev, conteoMonedas: updated }));
   };
 
-  const focusNextMoneda = (index) => {
-    const nextInput = monedaInputRefs.current[index + 1];
-    if (nextInput) {
-      nextInput.focus();
-      nextInput.select?.();
+  const focusMonedaAt = (index: number) => {
+    const input = monedaInputRefs.current[index];
+    if (input) {
+      input.focus();
+      input.select?.();
     }
+  };
+
+  const focusNextMoneda = (index: number) => {
+    focusMonedaAt(index + 1);
+  };
+
+  const focusPrevMoneda = (index: number) => {
+    if (index <= 0) return;
+    focusMonedaAt(index - 1);
   };
 
   useEffect(() => {
@@ -192,21 +204,27 @@ export default function CashFlowForm({
     (sum, item) => sum + item.importe,
     0
   );
-  const efectivoCaja = totalEfectivo + totalIngresos - totalGastos;
+  const efectivoCaja = totalIngresos - totalGastos;
   const ventasBO_FA =
     (formData.ventaTotal.efectivo ?? 0) +
     (formData.ventaTotal.tarjeta ?? 0) +
     (formData.ventaTotal.deposito ?? 0);
-  const diferencial = efectivoCaja - ventasBO_FA;
+  const diferencial = totalEfectivo - totalIngresos;
+  const diferencialClass =
+    diferencial > 0
+      ? "text-blue-700"
+      : diferencial < 0
+      ? "text-red-600"
+      : "text-slate-800";
   const totalVenta = ventasBO_FA;
   const totalBilletes = formData.conteoMonedas
-    .filter((item) => item.denominacion >= 5)
+    .filter((item) => item.denominacion >= 10)
     .reduce((sum, item) => {
       const cantidad = Number(item.cantidad || 0);
       return sum + cantidad * item.denominacion;
     }, 0);
   const totalSencillo = formData.conteoMonedas
-    .filter((item) => item.denominacion < 5)
+    .filter((item) => item.denominacion <= 5)
     .reduce((sum, item) => {
       const cantidad = Number(item.cantidad || 0);
       return sum + cantidad * item.denominacion;
@@ -274,84 +292,88 @@ export default function CashFlowForm({
         <div className="p-2 sm:p-3">
           <div className="space-y-3">
             <div className="bg-white rounded border border-gray-200 p-2 mb-1">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
-                <div>
-                  <HookFormAutocomplete
-                    name="encargado"
-                    label="Encargado"
-                    value={formData.encargado}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        encargado: e.target.value,
-                      }))
-                    }
-                    options={userOptions}
-                    placeholder="Seleccionar usuario"
-                    className="text-xs"
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                  <div className="col-span-2">
+                    <HookFormAutocomplete
+                      name="encargado"
+                      label="Encargado"
+                      value={formData.encargado}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          encargado: e.target.value,
+                        }))
+                      }
+                      options={userOptions}
+                      placeholder="Seleccionar usuario"
+                      className="text-xs"
+                    />
+                  </div>
+                  <div>
+                    <HookFormInput
+                      name="sencillo"
+                      label="Sencillo"
+                      type="number"
+                      value={formData.sencillo}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          sencillo: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
+                      labelClassName="text-xs font-semibold text-gray-700"
+                      step="any"
+                    />
+                  </div>
+                  <div className="">
+                    <HookFormSelect
+                      name="estado"
+                      label="Estado"
+                      value={formData.estado}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          estado: e.target.value,
+                        }))
+                      }
+                      options={[
+                        { value: "ABIERTA", label: "ABIERTA" },
+                        { value: "CERRADA", label: "CERRADA" },
+                      ]}
+                      labelClassName="text-xs font-semibold text-gray-700"
+                      selectClassName={`text-center font-medium text-xs ${
+                        formData.estado === "ABIERTA"
+                          ? "bg-green-50 text-green-700 border-green-200 focus:border-green-400"
+                          : "bg-red-50 text-red-700 border-red-200 focus:border-red-400"
+                      }`}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <HookFormInput
-                    name="sencillo"
-                    label="Sencillo"
-                    type="number"
-                    value={formData.sencillo}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        sencillo: parseFloat(e.target.value) || 0,
-                      }))
-                    }
-                    inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
-                    labelClassName="text-xs font-semibold text-gray-700"
-                    step="any"
-                  />
-                </div>
-                <div className="">
-                  <HookFormSelect
-                    name="estado"
-                    label="Estado"
-                    value={formData.estado}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        estado: e.target.value,
-                      }))
-                    }
-                    options={[
-                      { value: "ABIERTA", label: "ABIERTA" },
-                      { value: "CERRADA", label: "CERRADA" },
-                    ]}
-                    labelClassName="text-xs font-semibold text-gray-700"
-                    selectClassName={`text-center font-medium text-xs ${
-                      formData.estado === "ABIERTA"
-                        ? "bg-green-50 text-green-700 border-green-200 focus:border-green-400"
-                        : "bg-red-50 text-red-700 border-red-200 focus:border-red-400"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <HookFormInput
-                    name="fechaApertura"
-                    label="Apertura"
-                    value={formatDate(formData.fechaApertura)}
-                    onChange={() => {}}
-                    readOnly
-                    inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
-                    labelClassName="text-xs font-semibold text-gray-700"
-                  />
-                </div>
-                <div className="sm:col-span-2 lg:col-span-1">
-                  <HookFormInput
-                    name="fechaCierre"
-                    label="Cierre"
-                    value={formatDate(formData.fechaCierre)}
-                    onChange={() => {}}
-                    readOnly
-                    inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
-                    labelClassName="text-xs font-semibold text-gray-700"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <HookFormInput
+                      name="fechaApertura"
+                      label="Apertura"
+                      value={formatDate(formData.fechaApertura)}
+                      onChange={() => {}}
+                      readOnly
+                      inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
+                      labelClassName="text-xs font-semibold text-gray-700"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 lg:col-span-1">
+                    <HookFormInput
+                      name="fechaCierre"
+                      label="Cierre"
+                      value={formatDate(formData.fechaCierre)}
+                      onChange={() => {}}
+                      readOnly
+                      inputClassName="text-xs py-1.5 px-2 w-full border border-gray-200 rounded-md"
+                      labelClassName="text-xs font-semibold text-gray-700"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -400,6 +422,12 @@ export default function CashFlowForm({
                                     if (e.key === "Enter") {
                                       e.preventDefault();
                                       focusNextMoneda(idx);
+                                    } else if (e.key === "ArrowDown") {
+                                      e.preventDefault();
+                                      focusNextMoneda(idx);
+                                    } else if (e.key === "ArrowUp") {
+                                      e.preventDefault();
+                                      focusPrevMoneda(idx);
                                     }
                                   }}
                                   className="w-full min-w-0 px-1 py-0.5 border border-gray-200 rounded text-center focus:border-slate-500 focus:outline-none text-xs"
@@ -527,19 +555,19 @@ export default function CashFlowForm({
                       Tot. Billetes:
                     </span>
                     <input
-                      readOnly
+                      disabled
                       value={`S/ ${totalBilletes.toFixed(2)}`}
-                      className="flex-1 px-2 py-1 border border-purple-500 rounded text-right font-semibold text-slate-800 bg-white text-xs"
+                      className="flex-1 px-2 py-1 border  rounded text-right font-semibold text-slate-800 bg-white text-xs"
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-green-700 w-24 sm:w-28 flex-shrink-0">
+                    <span className="text-xs font-bold  w-24 sm:w-28 flex-shrink-0">
                       Tot. Sencillo:
                     </span>
                     <input
-                      readOnly
+                      disabled
                       value={`S/ ${totalSencillo.toFixed(2)}`}
-                      className="flex-1 px-2 py-1 border border-purple-500 rounded text-right font-semibold text-slate-800 bg-gray-50 text-xs"
+                      className="flex-1 px-2 py-1 border rounded text-right font-semibold text-slate-800 bg-gray-50 text-xs"
                     />
                   </div>
                   <div className="flex items-center gap-2">
@@ -547,9 +575,9 @@ export default function CashFlowForm({
                       Diferencial:
                     </span>
                     <input
-                      readOnly
+                      disabled
                       value={`S/ ${diferencial.toFixed(2)}`}
-                      className="flex-1 px-2 py-1 border border-purple-500 rounded text-right font-semibold text-slate-800 text-xs"
+                      className={`flex-1 px-2 py-1 border  rounded text-right font-semibold text-xs ${diferencialClass}`}
                     />
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-start gap-2">
@@ -584,6 +612,7 @@ export default function CashFlowForm({
                     <input
                       type="number"
                       value={formData.ventaTotal.efectivo || ""}
+                      disabled
                       onChange={(e) =>
                         setFormData((prev) => ({
                           ...prev,
@@ -604,6 +633,7 @@ export default function CashFlowForm({
                     <input
                       type="number"
                       value={formData.ventaTotal.tarjeta || ""}
+                      disabled
                       onChange={(e) =>
                         setFormData((prev) => ({
                           ...prev,
@@ -624,6 +654,7 @@ export default function CashFlowForm({
                     <input
                       type="number"
                       value={formData.ventaTotal.deposito || ""}
+                      disabled
                       onChange={(e) =>
                         setFormData((prev) => ({
                           ...prev,

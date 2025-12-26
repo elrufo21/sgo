@@ -9,15 +9,15 @@ export default function HolidayCreate() {
   const { addHoliday } = useMaintenanceStore();
 
   const handleSave = async (data: Holiday) => {
-    await addHoliday(data);
+    const rs = await addHoliday(data);
+    if (!rs) return;
     toast.success("Feriado creado correctamente");
+    navigate("/maintenance/holidays");
   };
 
   const handleNew = () => {
     navigate("/maintenance/holidays/create");
   };
 
-  return (
-    <HolidayForm mode="create" onSave={handleSave} onNew={handleNew} />
-  );
+  return <HolidayForm mode="create" onSave={handleSave} onNew={handleNew} />;
 }

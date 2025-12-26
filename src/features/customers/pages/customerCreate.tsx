@@ -17,7 +17,7 @@ const CustomerCreate = () => {
     telefonoMovil: "",
     email: "",
     registradoPor: "Admin",
-    estado: "activo",
+    estado: "ACTIVO",
     fecha: null as string | null,
   });
 
@@ -35,7 +35,7 @@ const CustomerCreate = () => {
         telefonoMovil: "",
         email: "",
         registradoPor: "Admin",
-        estado: "activo",
+        estado: "ACTIVO",
         fecha: null as string | null,
       });
     } else {
@@ -54,7 +54,7 @@ const CustomerCreate = () => {
       telefonoMovil: "",
       email: "",
       registradoPor: "Admin",
-      estado: "activo",
+      estado: "ACTIVO",
       fecha: null,
     });
   };

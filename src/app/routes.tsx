@@ -4,6 +4,7 @@ import cashFlowRoutes from "@/features/cashFlow/routes";
 import maintenanceRoutes from "@/features/maintenance/routes";
 import productRoutes from "@/features/products/routes";
 import customerRoutes from "../features/customers/routes";
+import salesRoutes from "../features/sales/routes";
 import posRoutes from "../features/pos/routes";
 import purchansesRoutes from "../features/purchanses/routes";
 import shoppingRoutes from "../features/shopping/routes";
@@ -32,10 +33,11 @@ const router = createBrowserRouter([
       { index: true, element: <Dashboard /> },
       ...productRoutes,
       ...customerRoutes,
-      ...posRoutes,
-      ...purchansesRoutes,
-      ...shoppingRoutes,
-      ...sendNoteRoutes,
+      ...salesRoutes,
+      ...posRoutes, // legacy direct routes (kept for compatibility if needed)
+      ...purchansesRoutes, // legacy direct routes
+      ...shoppingRoutes, // legacy direct routes
+      ...sendNoteRoutes, // legacy direct routes
       ...maintenanceRoutes,
       ...cashFlowRoutes,
       { path: "*", element: <h1>404 - Not Found</h1> },

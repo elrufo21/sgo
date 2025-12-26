@@ -44,7 +44,7 @@ const ComputerList = () => {
       deleteItem={deleteComputer}
       columns={computerColumns}
       basePath="/maintenance/computers"
-      createLabel="+ Añadir computadora"
+      createLabel="Añadir computadora"
       deleteMessage="¿Estás seguro de eliminar esta computadora?"
       filterKeys={[
         "maquina",

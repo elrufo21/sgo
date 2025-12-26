@@ -32,7 +32,7 @@ interface ApiProduct {
 interface ProductsState {
   products: Product[];
   loading: boolean;
-  fetchProducts: () => Promise<void>;
+  fetchProducts: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   addProduct: (
     product: Omit<Product, "id"> & {
       imageFile?: File | null;
@@ -133,11 +133,15 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
   products: [],
   loading: false,
 
-  fetchProducts: async () => {
+  fetchProducts: async (estado = "ACTIVO") => {
     set({ loading: true });
     try {
+      const query =
+        estado && estado.trim() !== ""
+          ? `?estado=${encodeURIComponent(estado)}`
+          : "";
       const response = await apiRequest<ApiProduct[]>({
-        url: `${baseUrl}/list`,
+        url: `${baseUrl}/list${query}`,
         method: "GET",
         fallback: [],
       });

@@ -5,13 +5,13 @@ import type {
   Control,
 } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
-import Autocomplete, {
-  createFilterOptions,
-} from "@mui/material/Autocomplete";
+import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
 import { Pencil } from "lucide-react";
+import type { KeyboardEvent } from "react";
+import { focusNextInput } from "@/shared/helpers/focusNextInput";
 
 type BaseOption = {
   label: string;
@@ -38,7 +38,6 @@ interface HookFormAutocompleteProps<
   createLabel?: (value: string) => string;
   onCreateOption?: (value: string) => void;
 
-  /** ĞY"û MODAL */
   onOpenModal?: (option: TOption) => void;
   modalIcon?: React.ReactNode;
   modalTitle?: string;
@@ -82,6 +81,16 @@ export function HookFormAutocomplete<
       option?.value === (value?.value ?? value));
 
   const filter = createFilterOptions<TOption & { inputValue?: string }>();
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+
+    // Let MUI handle option selection first
+    if (event.defaultPrevented || (event as any).defaultMuiPrevented) return;
+
+    event.preventDefault();
+    focusNextInput(event.currentTarget);
+  };
 
   return (
     <Controller
@@ -200,6 +209,16 @@ export function HookFormAutocomplete<
                   }}
                   InputProps={{
                     ...params.InputProps,
+                    inputProps: {
+                      ...params.InputProps?.inputProps,
+                      ...params.inputProps,
+                      "data-auto-next": "true",
+                      onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
+                        params.inputProps?.onKeyDown?.(event);
+                        params.InputProps?.inputProps?.onKeyDown?.(event);
+                        handleKeyDown(event);
+                      },
+                    },
                     endAdornment: (
                       <Box className="flex items-center gap-1 pr-1">
                         {params.InputProps.endAdornment}

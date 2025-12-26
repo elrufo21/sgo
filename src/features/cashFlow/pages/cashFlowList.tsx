@@ -6,6 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
+import { formatDate } from "@/shared/helpers/formatDate";
 
 const CashFlowList = () => {
   const { flows, fetchFlows, deleteFlow, loading } = useCashFlowStore();
@@ -76,21 +77,11 @@ const CashFlowList = () => {
     }),
     columnHelper.accessor("fechaApertura", {
       header: "Fecha Apertura",
-      cell: (info) =>
-        new Date(info.getValue()).toLocaleString("es-PE", {
-          dateStyle: "short",
-          timeStyle: "short",
-        }),
+      cell: (info) => formatDate(info.getValue()),
     }),
     columnHelper.accessor("fechaCierre", {
       header: "Fecha Cierre",
-      cell: (info) =>
-        info.getValue()
-          ? new Date(info.getValue()!).toLocaleString("es-PE", {
-              dateStyle: "short",
-              timeStyle: "short",
-            })
-          : "-",
+      cell: (info) => (info.getValue() ? formatDate(info.getValue()) : "-"),
     }),
     columnHelper.display({
       id: "efectivoCaja",
@@ -183,7 +174,7 @@ const CashFlowList = () => {
           className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded transition-colors shadow-sm"
           onClick={() => navigate("/cash_flow_control/create")}
         >
-          + Añadir Flujo de Caja
+          Añadir Flujo de Caja
         </button>
       </div>
 

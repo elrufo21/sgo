@@ -22,6 +22,7 @@ export interface CrudListConfig<T> {
   createLabel?: string;
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
+  renderFilters?: React.ReactNode;
 }
 
 interface CrudListProps<T> {
@@ -34,19 +35,23 @@ interface CrudListProps<T> {
   createLabel?: string;
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
+  renderFilters?: React.ReactNode;
 }
 
-export function CrudList<T>({
-  data,
-  fetchData,
-  deleteItem,
-  basePath,
-  columns,
-  idKey = "id",
-  createLabel = "+ Nuevo",
-  deleteMessage = "定Seguro que deseas eliminar este elemento?",
-  filterKeys,
-}: CrudListProps<T>) {
+export function CrudList<T>(props: CrudListProps<T>) {
+  const {
+    data,
+    fetchData,
+    deleteItem,
+    basePath,
+    columns,
+    idKey = "id",
+    createLabel = "Nuevo",
+    deleteMessage = "¿Seguro que deseas eliminar este elemento?",
+    filterKeys,
+    renderFilters,
+  } = props;
+
   const openDialog = useDialogStore((s) => s.openDialog);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper<T>();
@@ -139,11 +144,16 @@ export function CrudList<T>({
           variant="outlined"
           color="success"
         >
-          Nuevo
+          {createLabel}
         </ButtonComponent>
       </div>
 
-      <DataTable data={data} columns={tableColumns} filterKeys={filterKeys} />
+      <DataTable
+        data={data}
+        columns={tableColumns}
+        filterKeys={filterKeys}
+        renderFilters={renderFilters}
+      />
     </div>
   );
 }

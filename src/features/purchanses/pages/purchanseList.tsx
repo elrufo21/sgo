@@ -18,7 +18,7 @@ const PurchanseList = () => {
       deleteItem={deletePurchase}
       columns={columns}
       basePath="/purchases"
-      createLabel="+ Añadir"
+      createLabel="Añadir"
       deleteMessage="¿Estás seguro de eliminar este elemento?"
     />
   );

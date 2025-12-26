@@ -27,6 +27,13 @@ import {
   providersQueryKey,
   fetchProvidersApi,
 } from "@/features/maintenance/providers/providers.api";
+import {
+  holidaysQueryKey,
+  fetchHolidaysApi,
+  saveHolidayApi,
+  deleteHolidayApi,
+} from "@/features/maintenance/holidays/holidays.api";
+import { API_BASE_URL } from "@/config";
 
 const providerAccountHeaders = {
   Accept: "*/*",
@@ -84,11 +91,17 @@ interface MaintenanceState {
   deleteComputer: (id: number) => Promise<boolean>;
 
   addProvider: (
-    data: ProviderWithAccounts & { imageFile?: File | null; imageRemoved?: boolean }
+    data: ProviderWithAccounts & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    }
   ) => Promise<boolean>;
   updateProvider: (
     id: number,
-    data: Partial<ProviderWithAccounts> & { imageFile?: File | null; imageRemoved?: boolean }
+    data: Partial<ProviderWithAccounts> & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    }
   ) => Promise<boolean>;
   fetchProviderAccounts: (providerId: number) => Promise<ProviderBankAccount[]>;
   deleteProvider: (id: number) => Promise<boolean>;
@@ -153,7 +166,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       } else if (account.action === "d") {
         if (!account.cuentaId) continue;
         await apiRequest({
-          url: `http://localhost:5000/api/v1/Proveedor/${providerId}/cuentas/${account.cuentaId}`,
+          url: `${API_BASE_URL}/Proveedor/cuentas/${account.cuentaId}`,
           method: "DELETE",
           config: {
             headers: {
@@ -171,11 +184,11 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     providerId: number
   ): Promise<ProviderBankAccount[]> => {
     const response = await apiRequest<any[]>({
-      url: `http://localhost:5000/api/v1/Proveedor/${providerId}/cuentas`,
+      url: `${API_BASE_URL}/Proveedor/${providerId}/cuentas`,
       method: "GET",
       config: {
         headers: {
-          Accept: "*/*",
+          Accept: "text/plain",
         },
       },
       fallback: [],
@@ -258,34 +271,27 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }
     },
     fetchHolidays: async () => {
-      // Local-only: no API call; just ensure loading resets.
       set({ loading: true });
-      set({ loading: false });
+      try {
+        const response = await queryClient.fetchQuery({
+          queryKey: holidaysQueryKey,
+          queryFn: fetchHolidaysApi,
+        });
+        set({ holidays: response ?? [], loading: false });
+      } catch (err) {
+        console.error("Error al obtener feriados", err);
+        set({ loading: false });
+      }
     },
     fetchBankEntities: async () => {
-      try {
-        const response = await apiRequest<any[]>({
-          url: "http://localhost:5000/api/v1/Banco/list",
-          method: "GET",
-          fallback: [
-            { id: 1, nombre: "BCP" },
-            { id: 2, nombre: "Interbank" },
-            { id: 3, nombre: "Scotiabank" },
-          ],
-        });
-
-        const mapped =
-          response?.map((item) => ({
-            id: Number(item?.id ?? item?.bancoId ?? item?.BancoID ?? 0) || 0,
-            nombre: String(
-              item?.nombre ?? item?.bancoNombre ?? item?.descripcion ?? ""
-            ),
-          })) ?? [];
-
-        set({ bankEntities: mapped.filter((b) => b.nombre) });
-      } catch (err) {
-        console.error("Error al obtener bancos", err);
-      }
+      // Endpoint no disponible actualmente; usar fallback local para evitar llamadas erróneas.
+      set({
+        bankEntities: [
+          { id: 1, nombre: "BCP" },
+          { id: 2, nombre: "Interbank" },
+          { id: 3, nombre: "Scotiabank" },
+        ],
+      });
     },
 
     // CRUD
@@ -681,7 +687,10 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     },
 
     addProvider: async (
-      data: ProviderWithAccounts & { imageFile?: File | null; imageRemoved?: boolean }
+      data: ProviderWithAccounts & {
+        imageFile?: File | null;
+        imageRemoved?: boolean;
+      }
     ) => {
       const payload = {
         proveedorId: 0,
@@ -693,23 +702,33 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         proveedorCorreo: data.correo,
         proveedorDireccion: data.direccion,
         proveedorEstado: data.estado,
+        eliminarImagen: data.imageRemoved ? "true" : undefined,
       };
 
-      const formData = new FormData();
-      Object.entries(payload).forEach(([key, value]) => {
-        formData.append(key, value ?? "");
-      });
-      if (data.imageFile instanceof File) {
-        formData.append("imagen", data.imageFile);
-      }
-      if (data.imageRemoved) {
-        formData.append("eliminarImagen", "true");
+      const hasFile = data.imageFile instanceof File;
+      const requestData = hasFile ? new FormData() : payload;
+      const requestConfig = hasFile
+        ? undefined
+        : {
+            headers: {
+              Accept: "*/*",
+              "Content-Type": "application/json",
+            },
+          };
+
+      if (hasFile && requestData instanceof FormData) {
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value === undefined) return;
+          requestData.append(key, value ?? "");
+        });
+        requestData.append("imagen", data.imageFile as File);
       }
 
       const created = await apiRequest<any>({
         url: "http://localhost:5000/api/v1/Proveedor/register",
         method: "POST",
-        data: formData,
+        data: requestData as any,
+        config: requestConfig,
         fallback: { ...data, id: Date.now() },
       });
 
@@ -753,12 +772,15 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
             direccion: (created as any).proveedorDireccion ?? data.direccion,
             estado: (created as any).proveedorEstado ?? data.estado,
             imagen:
-              (created as any).proveedorImagen ?? (created as any).imagen ?? null,
+              (created as any).proveedorImagen ??
+              (created as any).imagen ??
+              null,
             images:
               (created as any).proveedorImagen || (created as any).imagen
                 ? [
                     String(
-                      (created as any).proveedorImagen ?? (created as any).imagen
+                      (created as any).proveedorImagen ??
+                        (created as any).imagen
                     ),
                   ]
                 : [],
@@ -791,23 +813,33 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         proveedorCorreo: data.correo ?? "",
         proveedorDireccion: data.direccion ?? "",
         proveedorEstado: data.estado ?? "",
+        eliminarImagen: data.imageRemoved ? "true" : undefined,
       };
 
-      const formData = new FormData();
-      Object.entries(payload).forEach(([key, value]) => {
-        formData.append(key, value ?? "");
-      });
-      if (data.imageFile instanceof File) {
-        formData.append("imagen", data.imageFile);
-      }
-      if (data.imageRemoved) {
-        formData.append("eliminarImagen", "true");
+      const hasFile = data.imageFile instanceof File;
+      const requestData = hasFile ? new FormData() : payload;
+      const requestConfig = hasFile
+        ? undefined
+        : {
+            headers: {
+              Accept: "*/*",
+              "Content-Type": "application/json",
+            },
+          };
+
+      if (hasFile && requestData instanceof FormData) {
+        Object.entries(payload).forEach(([key, value]) => {
+          if (value === undefined) return;
+          requestData.append(key, value ?? "");
+        });
+        requestData.append("imagen", data.imageFile as File);
       }
 
       const updated = await apiRequest<any>({
         url: "http://localhost:5000/api/v1/Proveedor/register",
         method: "POST",
-        data: formData,
+        data: requestData as any,
+        config: requestConfig,
         fallback: { ...data, id },
       });
 
@@ -821,7 +853,10 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }
 
       if (data.cuentasBancarias?.length) {
-        const okAccounts = await sendProviderAccounts(id, data.cuentasBancarias);
+        const okAccounts = await sendProviderAccounts(
+          id,
+          data.cuentasBancarias
+        );
         if (!okAccounts) return false;
       }
 
@@ -912,35 +947,59 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     },
 
     addHoliday: async (data) => {
+      const created = await saveHolidayApi({
+        id: 0,
+        fecha: data.fecha,
+        motivo: data.motivo?.toUpperCase?.() ?? data.motivo,
+      });
+
+      if ((created as any)?.error === "EXISTE_FECHA") {
+        toast.error("Esa fecha ya está registrada");
+        return false;
+      }
+
       set((state) => ({
         holidays: [
-          ...state.holidays,
-          {
-            id: Date.now(),
-            fecha: data.fecha,
-            motivo: data.motivo?.toUpperCase?.() ?? data.motivo,
-          },
+          ...state.holidays.filter((h) => String(h.id) !== String(created.id)),
+          created as any,
         ],
       }));
+
+      await queryClient.invalidateQueries({ queryKey: holidaysQueryKey });
+      return true;
     },
 
     updateHoliday: async (id, data) => {
+      const updated = await saveHolidayApi({
+        id,
+        fecha: data.fecha ?? "",
+        motivo: data.motivo?.toUpperCase?.() ?? data.motivo ?? "",
+      });
+
+      if ((updated as any)?.error === "EXISTE_FECHA") {
+        toast.error("Esa fecha ya está registrada");
+        return false;
+      }
+
       set((state) => ({
-        holidays: state.holidays.map((h) => {
-          if (h.id !== id) return h;
-          return {
-            ...h,
-            ...data,
-            motivo: data.motivo?.toUpperCase?.() ?? data.motivo ?? h.motivo,
-          };
-        }),
+        holidays: state.holidays.map((h) =>
+          String(h.id) === String(id) ? { ...h, ...updated } : h
+        ),
       }));
+
+      await queryClient.invalidateQueries({ queryKey: holidaysQueryKey });
+      return true;
     },
 
     deleteHoliday: async (id) => {
+      const result = await deleteHolidayApi(id);
+      if (!result) return false;
+
       set((state) => ({
         holidays: state.holidays.filter((h) => h.id !== id),
       }));
+
+      await queryClient.invalidateQueries({ queryKey: holidaysQueryKey });
       return true;
     },
     fetchProviderAccounts: fetchProviderAccountsFn,

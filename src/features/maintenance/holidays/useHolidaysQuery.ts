@@ -1,15 +1,17 @@
+import { useQuery } from "@tanstack/react-query";
+import {
+  fetchHolidaysApi,
+  holidaysQueryKey,
+} from "./holidays.api";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 
 export function useHolidaysQuery() {
-  const holidays = useMaintenanceStore((s) => s.holidays);
+  const setHolidays = useMaintenanceStore((s) => s.setHolidays);
 
-  const refetch = async () => {
-    // Local-only: no remote fetch.
-    return holidays;
-  };
-
-  return {
-    data: holidays,
-    refetch,
-  };
+  return useQuery({
+    queryKey: holidaysQueryKey,
+    queryFn: fetchHolidaysApi,
+    staleTime: 1000 * 60,
+    onSuccess: (data) => setHolidays(data ?? []),
+  });
 }

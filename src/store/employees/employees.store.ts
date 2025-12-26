@@ -10,7 +10,7 @@ interface EmployeesState {
   employees: Employee[];
   loading: boolean;
 
-  fetchEmployees: () => Promise<void>;
+  fetchEmployees: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   addEmployee: (
     employee: Omit<Employee, "personalId"> & {
       imageFile?: File | null;
@@ -94,14 +94,18 @@ export const useEmployeesStore = create<EmployeesState>((set) => ({
   employees: [],
   loading: false,
 
-  fetchEmployees: async () => {
+  fetchEmployees: async (estado = "ACTIVO") => {
     set({ loading: true });
     try {
       const response = await queryClient.fetchQuery({
         queryKey: employeesQueryKey,
         queryFn: async () => {
+          const query =
+            estado && estado.trim() !== ""
+              ? `?estado=${encodeURIComponent(estado)}`
+              : "";
           const data = await apiRequest<Personal[]>({
-            url: "http://localhost:5000/api/v1/Personal/list",
+            url: `http://localhost:5000/api/v1/Personal/list${query}`,
             method: "GET",
             fallback: [],
           });

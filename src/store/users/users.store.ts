@@ -9,7 +9,7 @@ interface UsersState {
   users: User[];
   loading: boolean;
 
-  fetchUsers: () => Promise<void>;
+  fetchUsers: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   addUser: (user: Omit<User, "UsuarioID">) => Promise<boolean>;
   updateUser: (id: number, data: Partial<User>) => Promise<boolean>;
   deleteUser: (id: number) => Promise<boolean>;
@@ -43,12 +43,16 @@ export const useUsersStore = create<UsersState>((set, get) => ({
   users: [],
   loading: false,
 
-  fetchUsers: async () => {
+  fetchUsers: async (estado = "ACTIVO") => {
     set({ loading: true });
 
     try {
+      const query =
+        estado && estado.trim() !== ""
+          ? `?estado=${encodeURIComponent(estado)}`
+          : "";
       const response = await apiRequest<any[]>({
-        url: `${API_BASE_URL}/UsuariosCrud/list`,
+        url: `${API_BASE_URL}/UsuariosCrud/list${query}`,
         method: "GET",
         fallback: [],
       });

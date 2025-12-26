@@ -6,7 +6,7 @@ import { create } from "zustand";
 interface ClientsState {
   clients: Client[];
   loading: boolean;
-  fetchClients: () => Promise<void>;
+  fetchClients: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   addClient: (
     client: Omit<Client, "id">
   ) => Promise<{ ok: boolean; error?: string }>;
@@ -58,11 +58,15 @@ export const useClientsStore = create<ClientsState>((set) => ({
   clients: [],
   loading: false,
 
-  fetchClients: async () => {
+  fetchClients: async (estado = "ACTIVO") => {
     set({ loading: true });
     try {
+      const query =
+        estado && estado.trim() !== ""
+          ? `?estado=${encodeURIComponent(estado)}`
+          : "";
       const response = await apiRequest<ApiClient[]>({
-        url: `${API_BASE_URL}/Cliente/list`,
+        url: `${API_BASE_URL}/Cliente/list${query}`,
         method: "GET",
         fallback: [],
       });

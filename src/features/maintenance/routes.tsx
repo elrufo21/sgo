@@ -5,6 +5,7 @@ import ComputerEdit from "./computers/computersEdit";
 import ComputerList from "./computers/computersList";
 import EmployeeCreate from "./employees/pages/employeeCreate";
 import EmployeeEdit from "./employees/pages/employeeEdit";
+import EmployeeListPage from "./employees/employeeListPage";
 import MaintenanceDashboard from "./pages/MaintenanceDashboard";
 import UserCreate from "./users/pages/userCreate";
 import UserEdit from "./users/pages/userEdit";
@@ -193,7 +194,7 @@ export default [
 
   {
     path: "maintenance/employees",
-    element: <GenericList moduleKey="employees" />,
+    element: <EmployeeListPage />,
     handle: {
       breadcrumb: [
         { label: "Mantenimiento", to: "/maintenance" },

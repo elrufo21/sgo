@@ -25,7 +25,8 @@ export default function HolidayEdit() {
 
   const handleSave = async (payload: Holiday) => {
     if (!id) return;
-    await updateHoliday(Number(id), payload);
+    const rs = await updateHoliday(Number(id), payload);
+    if (!rs) return;
     toast.success("Feriado actualizado correctamente");
     navigate("/maintenance/holidays");
   };

@@ -6,7 +6,7 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 interface DataTableProps<T> {
@@ -15,6 +15,7 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   filterKeys?: (keyof T & string)[];
   tdClassName?: string | ((cell: any) => string | undefined);
+  renderFilters?: ReactNode;
 }
 
 export default function DataTable<T>({
@@ -23,6 +24,7 @@ export default function DataTable<T>({
   onRowClick,
   filterKeys,
   tdClassName,
+  renderFilters,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
@@ -72,7 +74,9 @@ export default function DataTable<T>({
     onGlobalFilterChange: setGlobalFilter,
     onSortingChange: setSorting,
     globalFilterFn: (row, _columnId, filterValue) => {
-      const term = String(filterValue ?? "").toLowerCase().trim();
+      const term = String(filterValue ?? "")
+        .toLowerCase()
+        .trim();
       if (!term) return true;
       const keysToSearch =
         filterKeys && filterKeys.length > 0
@@ -121,14 +125,21 @@ export default function DataTable<T>({
 
   return (
     <div className="w-full border rounded-xl bg-white shadow p-4">
-      {/* Buscador */}
-      <input
-        ref={searchRef}
-        placeholder="Buscar..."
-        className="border px-3 py-2 rounded-lg mb-4 w-full"
-        value={globalFilter ?? ""}
-        onChange={(e) => setGlobalFilter(e.target.value)}
-      />
+      {/* Filtros y buscador */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+        <input
+          ref={searchRef}
+          placeholder="Buscar..."
+          className="border px-3 py-2 rounded-lg w-full sm:flex-1"
+          value={globalFilter ?? ""}
+          onChange={(e) => setGlobalFilter(e.target.value)}
+        />
+        {renderFilters && (
+          <div className="flex-shrink-0 sm:w-auto w-full sm:max-w-[220px]">
+            {renderFilters}
+          </div>
+        )}
+      </div>
 
       {/* Tabla */}
       <table className="w-full border-collapse">
@@ -176,7 +187,10 @@ export default function DataTable<T>({
                       ? tdClassName(cell) ?? ""
                       : tdClassName ?? "";
                   return (
-                    <td key={cell.id} className={`p-3 ${colClass} ${extraClass}`}>
+                    <td
+                      key={cell.id}
+                      className={`p-3 ${colClass} ${extraClass}`}
+                    >
                       {flexRender(
                         cell.column.columnDef.cell,
                         cell.getContext()

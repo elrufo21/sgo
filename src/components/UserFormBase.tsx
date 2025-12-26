@@ -71,14 +71,18 @@ export default function UserFormBase({
     defaultValues: defaults,
   });
 
-  const { handleSubmit, reset, watch } = formMethods;
+  const { handleSubmit, reset, watch, setFocus } = formMethods;
 
   const passwordsMatch =
     (watch("UsuarioClave") ?? "") === (watch("ConfirmClave") ?? "");
 
+  const [usersEstado, setUsersEstado] = useState<"ACTIVO" | "INACTIVO">(
+    "ACTIVO"
+  );
+
   useEffect(() => {
-    if (users.length === 0) fetchUsers();
-  }, [fetchUsers, users.length]);
+    fetchUsers(usersEstado);
+  }, [fetchUsers, usersEstado]);
 
   useEffect(() => {
     if (!employees.length) {
@@ -189,12 +193,19 @@ export default function UserFormBase({
                     placeholder="Buscar personal"
                     options={employees.map((p) => ({
                       label:
-                        `${p.personalNombres ?? ""} ${p.personalApellidos ?? ""}`.trim() ||
+                        `${p.personalNombres ?? ""} ${
+                          p.personalApellidos ?? ""
+                        }`.trim() ||
                         p.personalCodigo ||
                         `Personal ${p.personalId}`,
                       value: p.personalId,
                       data: p,
                     }))}
+                    onOptionSelected={(option) => {
+                      if (option) {
+                        setFocus("UsuarioAlias");
+                      }
+                    }}
                     rules={{ required: "Seleccione personal" }}
                     data-focus-first
                   />
@@ -203,6 +214,15 @@ export default function UserFormBase({
                     name="UsuarioAlias"
                     label="Usuario / Alias"
                     placeholder="ej: jramirez"
+                    onKeyDown={(e) => {
+                      if (e.key === " ") {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\s+/g, "");
+                      e.target.value = value;
+                    }}
                     rules={{ required: "El alias es obligatorio" }}
                   />
 
@@ -267,24 +287,38 @@ export default function UserFormBase({
                   <DataTable
                     columns={columns}
                     data={users}
-                    onRowClick={(row) =>
-                      {
-                        reset({
-                          PersonalId: row.PersonalId ?? "",
-                          UsuarioAlias: row.UsuarioAlias ?? "",
-                          UsuarioClave: row.UsuarioClave ?? "",
-                          ConfirmClave: row.UsuarioClave ?? "",
-                          UsuarioEstado: row.UsuarioEstado ?? "ACTIVO",
-                          UsuarioSerie: row.UsuarioSerie ?? "B001",
-                          EnviaBoleta: row.EnviaBoleta ?? 0,
-                          EnviarFactura: row.EnviarFactura ?? 0,
-                          EnviaNC: row.EnviaNC ?? 0,
-                          EnviaND: row.EnviaND ?? 0,
-                          Administrador: row.Administrador ?? 0,
-                        });
-                        onSelectUser?.(row);
-                      }
+                    renderFilters={
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={usersEstado}
+                          onChange={(e) =>
+                            setUsersEstado(
+                              e.target.value as "ACTIVO" | "INACTIVO"
+                            )
+                          }
+                          className="border border-gray-300 rounded px-2 py-1 text-sm"
+                        >
+                          <option value="ACTIVO">Activos</option>
+                          <option value="INACTIVO">Inactivos</option>
+                        </select>
+                      </div>
                     }
+                    onRowClick={(row) => {
+                      reset({
+                        PersonalId: row.PersonalId ?? "",
+                        UsuarioAlias: row.UsuarioAlias ?? "",
+                        UsuarioClave: row.UsuarioClave ?? "",
+                        ConfirmClave: row.UsuarioClave ?? "",
+                        UsuarioEstado: row.UsuarioEstado ?? "ACTIVO",
+                        UsuarioSerie: row.UsuarioSerie ?? "B001",
+                        EnviaBoleta: row.EnviaBoleta ?? 0,
+                        EnviarFactura: row.EnviarFactura ?? 0,
+                        EnviaNC: row.EnviaNC ?? 0,
+                        EnviaND: row.EnviaND ?? 0,
+                        Administrador: row.Administrador ?? 0,
+                      });
+                      onSelectUser?.(row);
+                    }}
                   />
                 </div>
               </div>
