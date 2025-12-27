@@ -5,7 +5,7 @@ import { formatDate } from "@/shared/helpers/formatDate";
 export const employeeListConfig: ModuleListConfig<Employee> = {
   basePath: "/maintenance/employees",
   idKey: "personalId",
-  createLabel: "+ Anadir empleado",
+  createLabel: "Anadir empleado",
   deleteMessage: "Seguro que deseas eliminar este empleado?",
   columns: [
     {

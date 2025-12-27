@@ -17,7 +17,7 @@ const cards = [
     title: "Nota de pedido",
     desc: "Administra las notas de pedido.",
     icon: <NotebookPen className="w-10 h-10 text-amber-600" />,
-    route: "/sales/send_note",
+    route: "/sales/send_note/create",
   },
   {
     title: "Caja chica",

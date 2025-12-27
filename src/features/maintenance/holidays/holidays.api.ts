@@ -101,8 +101,9 @@ export const saveHolidayApi = async (
   });
 
   if (typeof response === "string") {
-    if (response.toUpperCase().includes("EXISTE_FECHA")) {
-      return { error: "EXISTE_FECHA" };
+    const upper = response.toUpperCase();
+    if (upper.includes("EXISTE_FECHA") || upper.includes("EXISTE FERIADO")) {
+      return { error: "EXISTE_FERIADO" };
     }
     return mapHoliday({ ...body, idFeriado: payload.id ?? 0 });
   }

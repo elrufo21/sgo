@@ -27,8 +27,8 @@ export interface CrudListConfig<T> {
 
 interface CrudListProps<T> {
   data: T[];
-  fetchData: () => Promise<void> | void;
-  deleteItem: (id: number) => Promise<void> | void;
+  fetchData: () => Promise<unknown> | void;
+  deleteItem: (id: number) => Promise<boolean | void> | boolean | void;
   basePath: string;
   columns: ColumnConfig<T>[];
   idKey?: keyof T & string;

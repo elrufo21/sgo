@@ -86,6 +86,10 @@ export default function SendNoteFormBase({
     authUser?.displayName ??
     authUser?.username ??
     "";
+  const today = useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    []
+  );
 
   const defaults = useMemo<SendNoteFormValues>(
     () => ({
@@ -108,8 +112,9 @@ export default function SendNoteFormBase({
           : [defaultRow],
       usuarioResponsable: responsibleUser,
       atendidoPor: responsibleUser,
+      fechaPago: initialData?.fechaPago?.slice?.(0, 10) ?? today,
     }),
-    [initialData, responsibleUser]
+    [initialData, responsibleUser, today]
   );
 
   const formMethods = useForm<SendNoteFormValues>({

@@ -39,9 +39,8 @@ interface ShoppingFormBaseProps {
 }
 
 const conceptOptions = [
-  { value: "compra-local", label: "Compra local" },
-  { value: "servicio", label: "Servicio" },
-  { value: "importacion", label: "Importacion" },
+  { value: "mercaderia", label: "Mercaderia" },
+  { value: "servicio", label: "Servicios" },
 ];
 
 const documentoOptions = [
@@ -91,7 +90,10 @@ export default function ShoppingFormBase({
       numero: initialData?.numero ?? "",
       condicion: initialData?.condicion ?? "",
       moneda: initialData?.moneda ?? "",
-      diasPlazo: initialData?.diasPlazo ?? (mode === "create" ? "" : 0),
+      diasPlazo:
+        initialData?.diasPlazo === 0 || initialData?.diasPlazo === null
+          ? ""
+          : initialData?.diasPlazo ?? (mode === "create" ? "" : 0),
       fechaPago: initialData?.fechaPago ?? "",
       tipoIgv: initialData?.tipoIgv ?? "",
       tipoCambio: initialData?.tipoCambio ?? 0,
@@ -248,7 +250,7 @@ export default function ShoppingFormBase({
   useEffect(() => {
     if (!isCredito) {
       const today = new Date().toISOString().slice(0, 10);
-      setValue("diasPlazo", 0, { shouldDirty: true });
+      setValue("diasPlazo", "", { shouldDirty: true });
       setValue("fechaPago", today, { shouldDirty: true });
     }
   }, [isCredito, setValue]);

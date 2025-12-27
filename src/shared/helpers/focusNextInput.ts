@@ -22,7 +22,7 @@ const focusElement = (el: HTMLElement) => {
   }
 };
 
-export const focusNextInput = (current: HTMLElement) => {
+export const focusNextInput = (current: HTMLElement): boolean => {
   const scope: ParentNode | Document =
     current.closest("form") ?? current.ownerDocument ?? document;
 
@@ -31,12 +31,13 @@ export const focusNextInput = (current: HTMLElement) => {
   );
 
   const idx = focusable.indexOf(current);
-  if (idx === -1) return;
+  if (idx === -1) return false;
 
   for (let i = idx + 1; i < focusable.length; i += 1) {
     const candidate = focusable[i];
     if (isSkippable(candidate)) continue;
     focusElement(candidate);
-    return;
+    return true;
   }
+  return false;
 };

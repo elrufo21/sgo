@@ -49,25 +49,53 @@ const POSPage = () => {
     }
   }, [fetchProducts, products.length]);
 
+  const getOutOfStockItems = () =>
+    items.filter((item) => {
+      const stock =
+        typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
+      if (stock === undefined) return false;
+      return (item.cantidad ?? 0) > stock || stock <= 0;
+    });
+
   const goToPayment = () => {
     if (!items.length) {
       toast.error("Agrega productos antes de procesar");
       return;
     }
-    navigate("/pos/payment");
-  };
 
-  const handleAddProduct = (product: Product) => {
-    const currentItem = items.find((item) => item.productId === product.id);
-    const available =
-      typeof product.cantidad === "number" ? product.cantidad : undefined;
-    if (available !== undefined && available <= (currentItem?.cantidad ?? 0)) {
-      toast.error("Sin stock disponible para este producto", {
-        duration: 1400,
+    const outOfStockItems = getOutOfStockItems();
+    if (outOfStockItems.length) {
+      openDialog({
+        title: "Stock insuficiente",
+        content: (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-700">
+              Estás añadiendo productos sin stock suficiente:
+            </p>
+            <ul className="list-disc list-inside text-sm text-slate-800 max-h-40 overflow-auto">
+              {outOfStockItems.map((item) => (
+                <li key={item.productId}>
+                  {item.nombre} — stock: {Math.max(item.stock ?? 0, 0)}, carrito:{" "}
+                  {item.cantidad}
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-slate-700">
+              ¿Deseas continuar de todos modos?
+            </p>
+          </div>
+        ),
+        confirmText: "Continuar",
+        cancelText: "Cancelar",
+        onConfirm: () => navigate("/pos/payment"),
       });
       return;
     }
 
+    navigate("/pos/payment");
+  };
+
+  const handleAddProduct = (product: Product) => {
     addProduct(product, 1);
     toast.success(`${product.nombre} agregado al carrito`, {
       duration: 1200,
@@ -117,27 +145,14 @@ const POSPage = () => {
 
   const handleQuantityChange = (item: PosCartItem, delta: number) => {
     const desired = Math.max(1, (item.cantidad ?? 0) + delta);
-    const limit =
-      typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
-    const next = limit ? Math.min(desired, limit) : desired;
-
-    if (limit && desired > limit) {
-      toast.error("Alcanzaste el stock disponible", { duration: 1200 });
-    }
-
-    updateQuantity(item.productId, next);
+    updateQuantity(item.productId, desired);
   };
 
   const handleManualQuantity = (item: PosCartItem, value: string) => {
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return;
-    const limit =
-      typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
     const next = Math.max(1, parsed);
-    if (limit && next > limit) {
-      toast.error("Alcanzaste el stock disponible", { duration: 1200 });
-    }
-    updateQuantity(item.productId, limit ? Math.min(next, limit) : next);
+    updateQuantity(item.productId, next);
   };
 
   const handlePriceChange = (item: PosCartItem, value: string) => {
@@ -297,7 +312,7 @@ const POSPage = () => {
                               <img
                                 src={image}
                                 alt={product.nombre}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-contain"
                               />
                             ) : (
                               <div className="text-sm text-gray-500">

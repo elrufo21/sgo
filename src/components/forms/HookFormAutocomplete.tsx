@@ -89,7 +89,10 @@ export function HookFormAutocomplete<
     if (event.defaultPrevented || (event as any).defaultMuiPrevented) return;
 
     event.preventDefault();
-    focusNextInput(event.currentTarget);
+    const moved = focusNextInput(event.currentTarget);
+    if (!moved) {
+      event.currentTarget.form?.requestSubmit();
+    }
   };
 
   return (
@@ -200,7 +203,7 @@ export function HookFormAutocomplete<
                         borderColor: "#3b82f6",
                         boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
                       },
-                      minHeight: 32,
+                      minHeight: 48,
                     },
                     "& .MuiOutlinedInput-input": {
                       padding: "6px 10px",

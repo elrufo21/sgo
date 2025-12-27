@@ -19,7 +19,10 @@ interface EmployeesState {
   ) => Promise<boolean>;
   updateEmployee: (
     id: number,
-    data: Partial<Employee> & { imageFile?: File | null; imageRemoved?: boolean }
+    data: Partial<Employee> & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    }
   ) => Promise<boolean>;
   deleteEmployee: (id: number) => Promise<boolean>;
 }
@@ -49,7 +52,7 @@ const mapApiToEmployee = (item: any): Personal => ({
   personalEmail:
     item?.personalEmail ?? item?.PersonalEmail ?? item?.correo ?? "",
   personalEstado:
-    item?.personalEstado ?? item?.PersonalEstado ?? item?.estado ?? "activo",
+    item?.personalEstado ?? item?.PersonalEstado ?? item?.estado ?? "ACTIVO",
   personalImagen:
     item?.personalImagen ?? item?.PersonalImagen ?? item?.foto ?? null,
   companiaId: item?.companiaId ?? item?.CompaniaId ?? null,
@@ -71,13 +74,16 @@ const buildPersonalFormData = (
     personalDireccion: data.personalDireccion ?? "",
     personalTelefono: data.personalTelefono ?? "",
     personalEmail: data.personalEmail ?? "",
-    personalEstado: data.personalEstado ?? "activo",
+    personalEstado: data.personalEstado ?? "ACTIVO",
     companiaId: data.companiaId ?? 1,
   };
 
   const formData = new FormData();
   Object.entries(payload).forEach(([key, value]) => {
-    formData.append(key, value === null || value === undefined ? "" : String(value));
+    formData.append(
+      key,
+      value === null || value === undefined ? "" : String(value)
+    );
   });
 
   if (data.imageFile instanceof File) {
@@ -214,4 +220,5 @@ export interface User {
   EnviaNC: number;
   EnviaND: number;
   Administrador: number;
+  area?: string;
 }

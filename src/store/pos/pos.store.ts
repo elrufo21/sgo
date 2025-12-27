@@ -41,23 +41,16 @@ export const usePosStore = create<PosState>()(
           const existing = state.items.find(
             (item) => item.productId === product.id
           );
-          const maxStock =
-            typeof product.cantidad === "number"
-              ? Math.max(product.cantidad, 0)
-              : undefined;
           const currentQty = existing?.cantidad ?? 0;
           const desiredQty = currentQty + quantity;
-          const cappedQty =
-            maxStock !== undefined
-              ? Math.min(desiredQty, maxStock)
-              : desiredQty;
+          const nextQty = Math.max(desiredQty, 1);
 
-          if (cappedQty <= 0) return state;
+          if (nextQty <= 0) return state;
 
           const nextItems = existing
             ? state.items.map((item) =>
                 item.productId === product.id
-                  ? { ...item, cantidad: cappedQty, precio: price }
+                  ? { ...item, cantidad: nextQty, precio: price }
                   : item
               )
             : [
@@ -68,7 +61,7 @@ export const usePosStore = create<PosState>()(
                   nombre: product.nombre,
                   unidadMedida: product.unidadMedida,
                   precio: price,
-                  cantidad: cappedQty,
+                  cantidad: nextQty,
                   stock: product.cantidad,
                 },
               ];
@@ -82,14 +75,7 @@ export const usePosStore = create<PosState>()(
             .map((item) => {
               if (item.productId !== productId) return item;
               const rawQty = Number.isFinite(quantity) ? quantity : 0;
-              const maxStock =
-                typeof item.stock === "number"
-                  ? Math.max(item.stock, 0)
-                  : undefined;
-              const cappedQty =
-                maxStock !== undefined
-                  ? Math.min(Math.max(rawQty, 0), maxStock)
-                  : Math.max(rawQty, 0);
+              const cappedQty = Math.max(rawQty, 0);
 
               return { ...item, cantidad: cappedQty };
             })

@@ -26,13 +26,27 @@ const UserCreate = () => {
 
   const handleSave = async (data: Omit<User, "UsuarioID">) => {
     const created = await addUser(data);
+
     if (!created) {
       toast.error("No se pudo crear el usuario.");
-      return;
+      return false;
     }
 
     toast.success("Usuario creado correctamente");
-    navigate("/maintenance/users");
+    setForm({
+      PersonalId: 0,
+      UsuarioAlias: "",
+      UsuarioClave: "",
+      UsuarioFechaReg: new Date().toISOString(),
+      UsuarioEstado: "ACTIVO",
+      UsuarioSerie: "B001",
+      EnviaBoleta: 0,
+      EnviarFactura: 0,
+      EnviaNC: 0,
+      EnviaND: 0,
+      Administrador: 0,
+    });
+    return true;
   };
 
   const handleNew = () => {

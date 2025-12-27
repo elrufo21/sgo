@@ -328,7 +328,7 @@ export default function ProviderForm({
               </div>
 
               <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                <div className="space-y-4">
+                <div className="space-y-4 w-[50%]">
                   <div className="flex flex-col gap-2">
                     <div className="relative w-full">
                       <input

@@ -50,7 +50,9 @@ const buildDefaults = (initialData?: Partial<Personal>): Personal => ({
   personalNacimiento: initialData?.personalNacimiento?.toString().trim()
     ? formatDateForInput(initialData.personalNacimiento)
     : today(),
-  personalIngreso: initialData?.personalIngreso ?? "",
+  personalIngreso: initialData?.personalIngreso?.toString().trim()
+    ? formatDateForInput(initialData.personalIngreso)
+    : "",
   personalDni: initialData?.personalDni ?? "",
   personalDireccion: initialData?.personalDireccion ?? "",
   personalTelefono: initialData?.personalTelefono ?? "",
@@ -72,7 +74,7 @@ export default function EmployeeFormBase({
     []
   );
   const formContainerRef = useRef<HTMLDivElement>(null);
-
+  console.log("initialData", initialData);
   const formMethods = useForm<Personal>({
     defaultValues: buildDefaults(initialData),
   });
@@ -250,7 +252,7 @@ export default function EmployeeFormBase({
       personalNombres: values.personalNombres?.toUpperCase() ?? "",
       personalApellidos: values.personalApellidos?.toUpperCase() ?? "",
       personalNacimiento: normalizeDateForApi(values.personalNacimiento),
-      personalIngreso: values.personalIngreso?.trim() || null,
+      personalIngreso: normalizeDateForApi(values.personalIngreso),
       imageFile,
       imageRemoved,
     });
@@ -317,6 +319,15 @@ export default function EmployeeFormBase({
                   name="personalCodigo"
                   label="Codigo Personal"
                   placeholder="Codigo"
+                  onKeyDown={(e) => {
+                    if (e.key === " ") e.preventDefault();
+                  }}
+                  onInput={(e) => {
+                    e.currentTarget.value = e.currentTarget.value.replace(
+                      /\s+/g,
+                      ""
+                    );
+                  }}
                   rules={{ required: "El codigo de personal es obligatorio" }}
                 />
 

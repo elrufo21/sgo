@@ -75,7 +75,7 @@ export default function ProductFormBase({
           : null,
       codigo: initialData?.codigo ?? (mode === "create" ? generateCode() : ""),
       nombre: initialData?.nombre ?? "",
-      unidadMedida: initialData?.unidadMedida ?? "",
+      unidadMedida: initialData?.unidadMedida ?? "Unidad",
       valorCritico: initialData?.valorCritico ?? null,
       preCosto: initialData?.preCosto ?? null,
       preVenta: initialData?.preVenta ?? null,
@@ -100,6 +100,7 @@ export default function ProductFormBase({
     reset,
     setValue,
     watch,
+    setError,
     formState: { isSubmitting, errors },
   } = formMethods;
   const openDialog = useDialogStore((s) => s.openDialog);
@@ -259,8 +260,19 @@ export default function ProductFormBase({
   };
 
   const onSubmit = async (values: ProductFormValues) => {
+    const trimmedCode = values.codigo?.trim() ?? "";
+    if (!trimmedCode) {
+      setError("codigo", {
+        type: "required",
+        message: "El codigo es obligatorio",
+      });
+      focusFirstInput(containerRef.current);
+      return;
+    }
+
     const payload = {
       ...values,
+      codigo: trimmedCode,
       nombre: values.nombre?.toUpperCase() ?? "",
     };
     await Promise.resolve(onSave(payload));
@@ -439,7 +451,12 @@ export default function ProductFormBase({
                     <div className="relative">
                       <input
                         type="text"
-                        {...formMethods.register("codigo")}
+                        {...formMethods.register("codigo", {
+                          required: "El codigo es obligatorio",
+                          validate: (v) =>
+                            (v?.toString().trim?.() ?? "").length > 0 ||
+                            "El codigo es obligatorio",
+                        })}
                         disabled={!codeEditable}
                         placeholder="AUTO-GENERADO"
                         onKeyDown={(e) => {
@@ -463,6 +480,11 @@ export default function ProductFormBase({
                             : "bg-gray-50 border-gray-200 cursor-not-allowed"
                         }`}
                       />
+                      {errors.codigo && (
+                        <p className="mt-1 text-sm text-red-600">
+                          {String((errors as any).codigo?.message)}
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={() => setCodeEditable(!codeEditable)}

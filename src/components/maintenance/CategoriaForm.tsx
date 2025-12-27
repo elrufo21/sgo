@@ -1,5 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
+import { useForm } from "react-hook-form";
 import { Save, Plus, Trash2 } from "lucide-react";
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
 import type { Category } from "@/types/maintenance";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useDialogStore } from "@/store/app/dialog.store";
@@ -14,6 +17,15 @@ interface CategoriaFormProps {
   variant?: "page" | "modal";
 }
 
+const buildDefaults = (data?: Partial<Category>): Category => ({
+  id:
+    Number.isNaN(Number(data?.id ?? data?.idSubLinea))
+      ? 0
+      : Number(data?.id ?? data?.idSubLinea ?? 0),
+  nombreSublinea: data?.nombreSublinea ?? "",
+  codigoSunat: data?.codigoSunat ?? "",
+});
+
 export default function CategoriaForm({
   initialData,
   mode,
@@ -22,53 +34,62 @@ export default function CategoriaForm({
   onDelete,
   variant = "page",
 }: CategoriaFormProps) {
-  const [form, setForm] = useState<Category>({
-    id: 0,
-    nombreSublinea: "",
-    codigoSunat: null,
-  });
-
   const containerRef = useRef<HTMLDivElement>(null);
   const setDialogData = useDialogStore((s) => s.setData);
 
   const isModal = variant === "modal";
 
+  const defaults = useMemo(
+    () => buildDefaults(initialData),
+    [initialData]
+  );
+
+  const formMethods = useForm<Category>({
+    defaultValues: defaults,
+  });
+
+  const {
+    reset,
+    watch,
+    formState: { isSubmitting },
+  } = formMethods;
+
   useEffect(() => {
-    if (initialData) {
-      setForm((prev) => ({ ...prev, ...initialData }));
-    }
-  }, [initialData]);
+    reset(defaults);
+  }, [defaults, reset]);
 
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
+  useEffect(() => {
+    if (!isModal) return;
+    const subscription = watch((values) => {
+      setDialogData({
+        ...values,
+        nombreSublinea: values.nombreSublinea?.toUpperCase() ?? "",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [isModal, watch, setDialogData]);
+
   const handleNew = () => {
-    setForm({ id: 0, nombreSublinea: "", codigoSunat: null });
+    reset(buildDefaults());
     focusFirstInput(containerRef.current);
     onNew?.();
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  useEffect(() => {
-    if (isModal) {
-      setDialogData({
-        ...form,
-        nombreSublinea: form.nombreSublinea?.toUpperCase() ?? "",
-      });
-    }
-  }, [form, isModal, setDialogData]);
-
-  const handleSave = async () => {
+  const onSubmit = async (values: Category) => {
     const payload: Category = {
-      ...form,
-      nombreSublinea: form.nombreSublinea?.toUpperCase() ?? "",
+      ...values,
+      nombreSublinea: values.nombreSublinea?.toUpperCase() ?? "",
+      codigoSunat: values.codigoSunat ?? "",
     };
     await onSave(payload);
+    if (mode === "create") {
+      handleNew();
+      return;
+    }
     focusFirstInput(containerRef.current);
   };
 
@@ -80,9 +101,9 @@ export default function CategoriaForm({
         </h1>
         <div className="flex items-center gap-2">
           <button
-            type="button"
-            onClick={handleSave}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+            type="submit"
+            disabled={isSubmitting}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
             title="Guardar"
           >
             <Save className="w-4 h-4" />
@@ -122,43 +143,28 @@ export default function CategoriaForm({
             variant !== "modal" && "rounded-2xl shadow-xl"
           } overflow-hidden`}
         >
-          <Header />
-          <div className="p-6 sm:p-8">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Nombre de categoria
-                </label>
-                <input
+          <HookForm methods={formMethods} onSubmit={onSubmit}>
+            <Header />
+            <div className="p-6 sm:p-8">
+              <div className="space-y-4">
+                <HookFormInput<Category>
                   data-focus-first
-                  type="text"
                   name="nombreSublinea"
-                  value={form.nombreSublinea}
-                  onChange={handleChange}
+                  label="Nombre de categoria"
                   placeholder="Ingrese nombre"
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg
-                  focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+                  rules={{ required: "El nombre es obligatorio" }}
                 />
-              </div>
 
-              {mode === "edit" && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Codigo SUNAT
-                  </label>
-                  <input
-                    type="text"
+                {mode === "edit" && (
+                  <HookFormInput<Category>
                     name="codigoSunat"
-                    value={form.codigoSunat ?? ""}
-                    onChange={handleChange}
+                    label="Codigo SUNAT"
                     placeholder="Ej: 1232"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg
-                    focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
                   />
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </div>
+          </HookForm>
         </div>
       </div>
     </div>

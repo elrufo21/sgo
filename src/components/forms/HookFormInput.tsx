@@ -31,7 +31,10 @@ export function HookFormInput<T extends FieldValues>({
 
     if (event.key === "Enter") {
       event.preventDefault();
-      focusNextInput(event.currentTarget);
+      const moved = focusNextInput(event.currentTarget);
+      if (!moved) {
+        event.currentTarget.form?.requestSubmit();
+      }
     }
   };
 

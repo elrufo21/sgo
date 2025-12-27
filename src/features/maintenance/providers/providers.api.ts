@@ -15,9 +15,15 @@ type ProviderApiResponse = {
   proveedorEstado?: string;
 } & Record<string, unknown>;
 
-export const fetchProvidersApi = async (): Promise<Provider[]> => {
+export const fetchProvidersApi = async (
+  estado: "ACTIVO" | "INACTIVO" | "" = "ACTIVO"
+): Promise<Provider[]> => {
+  const query =
+    estado && estado.trim() !== ""
+      ? `?estado=${encodeURIComponent(estado)}`
+      : "";
   const response = await apiRequest<ProviderApiResponse[]>({
-    url: "http://localhost:5000/api/v1/Proveedor/list",
+    url: `http://localhost:5000/api/v1/Proveedor/list${query}`,
     method: "GET",
     fallback: [],
   });

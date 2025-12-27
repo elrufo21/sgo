@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { API_BASE_URL } from "@/config";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import type { User } from "../employees/employees.store";
+import { toast } from "sonner";
 export type { User } from "../employees/employees.store";
 
 interface UsersState {
@@ -28,7 +29,25 @@ const mapApiToUser = (item: any): User => ({
   EnviaNC: item?.enviaNC ?? item?.EnviaNC ?? 0,
   EnviaND: item?.enviaND ?? item?.EnviaND ?? 0,
   Administrador: item?.administrador ?? item?.Administrador ?? 0,
+  area: item?.area ?? item?.Area ?? "",
 });
+
+const isAliasDuplicateResponse = (result: unknown) => {
+  const status =
+    (result as any)?.status ?? (result as any)?.response?.status ?? null;
+
+  if (status === 409) return true;
+
+  const message =
+    typeof result === "string"
+      ? result
+      : (result as any)?.message ?? (result as any)?.response?.data ?? "";
+
+  return (
+    typeof message === "string" &&
+    message.toLowerCase().includes("alias de usuario ya existe")
+  );
+};
 
 const mapUserToApiPayload = (user: Partial<User>) => ({
   usuarioID: user.UsuarioID ?? 0,
@@ -83,6 +102,11 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         fallback: null,
       });
 
+      if (isAliasDuplicateResponse(created)) {
+        toast.error("El alias de usuario ya existe.");
+        return false;
+      }
+
       if (created === null || created === false) {
         return false;
       }
@@ -111,6 +135,11 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         },
         fallback: null,
       });
+
+      if (isAliasDuplicateResponse(updated)) {
+        toast.error("El alias de usuario ya existe.");
+        return false;
+      }
 
       if (updated === null || updated === false) {
         return false;

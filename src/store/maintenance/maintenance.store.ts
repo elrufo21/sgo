@@ -40,6 +40,27 @@ const providerAccountHeaders = {
   "Content-Type": "application/json",
 };
 
+const isDuplicateHoliday = (result: unknown) => {
+  const message =
+    typeof result === "string"
+      ? result
+      : (result as any)?.error ??
+        (result as any)?.message ??
+        (result as any)?.response?.data ??
+        "";
+
+  if (typeof message !== "string") return false;
+  const normalized = message.toLowerCase().trim();
+  return (
+    normalized === "existe feriado" ||
+    normalized === "existe_feriado" ||
+    normalized === "existe fecha" ||
+    normalized.includes("existe feriado") ||
+    normalized.includes("existe_feriado") ||
+    normalized.includes("existe_fecha")
+  );
+};
+
 const mapProviderAccount = (
   item: any,
   fallbackProviderId?: number
@@ -74,7 +95,7 @@ interface MaintenanceState {
   fetchCategories: () => Promise<void>;
   fetchAreas: () => Promise<void>;
   fetchComputers: () => Promise<void>;
-  fetchProviders: () => Promise<void>;
+  fetchProviders: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   fetchHolidays: () => Promise<void>;
   fetchBankEntities: () => Promise<void>;
 
@@ -257,12 +278,12 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         set({ loading: false });
       }
     },
-    fetchProviders: async () => {
+    fetchProviders: async (estado = "ACTIVO") => {
       set({ loading: true });
       try {
         const response = await queryClient.fetchQuery({
-          queryKey: providersQueryKey,
-          queryFn: fetchProvidersApi,
+          queryKey: [...providersQueryKey, estado],
+          queryFn: () => fetchProvidersApi(estado),
         });
         set({ providers: response ?? [], loading: false });
       } catch (err) {
@@ -953,7 +974,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         motivo: data.motivo?.toUpperCase?.() ?? data.motivo,
       });
 
-      if ((created as any)?.error === "EXISTE_FECHA") {
+      if (isDuplicateHoliday(created)) {
         toast.error("Esa fecha ya está registrada");
         return false;
       }
@@ -976,7 +997,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         motivo: data.motivo?.toUpperCase?.() ?? data.motivo ?? "",
       });
 
-      if ((updated as any)?.error === "EXISTE_FECHA") {
+      if (isDuplicateHoliday(updated)) {
         toast.error("Esa fecha ya está registrada");
         return false;
       }

@@ -15,7 +15,7 @@ import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 interface UserFormBaseProps {
   initialData?: Partial<any>;
   mode: "create" | "edit";
-  onSave: (data: any) => void;
+  onSave: (data: any) => Promise<boolean> | boolean;
   onNew?: () => void;
   onDelete?: () => void;
   onSelectUser?: (user: any) => void;
@@ -43,6 +43,7 @@ export default function UserFormBase({
   onDelete,
   onSelectUser,
 }: UserFormBaseProps) {
+  const [formKey, setFormKey] = useState(0);
   const { users, fetchUsers } = useUsersStore();
   const { employees, fetchEmployees } = useEmployeesStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,6 +74,23 @@ export default function UserFormBase({
 
   const { handleSubmit, reset, watch, setFocus } = formMethods;
 
+  const emptyValues = useMemo<UserFormValues>(
+    () => ({
+      PersonalId: "",
+      UsuarioAlias: "",
+      UsuarioClave: "",
+      ConfirmClave: "",
+      UsuarioEstado: "ACTIVO",
+      UsuarioSerie: "B001",
+      EnviaBoleta: 0,
+      EnviarFactura: 0,
+      EnviaNC: 0,
+      EnviaND: 0,
+      Administrador: 0,
+    }),
+    []
+  );
+
   const passwordsMatch =
     (watch("UsuarioClave") ?? "") === (watch("ConfirmClave") ?? "");
 
@@ -98,7 +116,7 @@ export default function UserFormBase({
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  const onSubmit = (values: UserFormValues) => {
+  const onSubmit = async (values: UserFormValues) => {
     if ((values.UsuarioClave ?? "") !== (values.ConfirmClave ?? "")) {
       toast.error("Las contrasenas no coinciden");
       return;
@@ -107,32 +125,35 @@ export default function UserFormBase({
     const payload = { ...values };
     delete (payload as any).ConfirmClave;
 
-    onSave(payload);
+    const ok = await onSave(payload);
+    if (!ok) return;
+
+    if (mode === "create") {
+      reset(emptyValues);
+      onNew?.();
+      setFormKey((k) => k + 1);
+      focusFirstInput(containerRef.current);
+      return;
+    }
     focusFirstInput(containerRef.current);
   };
 
   const handleNew = () => {
-    reset({
-      PersonalId: "",
-      UsuarioAlias: "",
-      UsuarioClave: "",
-      ConfirmClave: "",
-      UsuarioEstado: "ACTIVO",
-      UsuarioSerie: "B001",
-      EnviaBoleta: 0,
-      EnviarFactura: 0,
-      EnviaNC: 0,
-      EnviaND: 0,
-      Administrador: 0,
-    });
+    reset(emptyValues);
     onNew?.();
+    setFormKey((k) => k + 1);
     focusFirstInput(containerRef.current);
   };
 
   const columnHelper = createColumnHelper<any>();
+  console.log("users", users);
   const columns = [
     columnHelper.accessor("UsuarioAlias", {
       header: "Usuario",
+      cell: (info) => info.getValue(),
+    }),
+    columnHelper.accessor("area", {
+      header: "Area",
       cell: (info) => info.getValue(),
     }),
     columnHelper.accessor("UsuarioEstado", {
@@ -145,7 +166,11 @@ export default function UserFormBase({
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
+        <HookForm
+          key={formKey}
+          methods={formMethods}
+          onSubmit={handleSubmit(onSubmit)}
+        >
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear Usuario" : "Editar Usuario"}
