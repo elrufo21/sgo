@@ -80,7 +80,10 @@ export default function ProductFormBase({
       preCosto: initialData?.preCosto ?? null,
       preVenta: initialData?.preVenta ?? null,
       preVentaB: (initialData as any)?.preVentaB ?? null,
-      aplicaINV: initialData?.aplicaINV ?? "bien",
+      aplicaINV:
+        initialData?.aplicaINV === "N" || initialData?.aplicaINV === "S"
+          ? initialData.aplicaINV
+          : "S",
       cantidad: initialData?.cantidad ?? null,
       usuario: initialData?.usuario ?? fallbackUser,
       estado: initialData?.estado ?? "ACTIVO",
@@ -273,6 +276,7 @@ export default function ProductFormBase({
     const payload = {
       ...values,
       codigo: trimmedCode,
+      aplicaINV: values.aplicaINV ?? "S",
       nombre: values.nombre?.toUpperCase() ?? "",
     };
     await Promise.resolve(onSave(payload));
@@ -445,54 +449,44 @@ export default function ProductFormBase({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Codigo del Producto
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        {...formMethods.register("codigo", {
-                          required: "El codigo es obligatorio",
-                          validate: (v) =>
-                            (v?.toString().trim?.() ?? "").length > 0 ||
-                            "El codigo es obligatorio",
-                        })}
-                        disabled={!codeEditable}
-                        placeholder="AUTO-GENERADO"
-                        onKeyDown={(e) => {
-                          if (e.key === " ") {
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <HookFormInput<ProductFormValues>
+                          name="codigo"
+                          label="Codigo del Producto"
+                          placeholder="AUTO-GENERADO"
+                          disabled={!codeEditable}
+                          onKeyDown={(e) => {
+                            if (e.key === " ") e.preventDefault();
+                          }}
+                          onPaste={(e) => {
                             e.preventDefault();
-                          }
-                        }}
-                        onPaste={(e) => {
-                          e.preventDefault();
-                          const pasted = e.clipboardData?.getData("text") ?? "";
-                          const cleaned = pasted.replace(/\s+/g, "");
-                          e.currentTarget.value = cleaned;
-                          setValue("codigo", cleaned, {
-                            shouldValidate: true,
-                            shouldDirty: true,
-                          });
-                        }}
-                        className={`w-full pr-12 px-4 py-3 border-2 rounded-lg transition-all outline-none ${
-                          codeEditable
-                            ? "border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                            : "bg-gray-50 border-gray-200 cursor-not-allowed"
-                        }`}
-                      />
-                      {errors.codigo && (
-                        <p className="mt-1 text-sm text-red-600">
-                          {String((errors as any).codigo?.message)}
-                        </p>
-                      )}
+                            const pasted =
+                              e.clipboardData?.getData("text") ?? "";
+                            const cleaned = pasted.replace(/\s+/g, "");
+                            e.currentTarget.value = cleaned;
+                            setValue("codigo", cleaned, {
+                              shouldValidate: true,
+                              shouldDirty: true,
+                            });
+                          }}
+                          rules={{
+                            required: "El codigo es obligatorio",
+                            validate: (v) =>
+                              (v?.toString().trim?.() ?? "").length > 0 ||
+                              "El codigo es obligatorio",
+                          }}
+                        />
+                      </div>
                       <button
                         type="button"
                         onClick={() => setCodeEditable(!codeEditable)}
-                        className={`absolute top-1/2 right-2 -translate-y-1/2 p-2 rounded-lg transition-all ${
+                        className={`p-2 rounded-md border text-sm transition-all ${
                           codeEditable
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            ? "bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200"
                         }`}
+                        title="Editar codigo"
                       >
                         <FileEdit className="w-5 h-5" />
                       </button>
@@ -506,7 +500,6 @@ export default function ProductFormBase({
                       label="Nombre del Producto"
                       placeholder="Ingrese el nombre completo del producto"
                       rules={{ required: "El nombre es obligatorio" }}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     />
                   </div>
 
@@ -530,7 +523,6 @@ export default function ProductFormBase({
                       valueAsNumber: true,
                       required: "El stock minimo es obligatorio",
                     }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
 
                   <div className="space-y-2 md:col-span-2">
@@ -538,7 +530,7 @@ export default function ProductFormBase({
                       Tipo de Producto
                     </label>
                     <div className="flex flex-wrap gap-4">
-                      {["bien", "servicio"].map((v) => (
+                      {["S", "N"].map((v) => (
                         <label
                           key={v}
                           className="flex items-center gap-3 cursor-pointer group"
@@ -554,119 +546,68 @@ export default function ProductFormBase({
                             className="w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
                           />
                           <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">
-                            {v === "bien" ? "Bien" : "Servicio"}
+                            {v === "S" ? "Bien" : "Servicio"}
                           </span>
                         </label>
                       ))}
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Precio de Costo
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                        S/
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        {...formMethods.register("preCosto", {
-                          valueAsNumber: true,
-                          required: "El precio de costo es obligatorio",
-                          validate: (v) =>
-                            v !== undefined &&
-                            v !== null &&
-                            !Number.isNaN(v) &&
-                            v > 0
-                              ? true
-                              : "El precio de costo debe ser mayor a 0",
-                        })}
-                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      />
-                      {errors.preCosto && (
-                        <p className="text-sm text-red-600">
-                          {String(
-                            (errors as any).preCosto?.message ??
-                              "El precio de costo es obligatorio"
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  <HookFormInput<ProductFormValues>
+                    name="preCosto"
+                    label="Precio de Costo"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    rules={{
+                      valueAsNumber: true,
+                      required: "El precio de costo es obligatorio",
+                      validate: (v) =>
+                        v !== undefined &&
+                        v !== null &&
+                        !Number.isNaN(v) &&
+                        v > 0
+                          ? true
+                          : "El precio de costo debe ser mayor a 0",
+                    }}
+                  />
 
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Precio de Venta
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                        S/
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        {...formMethods.register("preVenta", {
-                          valueAsNumber: true,
-                          required: "El precio de venta es obligatorio",
-                          validate: (v) =>
-                            v !== undefined &&
-                            v !== null &&
-                            !Number.isNaN(v) &&
-                            v > 0
-                              ? true
-                              : "El precio de venta debe ser mayor a 0",
-                        })}
-                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      />
-                      {errors.preVenta && (
-                        <p className="text-sm text-red-600">
-                          {String(
-                            (errors as any).preVenta?.message ??
-                              "El precio de venta es obligatorio"
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-semibold text-gray-700">
-                      Precio de Venta B
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500">
-                        S/
-                      </span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        {...formMethods.register("preVentaB", {
-                          valueAsNumber: true,
-                          required: "El precio de venta es obligatorio",
-                          validate: (v) =>
-                            v !== undefined &&
-                            v !== null &&
-                            !Number.isNaN(v) &&
-                            v > 0
-                              ? true
-                              : "El precio de venta debe ser mayor a 0",
-                        })}
-                        className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                      />
-                      {errors.preVentaB && (
-                        <p className="text-sm text-red-600">
-                          {String(
-                            (errors as any).preVentaB?.message ??
-                              "El precio de venta es obligatorio"
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  <HookFormInput<ProductFormValues>
+                    name="preVenta"
+                    label="Precio de Venta"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    rules={{
+                      valueAsNumber: true,
+                      required: "El precio de venta es obligatorio",
+                      validate: (v) =>
+                        v !== undefined &&
+                        v !== null &&
+                        !Number.isNaN(v) &&
+                        v > 0
+                          ? true
+                          : "El precio de venta debe ser mayor a 0",
+                    }}
+                  />
+                  <HookFormInput<ProductFormValues>
+                    name="preVentaB"
+                    label="Precio de Venta B"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    rules={{
+                      valueAsNumber: true,
+                      required: "El precio de venta es obligatorio",
+                      validate: (v) =>
+                        v !== undefined &&
+                        v !== null &&
+                        !Number.isNaN(v) &&
+                        v > 0
+                          ? true
+                          : "El precio de venta debe ser mayor a 0",
+                    }}
+                  />
                   <HookFormInput<ProductFormValues>
                     name="cantidad"
                     label="Cantidad en Stock"
@@ -675,7 +616,6 @@ export default function ProductFormBase({
                       valueAsNumber: true,
                       required: "La cantidad es obligatoria",
                     }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                   <HookFormSelect<ProductFormValues>
                     name="estado"
@@ -686,13 +626,11 @@ export default function ProductFormBase({
                       { value: "INACTIVO", label: "Inactivo" },
                     ]}
                     rules={{ required: "El estado es obligatorio" }}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                   />
                   <HookFormInput<ProductFormValues>
                     name="usuario"
                     label="Usuario Responsable"
                     disabled
-                    className="w-full px-4 py-3 border-2 bg-gray-50 border-gray-200 cursor-not-allowed"
                   />
                 </div>
                 <div className="border-t-2 border-gray-100">

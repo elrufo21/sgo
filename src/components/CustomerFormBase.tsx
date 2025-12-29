@@ -329,25 +329,23 @@ export default function CustomerFormBase({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      <div className="relative w-full">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          {...formMethods.register("numeroDocumento")}
-                          placeholder="Ingrese numero"
-                          className="w-full pr-32 px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                        />
-                        <button
-                          type="button"
-                          className="absolute top-1/2 right-1.5 -translate-y-1/2 px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-                          onClick={() => {
-                            console.log("Consultar documento");
-                          }}
-                        >
-                          Consultar
-                        </button>
-                      </div>
+                      <HookFormInput<CustomerFormValues>
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        name="numeroDocumento"
+                        label="Numero de documento"
+                        placeholder="Ingrese numero"
+                      />
+                      <button
+                        type="button"
+                        className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                        onClick={() => {
+                          console.log("Consultar documento");
+                        }}
+                      >
+                        Consultar
+                      </button>
                     </div>
                   </div>
                 </div>

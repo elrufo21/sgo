@@ -11,6 +11,7 @@ import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 interface UserFormBaseProps {
   initialData?: Partial<any>;
@@ -47,32 +48,10 @@ export default function UserFormBase({
   const { users, fetchUsers } = useUsersStore();
   const { employees, fetchEmployees } = useEmployeesStore();
   const containerRef = useRef<HTMLDivElement>(null);
+  const openDialog = useDialogStore((s) => s.openDialog);
 
   const [showPass, setShowPass] = useState(false);
   const [showPassConfirm, setShowPassConfirm] = useState(false);
-
-  const defaults = useMemo<UserFormValues>(
-    () => ({
-      PersonalId: initialData?.PersonalId ?? "",
-      UsuarioAlias: initialData?.UsuarioAlias ?? "",
-      UsuarioClave: initialData?.UsuarioClave ?? "",
-      ConfirmClave: initialData?.UsuarioClave ?? "",
-      UsuarioEstado: initialData?.UsuarioEstado ?? "ACTIVO",
-      UsuarioSerie: initialData?.UsuarioSerie ?? "B001",
-      EnviaBoleta: initialData?.EnviaBoleta ?? 0,
-      EnviarFactura: initialData?.EnviarFactura ?? 0,
-      EnviaNC: initialData?.EnviaNC ?? 0,
-      EnviaND: initialData?.EnviaND ?? 0,
-      Administrador: initialData?.Administrador ?? 0,
-    }),
-    [initialData]
-  );
-
-  const formMethods = useForm<UserFormValues>({
-    defaultValues: defaults,
-  });
-
-  const { handleSubmit, reset, watch, setFocus } = formMethods;
 
   const emptyValues = useMemo<UserFormValues>(
     () => ({
@@ -90,6 +69,32 @@ export default function UserFormBase({
     }),
     []
   );
+
+  const defaults = useMemo<UserFormValues>(
+    () =>
+      mode === "create"
+        ? emptyValues
+        : {
+            PersonalId: initialData?.PersonalId ?? "",
+            UsuarioAlias: initialData?.UsuarioAlias ?? "",
+            UsuarioClave: initialData?.UsuarioClave ?? "",
+            ConfirmClave: initialData?.UsuarioClave ?? "",
+            UsuarioEstado: initialData?.UsuarioEstado ?? "ACTIVO",
+            UsuarioSerie: initialData?.UsuarioSerie ?? "B001",
+            EnviaBoleta: initialData?.EnviaBoleta ?? 0,
+            EnviarFactura: initialData?.EnviarFactura ?? 0,
+            EnviaNC: initialData?.EnviaNC ?? 0,
+            EnviaND: initialData?.EnviaND ?? 0,
+            Administrador: initialData?.Administrador ?? 0,
+          },
+    [initialData, mode, emptyValues]
+  );
+
+  const formMethods = useForm<UserFormValues>({
+    defaultValues: defaults,
+  });
+
+  const { handleSubmit, reset, watch, setFocus } = formMethods;
 
   const passwordsMatch =
     (watch("UsuarioClave") ?? "") === (watch("ConfirmClave") ?? "");
@@ -128,13 +133,9 @@ export default function UserFormBase({
     const ok = await onSave(payload);
     if (!ok) return;
 
-    if (mode === "create") {
-      reset(emptyValues);
-      onNew?.();
-      setFormKey((k) => k + 1);
-      focusFirstInput(containerRef.current);
-      return;
-    }
+    reset(emptyValues);
+    onNew?.();
+    setFormKey((k) => k + 1);
     focusFirstInput(containerRef.current);
   };
 
@@ -166,11 +167,11 @@ export default function UserFormBase({
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="w-full mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-        <HookForm
-          key={formKey}
-          methods={formMethods}
-          onSubmit={handleSubmit(onSubmit)}
-        >
+          <HookForm
+            key={formKey}
+            methods={formMethods}
+            onSubmit={handleSubmit(onSubmit)}
+          >
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <h1 className="text-base font-semibold">
                 {mode === "create" ? "Crear Usuario" : "Editar Usuario"}
@@ -198,7 +199,18 @@ export default function UserFormBase({
                 {mode === "edit" && onDelete && (
                   <button
                     type="button"
-                    onClick={onDelete}
+                    onClick={() =>
+                      openDialog({
+                        title: "Confirmar eliminación",
+                        content: "¿Seguro que desea eliminar este usuario?",
+                        confirmText: "Eliminar",
+                        cancelText: "Cancelar",
+                        onConfirm: async () => {
+                          await onDelete();
+                        },
+                        maxWidth: "xs",
+                      })
+                    }
                     className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
                     title="Eliminar"
                   >
@@ -254,12 +266,9 @@ export default function UserFormBase({
                   <div className="relative space-y-2">
                     <HookFormInput
                       name="UsuarioClave"
-                      label="Contrasena"
+                      label="Contraseña"
                       type={showPass ? "text" : "password"}
                       placeholder="Ingrese contrasena"
-                      className={`w-full px-4 py-3 border-2 rounded-lg pr-10 ${
-                        !passwordsMatch ? "border-red-500" : "border-gray-200"
-                      } focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
                       rules={{ required: "La contrasena es obligatoria" }}
                     />
                     <button
@@ -278,9 +287,6 @@ export default function UserFormBase({
                       label="Confirmar contrasena"
                       type={showPassConfirm ? "text" : "password"}
                       placeholder="Repita la contrasena"
-                      className={`w-full px-4 py-3 border-2 rounded-lg pr-10 ${
-                        !passwordsMatch ? "border-red-500" : "border-gray-200"
-                      } focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all`}
                       rules={{
                         validate: (value) =>
                           value === watch("UsuarioClave") ||
@@ -329,6 +335,7 @@ export default function UserFormBase({
                       </div>
                     }
                     onRowClick={(row) => {
+                      console.log("row", row, employees);
                       reset({
                         PersonalId: row.PersonalId ?? "",
                         UsuarioAlias: row.UsuarioAlias ?? "",

@@ -24,12 +24,15 @@ export function HookFormSelect<T extends FieldValues>({
   rules,
   className,
   onKeyDown,
+  onChange,
   ...rest
 }: HookFormSelectProps<T>) {
   const {
     register,
     formState: { errors },
   } = useFormContext<T>();
+
+  const registerResult = register(name, rules);
 
   const error = errors[name];
 
@@ -46,6 +49,12 @@ export function HookFormSelect<T extends FieldValues>({
     }
   };
 
+  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    registerResult.onChange(event);
+    onChange?.(event);
+    focusNextInput(event.currentTarget);
+  };
+
   return (
     <div className="space-y-2">
       <label className="block text-sm font-semibold text-gray-700">
@@ -59,7 +68,8 @@ export function HookFormSelect<T extends FieldValues>({
         }
         aria-invalid={error ? "true" : "false"}
         onKeyDown={handleKeyDown}
-        {...register(name, rules)}
+        {...registerResult}
+        onChange={handleChange}
         {...rest}
       >
         {options.map((option) => (

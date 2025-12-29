@@ -67,7 +67,8 @@ const buildPersonalFormData = (
     personalNombres: data.personalNombres ?? "",
     personalApellidos: data.personalApellidos ?? "",
     areaId: data.areaId ?? 0,
-    personalCodigo: data.personalCodigo ?? "",
+    personalCodigo:
+      (data.personalCodigo ?? "").toString().trim().toUpperCase() ?? "",
     personalNacimiento: data.personalNacimiento ?? "",
     personalIngreso: data.personalIngreso ?? "",
     personalDNI: data.personalDni ?? "",

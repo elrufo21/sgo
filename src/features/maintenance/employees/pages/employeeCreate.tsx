@@ -13,7 +13,7 @@ const EmployeeCreate = () => {
   const navigate = useNavigate();
 
   const [form, setForm] = useState<Partial<Personal>>({
-    personalEstado: "activo",
+    personalEstado: "ACTIVO",
     personalIngreso: today(),
   });
 
@@ -29,7 +29,7 @@ const EmployeeCreate = () => {
     toast.success("Empleado creado correctamente");
     navigate("/maintenance/employees/create");
     setForm({
-      personalEstado: "activo",
+      personalEstado: "ACTIVO",
       personalIngreso: today(),
       personalCodigo: "",
       personalNombres: "",
@@ -53,7 +53,7 @@ const EmployeeCreate = () => {
 
   const handleNew = () => {
     setForm({
-      personalEstado: "activo",
+      personalEstado: "ACTIVO",
       personalIngreso: today(),
       personalCodigo: "",
       personalNombres: "",

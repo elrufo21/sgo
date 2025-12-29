@@ -54,9 +54,8 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
   valorCritico: Number(item.valorCritico ?? 0),
   preCosto: Number(item.productoCosto ?? 0),
   preVenta: Number(item.productoVenta ?? 0),
-  aplicaINV: ((item.aplicaINV as string) === "S"
-    ? "servicio"
-    : "bien") as Product["aplicaINV"],
+  aplicaINV:
+    String(item.aplicaINV ?? "").toUpperCase() === "N" ? "N" : "S",
   cantidad: Number(item.productoCantidad ?? 0),
   usuario: item.productoUsuario ?? "",
   estado:
@@ -94,7 +93,10 @@ const mapProductToApi = (
   aplicaTC: null,
   fechaVencimiento: null,
   aplicaFechaV: false,
-  aplicaINV: "S",
+  aplicaINV:
+    product.aplicaINV === "N" || product.aplicaINV === "servicio"
+      ? "N"
+      : "S",
   cantidadANT: product.cantidad ?? 0,
   fechaModCant: null,
 });

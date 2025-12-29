@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
+import { useForm, useFieldArray } from "react-hook-form";
 import DataTable from "./DataTable";
 import { createColumnHelper } from "@tanstack/react-table";
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormInput } from "@/components/forms/HookFormInput";
+import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface CuentaBancaria {
@@ -11,13 +15,44 @@ interface CuentaBancaria {
   numeroCuenta: string;
 }
 
+type PurchaseFormValues = {
+  nombreRazon: string;
+  ruc: string;
+  contacto: string;
+  celular: string;
+  email: string;
+  direccion: string;
+  estado: "activo" | "inactivo";
+  cuentasBancarias: CuentaBancaria[];
+  cuentaTemp: CuentaBancaria;
+};
+
 interface PurchaseFormBaseProps {
-  initialData?: Partial<any>;
+  initialData?: Partial<PurchaseFormValues>;
   mode: "create" | "edit";
-  onSave: (data: any) => void;
+  onSave: (data: PurchaseFormValues) => void | Promise<void>;
   onNew?: () => void;
   onDelete?: () => void;
 }
+
+const buildDefaults = (
+  data?: Partial<PurchaseFormValues>
+): PurchaseFormValues => ({
+  nombreRazon: data?.nombreRazon ?? "",
+  ruc: data?.ruc ?? "",
+  contacto: data?.contacto ?? "",
+  celular: data?.celular ?? "",
+  email: data?.email ?? "",
+  direccion: data?.direccion ?? "",
+  estado: (data?.estado as PurchaseFormValues["estado"]) ?? "activo",
+  cuentasBancarias: data?.cuentasBancarias ?? [],
+  cuentaTemp: {
+    entidadBancaria: "",
+    moneda: "",
+    tipoCuenta: "",
+    numeroCuenta: "",
+  },
+});
 
 export default function PurchaseFormBase({
   initialData,
@@ -27,104 +62,80 @@ export default function PurchaseFormBase({
   onDelete,
 }: PurchaseFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [form, setForm] = useState({
-    nombreRazon: "",
-    ruc: "",
-    contacto: "",
-    celular: "",
-    email: "",
-    direccion: "",
-    estado: "activo",
-    cuentasBancarias: [] as CuentaBancaria[],
+
+  const defaults = useMemo(() => buildDefaults(initialData), [initialData]);
+
+  const formMethods = useForm<PurchaseFormValues>({
+    defaultValues: defaults,
   });
 
-  const [cuentaTemp, setCuentaTemp] = useState<CuentaBancaria>({
-    entidadBancaria: "",
-    moneda: "",
-    tipoCuenta: "",
-    numeroCuenta: "",
+  const {
+    control,
+    reset,
+    handleSubmit,
+    setValue,
+    getValues,
+    watch,
+    trigger,
+    formState: { isSubmitting },
+  } = formMethods;
+
+  const { fields, append, update } = useFieldArray({
+    control,
+    name: "cuentasBancarias",
   });
 
   useEffect(() => {
-    if (initialData) {
-      setForm((prev) => ({ ...prev, ...initialData }));
-    }
-  }, [initialData]);
+    reset(defaults);
+  }, [defaults, reset]);
 
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
-  };
-
-  const handleCuentaChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setCuentaTemp({ ...cuentaTemp, [name]: value });
-  };
-
-  const agregarCuenta = () => {
-    if (
-      !cuentaTemp.entidadBancaria ||
-      !cuentaTemp.moneda ||
-      !cuentaTemp.tipoCuenta ||
-      !cuentaTemp.numeroCuenta
-    ) {
-      alert("Complete todos los campos de la cuenta");
-      return;
-    }
-
-    const index = form.cuentasBancarias.findIndex(
-      (c) => c.numeroCuenta === cuentaTemp.numeroCuenta
-    );
-    let nuevasCuentas;
-    if (index !== -1) {
-      nuevasCuentas = [...form.cuentasBancarias];
-      nuevasCuentas[index] = cuentaTemp;
-    } else {
-      nuevasCuentas = [...form.cuentasBancarias, cuentaTemp];
-    }
-
-    setForm({ ...form, cuentasBancarias: nuevasCuentas });
-
-    setCuentaTemp({
-      entidadBancaria: "",
-      moneda: "",
-      tipoCuenta: "",
-      numeroCuenta: "",
-    });
-  };
-
-  const handleSave = () => {
-    onSave(form);
-    focusFirstInput(containerRef.current);
-  };
-
   const handleNew = () => {
-    setForm({
-      nombreRazon: "",
-      ruc: "",
-      contacto: "",
-      celular: "",
-      email: "",
-      direccion: "",
-      estado: "activo",
-      cuentasBancarias: [],
-    });
-    setCuentaTemp({
-      entidadBancaria: "",
-      moneda: "",
-      tipoCuenta: "",
-      numeroCuenta: "",
-    });
+    reset(buildDefaults());
     onNew?.();
     focusFirstInput(containerRef.current);
+  };
+
+  const handleAddCuenta = async () => {
+    const temp = getValues("cuentaTemp");
+    const valid = await trigger([
+      "cuentaTemp.entidadBancaria",
+      "cuentaTemp.moneda",
+      "cuentaTemp.tipoCuenta",
+      "cuentaTemp.numeroCuenta",
+    ]);
+    if (!valid) return;
+
+    const existingIndex = fields.findIndex(
+      (c) => c.numeroCuenta === temp.numeroCuenta
+    );
+    if (existingIndex >= 0) {
+      update(existingIndex, temp);
+    } else {
+      append(temp);
+    }
+
+    setValue("cuentaTemp", {
+      entidadBancaria: "",
+      moneda: "",
+      tipoCuenta: "",
+      numeroCuenta: "",
+    });
+  };
+
+  const onSubmit = async (values: PurchaseFormValues) => {
+    await onSave({
+      ...values,
+      nombreRazon: values.nombreRazon?.toUpperCase() ?? "",
+      contacto: values.contacto?.toUpperCase() ?? "",
+    });
+    focusFirstInput(containerRef.current);
+    if (mode === "create") {
+      handleNew();
+    }
   };
 
   const columnHelper = createColumnHelper<CuentaBancaria>();
@@ -147,239 +158,177 @@ export default function PurchaseFormBase({
     }),
   ];
 
+  const cuentasBancarias = watch("cuentasBancarias");
+
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create"
-                ? "Crear Proveedor / Cliente"
-                : "Editar Proveedor / Cliente"}
-            </h1>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title="Guardar"
-              >
-                <Save className="w-4 h-4" />
-                <span className="hidden sm:inline">Guardar</span>
-              </button>
-              {mode !== "edit" && (
+          <HookForm methods={formMethods} onSubmit={onSubmit}>
+            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <h1 className="text-base font-semibold">
+                {mode === "create"
+                  ? "Crear Proveedor / Cliente"
+                  : "Editar Proveedor / Cliente"}
+              </h1>
+              <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  onClick={handleNew}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                  title="Nuevo"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                  title="Guardar"
                 >
-                  <Plus className="w-4 h-4" />
-                  <span className="hidden sm:inline">Nuevo</span>
+                  <Save className="w-4 h-4" />
+                  <span className="hidden sm:inline">Guardar</span>
                 </button>
-              )}
-              {mode === "edit" && onDelete && (
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                  title="Eliminar"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  <span className="hidden sm:inline">Eliminar</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-full md:w-[40%] space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Nombre / Razon Social
-                  </label>
-                  <input
-                    data-focus-first="true"
-                    type="text"
-                    name="nombreRazon"
-                    value={form.nombreRazon}
-                    onChange={handleChange}
-                    placeholder="Ingrese nombre o razon social"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    RUC
-                  </label>
-                  <input
-                    type="number"
-                    name="ruc"
-                    value={form.ruc}
-                    onChange={handleChange}
-                    placeholder="Ingrese RUC"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Contacto
-                  </label>
-                  <input
-                    type="text"
-                    name="contacto"
-                    value={form.contacto}
-                    onChange={handleChange}
-                    placeholder="Nombre del contacto"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Celular
-                  </label>
-                  <input
-                    type="number"
-                    name="celular"
-                    value={form.celular}
-                    onChange={handleChange}
-                    placeholder="Ingrese numero de celular"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="Ingrese correo electronico"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Direccion
-                  </label>
-                  <input
-                    type="text"
-                    name="direccion"
-                    value={form.direccion}
-                    onChange={handleChange}
-                    placeholder="Ingrese direccion"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Estado
-                  </label>
-                  <select
-                    name="estado"
-                    value={form.estado}
-                    onChange={handleChange}
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
+                {mode !== "edit" && (
+                  <button
+                    type="button"
+                    onClick={handleNew}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                    title="Nuevo"
                   >
-                    <option value="activo">Activo</option>
-                    <option value="inactivo">Inactivo</option>
-                  </select>
-                </div>
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden sm:inline">Nuevo</span>
+                  </button>
+                )}
+                {mode === "edit" && onDelete && (
+                  <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
+                  </button>
+                )}
               </div>
+            </div>
 
-              <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                <div className="flex flex-col md:flex-row gap-4 mb-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Entidad Bancaria
-                    </label>
-                    <select
-                      name="entidadBancaria"
-                      value={cuentaTemp.entidadBancaria}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione banco</option>
-                      <option value="BCP">BCP</option>
-                      <option value="Interbank">Interbank</option>
-                      <option value="Scotiabank">Scotiabank</option>
-                    </select>
-                  </div>
+            <div className="p-6 sm:p-8">
+              <div className="flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-[40%] space-y-4">
+                  <HookFormInput<PurchaseFormValues>
+                    data-focus-first
+                    name="nombreRazon"
+                    label="Nombre / Razon Social"
+                    placeholder="Ingrese nombre o razon social"
+                    rules={{ required: "El nombre o razon es obligatorio" }}
+                  />
 
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Moneda
-                    </label>
-                    <select
-                      name="moneda"
-                      value={cuentaTemp.moneda}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione moneda</option>
-                      <option value="PEN">Soles (PEN)</option>
-                      <option value="USD">Dolares (USD)</option>
-                    </select>
-                  </div>
+                  <HookFormInput<PurchaseFormValues>
+                    name="ruc"
+                    type="number"
+                    label="RUC"
+                    placeholder="Ingrese RUC"
+                    rules={{ required: "El RUC es obligatorio" }}
+                  />
+
+                  <HookFormInput<PurchaseFormValues>
+                    name="contacto"
+                    label="Contacto"
+                    placeholder="Nombre del contacto"
+                  />
+
+                  <HookFormInput<PurchaseFormValues>
+                    name="celular"
+                    type="tel"
+                    label="Celular"
+                    placeholder="Ingrese numero de celular"
+                  />
+
+                  <HookFormInput<PurchaseFormValues>
+                    name="email"
+                    type="email"
+                    label="Email"
+                    placeholder="Ingrese correo electronico"
+                  />
+
+                  <HookFormInput<PurchaseFormValues>
+                    name="direccion"
+                    label="Direccion"
+                    placeholder="Ingrese direccion"
+                  />
+
+                  <HookFormSelect<PurchaseFormValues>
+                    name="estado"
+                    label="Estado"
+                    options={[
+                      { value: "activo", label: "Activo" },
+                      { value: "inactivo", label: "Inactivo" },
+                    ]}
+                  />
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 mb-4">
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Tipo de Cuenta
-                    </label>
-                    <select
-                      name="tipoCuenta"
-                      value={cuentaTemp.tipoCuenta}
-                      onChange={handleCuentaChange}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
-                    >
-                      <option value="">Seleccione tipo</option>
-                      <option value="Ahorros">Ahorros</option>
-                      <option value="Corriente">Corriente</option>
-                    </select>
-                  </div>
+                <div className="w-full md:w-[60%] mt-6 md:mt-0">
+                  <div className="flex flex-col md:flex-row gap-4 mb-4">
+                    <HookFormSelect<PurchaseFormValues>
+                      name="cuentaTemp.entidadBancaria"
+                      label="Entidad Bancaria"
+                      options={[
+                        { value: "", label: "Seleccione banco" },
+                        { value: "BCP", label: "BCP" },
+                        { value: "Interbank", label: "Interbank" },
+                        { value: "Scotiabank", label: "Scotiabank" },
+                      ]}
+                      rules={{ required: "Seleccione una entidad" }}
+                    />
 
-                  <div className="flex-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">
-                      Numero de Cuenta
-                    </label>
-                    <input
-                      type="text"
-                      name="numeroCuenta"
-                      value={cuentaTemp.numeroCuenta}
-                      onChange={handleCuentaChange}
-                      placeholder="Ingrese numero de cuenta"
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all"
+                    <HookFormSelect<PurchaseFormValues>
+                      name="cuentaTemp.moneda"
+                      label="Moneda"
+                      options={[
+                        { value: "", label: "Seleccione moneda" },
+                        { value: "PEN", label: "Soles (PEN)" },
+                        { value: "USD", label: "Dolares (USD)" },
+                      ]}
+                      rules={{ required: "Seleccione una moneda" }}
                     />
                   </div>
+
+                  <div className="flex flex-col md:flex-row gap-4 mb-4">
+                    <HookFormSelect<PurchaseFormValues>
+                      name="cuentaTemp.tipoCuenta"
+                      label="Tipo de Cuenta"
+                      options={[
+                        { value: "", label: "Seleccione tipo" },
+                        { value: "Ahorros", label: "Ahorros" },
+                        { value: "Corriente", label: "Corriente" },
+                      ]}
+                      rules={{ required: "Seleccione un tipo de cuenta" }}
+                    />
+
+                    <HookFormInput<PurchaseFormValues>
+                      name="cuentaTemp.numeroCuenta"
+                      label="Numero de Cuenta"
+                      placeholder="Ingrese numero de cuenta"
+                      rules={{ required: "El numero de cuenta es obligatorio" }}
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddCuenta}
+                    className="mb-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
+                  >
+                    Agregar / Actualizar Cuenta
+                  </button>
+
+                  <DataTable
+                    columns={columns}
+                    data={cuentasBancarias}
+                    onRowClick={(row) => {
+                      // omit react-hook-form field array id
+                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                      const { id: _id, ...rest } = row as any;
+                      setValue("cuentaTemp", rest);
+                    }}
+                  />
                 </div>
-
-                <button
-                  type="button"
-                  onClick={agregarCuenta}
-                  className="mb-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
-                >
-                  Agregar / Actualizar Cuenta
-                </button>
-
-                <DataTable
-                  columns={columns}
-                  data={form.cuentasBancarias}
-                  onRowClick={(row) => setCuentaTemp(row)}
-                />
               </div>
             </div>
-          </div>
+          </HookForm>
         </div>
       </div>
     </div>

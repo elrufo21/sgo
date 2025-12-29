@@ -28,7 +28,7 @@ const UserCreate = () => {
     const created = await addUser(data);
 
     if (!created) {
-      toast.error("No se pudo crear el usuario.");
+      //  toast.error("No se pudo crear el usuario.");
       return false;
     }
 

@@ -79,7 +79,7 @@ export const usePosStore = create<PosState>()(
 
               return { ...item, cantidad: cappedQty };
             })
-            .filter((item) => item.cantidad > 0);
+            .filter((item) => item.cantidad >= 0);
 
           return { items: nextItems, totals: calculateTotals(nextItems) };
         }),

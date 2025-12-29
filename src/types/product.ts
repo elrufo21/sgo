@@ -9,7 +9,7 @@ export interface Product {
   preCosto: number;
   preVenta: number;
   preVentaB: number | string;
-  aplicaINV: "bien" | "servicio";
+  aplicaINV: "bien" | "servicio" | "S" | "N";
   cantidad: number;
   usuario: string;
   estado: "activo" | "inactivo" | "archivado";

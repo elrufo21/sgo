@@ -203,7 +203,6 @@ export function HookFormAutocomplete<
                         borderColor: "#3b82f6",
                         boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
                       },
-                      minHeight: 48,
                     },
                     "& .MuiOutlinedInput-input": {
                       padding: "6px 10px",

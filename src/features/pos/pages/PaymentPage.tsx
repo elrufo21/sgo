@@ -2,10 +2,17 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { CheckCircle2, ArrowLeft, Printer } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
+import { useForm } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "sonner";
 import TicketDocument from "@/components/Ticket";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { apiRequest } from "@/shared/helpers/apiRequest";
+import { HookForm } from "@/components/forms/HookForm";
+import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { HookFormInput } from "@/components/forms/HookFormInput";
+import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
+import { useClientsStore } from "@/store/customers/customers.store";
 
 const PaymentPage = () => {
   const items = usePosStore((s) => s.items);
@@ -13,36 +20,152 @@ const PaymentPage = () => {
   const clearCart = usePosStore((s) => s.clearCart);
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
+  const { clients, fetchClients } = useClientsStore();
   const [purchasedItems, setPurchasedItems] = useState(items);
   const [paidTotals, setPaidTotals] = useState(totals);
-  const [docType, setDocType] = useState<"boleta" | "factura">("boleta");
-  const [paymentMethod, setPaymentMethod] = useState<
-    "efectivo" | "tarjeta" | "transferencia"
-  >("efectivo");
-  const [notes, setNotes] = useState("");
-  const [customerName, setCustomerName] = useState("Ultimo cliente");
-  const [customerId, setCustomerId] = useState("");
-  const [bankEntity, setBankEntity] = useState("");
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+
+  const docTypeConfig: Record<
+    "03" | "01" | "101",
+    { docu: string; serie: string; label: string }
+  > = {
+    "03": { docu: "BOLETA", serie: "BA01", label: "Boleta" },
+    "01": { docu: "FACTURA", serie: "FA01", label: "Factura" },
+    "101": { docu: "PROFORMA", serie: "PF01", label: "Proforma V" },
+  };
+
+  const { companyId, usernameFromSession } = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { companyId: 1, usernameFromSession: "USUARIO" };
+    }
+
+    let parsedSession: any = null;
+    const sessionRaw = localStorage.getItem("sgo.auth.session");
+    if (sessionRaw) {
+      try {
+        parsedSession = JSON.parse(sessionRaw);
+      } catch {
+        parsedSession = null;
+      }
+    }
+
+    const companyIdRaw =
+      parsedSession?.user?.companyId ?? localStorage.getItem("companiaId");
+    const companyIdNum = Number(companyIdRaw);
+    const safeCompanyId =
+      Number.isFinite(companyIdNum) && companyIdNum > 0 ? companyIdNum : 1;
+
+    const username =
+      parsedSession?.user?.username || parsedSession?.user?.displayName;
+
+    return { companyId: safeCompanyId, usernameFromSession: username };
+  }, []);
 
   const hasLiveItems = items.length > 0;
   const itemsToRender = hasLiveItems ? items : purchasedItems;
   const totalsToRender = hasLiveItems ? totals : paidTotals;
 
-  const docLabel = docType === "factura" ? "RUC" : "DNI";
-  const igvAmount = Math.max(
-    0,
-    (totalsToRender?.total ?? 0) - (totalsToRender?.subTotal ?? 0)
+  const formMethods = useForm({
+    defaultValues: {
+      docTypeCode: "03" as "03" | "01" | "101",
+      paymentMethod: "EFECTIVO" as
+        | "EFECTIVO"
+        | "TARJETA"
+        | "TRANSFERENCIA"
+        | "YAPE",
+      clienteId: 1,
+      customerName: "",
+      customerId: "",
+      bankEntity: "-",
+      nroOperacion: "",
+      notaUsuario: "",
+      notes: "",
+    },
+  });
+
+  const {
+    watch,
+    setValue,
+    handleSubmit,
+    formState: { isSubmitting },
+  } = formMethods;
+
+  const docTypeCode = watch("docTypeCode");
+  const paymentMethod = watch("paymentMethod");
+  const clienteId = watch("clienteId");
+  const customerName = watch("customerName");
+  const customerId = watch("customerId");
+  const bankEntity = watch("bankEntity");
+  const nroOperacion = watch("nroOperacion");
+  const notaUsuario = watch("notaUsuario");
+  const notes = watch("notes");
+
+  const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
+  const docConfig = docTypeConfig[docTypeCode];
+  const docTypeName = docConfig?.docu ?? "BOLETA";
+  const totalAmount = totalsToRender?.total ?? 0;
+  const gravada = totalAmount / 1.18;
+  const descuento = 0;
+  const igvAmount = totalAmount - gravada;
+
+  const notaAdicional = paymentMethod === "TARJETA" ? totalAmount * 0.05 : 0;
+  const totalAPagar = totalAmount + notaAdicional;
+  const isCash = paymentMethod === "EFECTIVO";
+  const isCard = paymentMethod === "TARJETA";
+  const requiresBankSelection =
+    paymentMethod === "TRANSFERENCIA" || paymentMethod === "YAPE";
+
+  useEffect(() => {
+    if (paymentMethod === "EFECTIVO") {
+      setValue("bankEntity", "-");
+      setValue("nroOperacion", "");
+    } else if (paymentMethod === "TARJETA") {
+      setValue("bankEntity", bankEntity || "BCP");
+      setValue("nroOperacion", "");
+    } else {
+      setValue("bankEntity", "");
+      setValue("nroOperacion", "");
+    }
+  }, [paymentMethod, bankEntity, setValue]);
+
+  useEffect(() => {
+    if (!clients.length) {
+      fetchClients();
+    }
+  }, [clients.length, fetchClients]);
+
+  const clientOptions = useMemo(
+    () =>
+      clients.map((client) => ({
+        value: client.nombreRazon ?? "",
+        label: client.nombreRazon ?? "",
+        dni: client.dni ?? "",
+      })),
+    [clients]
   );
+
+  const dniOptions = useMemo(
+    () =>
+      clients
+        .filter((client) => client.dni?.trim())
+        .map((client) => ({
+          value: client.dni ?? "",
+          label: client.dni ?? "",
+          nombreRazon: client.nombreRazon ?? "",
+          id: client.id,
+        })),
+    [clients]
+  );
+
   const ticketPreviewProps = useMemo(() => {
     const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
     const safeTotals = itemsToRender.length ? totalsToRender : paidTotals;
     return {
       clientName: customerName.trim() || "Ultimo cliente",
       clientId: customerId.trim(),
-      docType,
+      docType: docTypeName.toLowerCase(),
       paymentMethod,
       items: safeItems,
       totals: safeTotals,
@@ -50,7 +173,7 @@ const PaymentPage = () => {
   }, [
     customerId,
     customerName,
-    docType,
+    docTypeName,
     paymentMethod,
     itemsToRender,
     totalsToRender,
@@ -60,7 +183,7 @@ const PaymentPage = () => {
   const previewKey = useMemo(
     () =>
       [
-        docType,
+        docTypeCode,
         paymentMethod,
         ticketPreviewProps.clientName,
         ticketPreviewProps.clientId,
@@ -68,7 +191,7 @@ const PaymentPage = () => {
         itemsToRender.length,
       ].join("|"),
     [
-      docType,
+      docTypeCode,
       itemsToRender.length,
       paymentMethod,
       ticketPreviewProps.clientId,
@@ -77,20 +200,118 @@ const PaymentPage = () => {
     ]
   );
 
+  const notaPayload = useMemo(() => {
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
+    const base = gravada;
+    const clienteIdNumber = Number(clienteId ?? 1) || 1;
+
+    const bankValue = bankEntity?.trim() || null;
+
+    return {
+      nota: {
+        notaId: 0,
+        notaDocu: docTypeName,
+        clienteId: clienteIdNumber,
+        notaFecha: `${today}T00:00:00`,
+        notaUsuario: notaUsuario.trim() || usernameFromSession || "USUARIO",
+        notaFormaPago: paymentMethod,
+        notaCondicion: "ALCONTADO",
+        notaDias: 1,
+        notaFechaPago: now.toISOString(),
+        notaDireccion: null,
+        notaTelefono: null,
+        notaSubtotal: Number(base.toFixed(2)),
+        notaMovilidad: 0,
+        notaDescuento: descuento,
+        notaTotal: Number(totalAmount.toFixed(2)),
+        notaAcuenta: 0,
+        notaSaldo: Number(totalAmount.toFixed(2)),
+        notaAdicional: Number(notaAdicional.toFixed(2)),
+        notaTarjeta: 0,
+        notaPagar: Number(totalAPagar.toFixed(2)),
+        notaEstado: "CANCELADO",
+        companiaId: companyId,
+        notaEntrega: "INMEDIATA",
+        modificadoPor: null,
+        fechaEdita: null,
+        notaConcepto: "MERCADERIA",
+        notaSerie: docConfig?.serie ?? "BA01",
+        notaNumero: "00012345",
+        notaGanancia: 0,
+        icbper: 0,
+        cajaId: 196,
+        entidadBancaria: bankValue,
+        nroOperacion: isCash ? null : nroOperacion.trim() || null,
+        efectivo: isCash ? Number(totalAPagar.toFixed(2)) : 0,
+        deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
+      },
+      detalles: safeItems.map((item) => ({
+        detalleId: 0,
+        notaId: 0,
+        idProducto: item.productId,
+        detalleCantidad: item.cantidad,
+        detalleUm: item.unidadMedida ?? "UND",
+        detalleDescripcion: item.nombre,
+        detalleCosto: item.precio,
+        detallePrecio: item.precio,
+        detalleImporte: Number((item.precio * item.cantidad).toFixed(2)),
+        detalleEstado: "PENDIENTE",
+        cantidadSaldo: 0,
+        valorUM: 1,
+      })),
+    };
+  }, [
+    bankEntity,
+    companyId,
+    customerId,
+    docConfig?.serie,
+    docTypeName,
+    gravada,
+    itemsToRender,
+    notaAdicional,
+    notaUsuario,
+    paymentMethod,
+    purchasedItems,
+    totalAPagar,
+    totalAmount,
+  ]);
+
   useEffect(() => {
     setCanPreviewPdf(true);
   }, []);
 
-  const confirmPayment = () => {
+  const confirmPayment = async () => {
     const sourceItems = items.length ? items : purchasedItems;
     const sourceTotals = items.length ? totals : paidTotals;
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
+
+    const result = await apiRequest({
+      url: "http://localhost:5000/api/v1/Nota/register-with-detail",
+      method: "POST",
+      data: notaPayload,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: null,
+    });
+
+    if (result === false) {
+      toast.error("No se pudo registrar la nota.");
+      return;
+    }
+
     toast.success("Pago registrado");
     if (items.length) {
       clearCart();
     }
     setIsConfirmed(true);
+    handlePrint();
   };
 
   const handleBackToPos = () => {
@@ -233,156 +454,164 @@ const PaymentPage = () => {
         </section>
 
         <section className="space-y-3">
-          <div className="bg-white rounded-xl shadow p-4 space-y-4">
-            <div>
-              <p className="text-sm font-semibold text-slate-700">
-                Tipo de documento
-              </p>
-              <div className="mt-2 grid grid-cols-2 gap-2">
-                {[
-                  { value: "boleta", label: "Boleta" },
-                  { value: "factura", label: "Factura" },
-                ].map((opt) => (
-                  <button
-                    key={opt.value}
-                    disabled={isConfirmed}
-                    className={`border rounded-lg px-3 py-2 text-sm text-left ${
-                      docType === opt.value
-                        ? "border-slate-700 bg-slate-700 text-white"
-                        : "border-slate-200 bg-white text-slate-800"
-                    } ${isConfirmed ? "opacity-70 cursor-not-allowed" : ""}`}
-                    onClick={() => setDocType(opt.value as typeof docType)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <HookForm
+            methods={formMethods}
+            onSubmit={handleSubmit(confirmPayment)}
+            className="bg-white rounded-xl shadow p-4 space-y-4"
+          >
+            <HookFormSelect
+              name="docTypeCode"
+              label="Tipo de documento"
+              disabled={isConfirmed}
+              options={[
+                { value: "101", label: "Proforma V" },
+                { value: "03", label: "Boleta" },
+                { value: "01", label: "Factura" },
+              ]}
+            />
 
-            <div>
-              <p className="text-sm font-semibold text-slate-700">
-                Forma de pago
-              </p>
-              <select
-                className="w-full mt-2 border rounded-lg px-3 py-2 text-sm text-black"
-                value={paymentMethod}
-                disabled={isConfirmed}
-                onChange={(e) =>
-                  setPaymentMethod(e.target.value as typeof paymentMethod)
+            <HookFormSelect
+              name="paymentMethod"
+              label="Forma de pago"
+              disabled={isConfirmed}
+              options={[
+                { value: "EFECTIVO", label: "Efectivo" },
+                { value: "TARJETA", label: "Tarjeta" },
+                { value: "TRANSFERENCIA", label: "Transferencia" },
+                { value: "YAPE", label: "Yape" },
+              ]}
+            />
+
+            <HookFormAutocomplete
+              name="customerName"
+              label="Nombre del cliente"
+              placeholder="Seleccionar cliente"
+              options={clientOptions}
+              disabled={isConfirmed}
+              onOptionSelected={(opt: any) => {
+                if (opt) {
+                  if (opt?.dni) {
+                    setValue("customerId", opt.dni, { shouldDirty: true });
+                  }
+                  if (opt?.value) {
+                    setValue("clienteId", Number(opt.value) || 1, {
+                      shouldDirty: true,
+                    });
+                  }
                 }
-              >
-                <option value="efectivo">Efectivo</option>
-                <option value="tarjeta">Tarjeta</option>
-                <option value="transferencia">Transferencia</option>
-              </select>
-            </div>
+              }}
+            />
+            <HookFormAutocomplete
+              name="customerId"
+              label={docLabel}
+              placeholder={`Número de ${docLabel}`}
+              options={dniOptions}
+              disabled={isConfirmed}
+              onOptionSelected={(opt: any) => {
+                if (!opt) return;
+                if (opt?.nombreRazon) {
+                  setValue("customerName", opt.nombreRazon, {
+                    shouldDirty: true,
+                  });
+                }
+                if (opt?.id) {
+                  setValue("clienteId", Number(opt.id) || 1, {
+                    shouldDirty: true,
+                  });
+                }
+              }}
+            />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <p className="text-sm font-semibold text-slate-700">
-                  Nombre del cliente
-                </p>
-                <input
-                  className="w-full text-black mt-2 border rounded-lg px-3 py-2 text-sm"
-                  value={customerName}
-                  disabled={isConfirmed}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Nombre o razón social"
-                />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-700">
-                  {docLabel}
-                </p>
-                <input
-                  className="w-full mt-2 border text-black rounded-lg px-3 py-2 text-sm"
-                  value={customerId}
-                  disabled={isConfirmed}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  placeholder={`Número de ${docLabel}`}
-                />
-              </div>
-            </div>
+            <HookFormInput
+              name="clienteId"
+              label="Cliente ID"
+              disabled
+              hidden
+            />
 
-            {paymentMethod === "tarjeta" && (
-              <div>
-                <p className="text-sm font-semibold text-slate-700">
-                  Entidad bancaria
-                </p>
-                <input
-                  className="w-full mt-2 border text-black rounded-lg px-3 py-2 text-sm"
-                  value={bankEntity}
-                  disabled={isConfirmed}
-                  onChange={(e) => setBankEntity(e.target.value)}
-                  placeholder="Banco emisor"
-                />
-              </div>
-            )}
+            <HookFormSelect
+              name="bankEntity"
+              label="Entidad bancaria"
+              disabled={
+                isConfirmed ||
+                paymentMethod === "EFECTIVO" ||
+                paymentMethod === "TARJETA"
+              }
+              options={[
+                { value: "-", label: "-" },
+                { value: "BCP", label: "BCP" },
+                { value: "INTERBANK", label: "INTERBANK" },
+                { value: "CONTINENTAL", label: "CONTINENTAL" },
+              ]}
+            />
 
-            <div>
-              <p className="text-sm font-semibold text-slate-700">
-                Notas / referencia
-              </p>
-              <textarea
-                className="w-full mt-2 border text-black   rounded-lg px-3 py-2 text-sm resize-none"
-                rows={3}
-                placeholder="Cliente, referencia, observaciones..."
-                value={notes}
+            {paymentMethod !== "EFECTIVO" && (
+              <HookFormInput
+                name="nroOperacion"
+                label="N° Operación"
                 disabled={isConfirmed}
-                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Número de operación"
               />
-            </div>
+            )}
 
             <div className="space-y-1 border-t pt-3">
               <div className="flex justify-between text-sm text-gray-700">
-                <span>Subtotal</span>
-                <span className="font-semibold">
-                  S/ {totalsToRender.subTotal.toFixed(2)}
-                </span>
+                <span>Op. gravada</span>
+                <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-700">
-                <span>IGV</span>
+                <span>Descuento</span>
+                <span className="font-semibold">S/ {descuento.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-700">
+                <span>Sub total</span>
+                <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-gray-700">
+                <span>IGV (18%)</span>
                 <span className="font-semibold">S/ {igvAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-base text-slate-800 font-bold">
-                <span>Total</span>
-                <span>S/ {totalsToRender.total.toFixed(2)}</span>
+                <span>Total pago</span>
+                <span>S/ {totalAmount.toFixed(2)}</span>
               </div>
             </div>
 
             {!isConfirmed && (
               <button
+                type="submit"
                 className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
-                onClick={confirmPayment}
+                disabled={isSubmitting}
               >
                 <CheckCircle2 className="w-5 h-5" />
                 Confirmar pago
               </button>
             )}
-            {isConfirmed && (
-              <button
-                className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-50 transition-colors"
-                onClick={handleEnableEditing}
-              >
-                Editar
-              </button>
-            )}
+          </HookForm>
+
+          {isConfirmed && (
             <button
-              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
-              onClick={() => handlePrint()}
-              disabled={isPrinting}
+              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-50 transition-colors"
+              onClick={handleEnableEditing}
             >
-              <Printer className="w-5 h-5" />
-              {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
+              Editar
             </button>
-            <button
-              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors"
-              onClick={handleBackToPos}
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Volver al POS
-            </button>
-          </div>
+          )}
+          <button
+            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
+            onClick={() => handlePrint()}
+            disabled={isPrinting}
+          >
+            <Printer className="w-5 h-5" />
+            {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
+          </button>
+          <button
+            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors"
+            onClick={handleBackToPos}
+          >
+            <ArrowLeft className="w-5 h-5" />
+            Volver al POS
+          </button>
         </section>
       </div>
     </div>

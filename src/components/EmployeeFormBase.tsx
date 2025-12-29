@@ -57,7 +57,7 @@ const buildDefaults = (initialData?: Partial<Personal>): Personal => ({
   personalDireccion: initialData?.personalDireccion ?? "",
   personalTelefono: initialData?.personalTelefono ?? "",
   personalEmail: initialData?.personalEmail ?? "",
-  personalEstado: initialData?.personalEstado ?? "activo",
+  personalEstado: initialData?.personalEstado ?? "ACTIVO",
   personalImagen: initialData?.personalImagen ?? "",
   companiaId: initialData?.companiaId ?? 1,
 });
@@ -225,7 +225,7 @@ export default function EmployeeFormBase({
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
       edad--;
     }
-    return `${edad} anos`;
+    return `${edad} años`;
   };
 
   const watchedNacimiento = watch("personalNacimiento");
@@ -238,7 +238,7 @@ export default function EmployeeFormBase({
 
   const handleNew = () => {
     const defaults = buildDefaults({
-      personalEstado: "activo",
+      personalEstado: "ACTIVO",
       companiaId: companyOptions[0]?.value ?? 1,
     });
     reset(defaults);
@@ -389,9 +389,10 @@ export default function EmployeeFormBase({
                 />
                 <input
                   name="edad"
+                  disabled
                   value={calcularEdad(watchedNacimiento)}
                   readOnly
-                  className="w-full px-4 py-3 rounded-lg outline-none"
+                  className="w-full px-3 py-8  "
                 />
 
                 <HookFormInput<Personal>
@@ -425,8 +426,8 @@ export default function EmployeeFormBase({
                   label="Estado"
                   disabled={mode === "create"}
                   options={[
-                    { value: "activo", label: "Activo" },
-                    { value: "inactivo", label: "Inactivo" },
+                    { value: "ACTIVO", label: "Activo" },
+                    { value: "INACTIVO", label: "Inactivo" },
                   ]}
                 />
               </div>

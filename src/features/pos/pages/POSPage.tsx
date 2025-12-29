@@ -42,6 +42,7 @@ const POSPage = () => {
   const openDialog = useDialogStore((state) => state.openDialog);
   const isCardsView = viewMode === "cards";
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!products.length) {
@@ -75,8 +76,8 @@ const POSPage = () => {
             <ul className="list-disc list-inside text-sm text-slate-800 max-h-40 overflow-auto">
               {outOfStockItems.map((item) => (
                 <li key={item.productId}>
-                  {item.nombre} — stock: {Math.max(item.stock ?? 0, 0)}, carrito:{" "}
-                  {item.cantidad}
+                  {item.nombre} — stock: {Math.max(item.stock ?? 0, 0)},
+                  carrito: {item.cantidad}
                 </li>
               ))}
             </ul>
@@ -149,6 +150,10 @@ const POSPage = () => {
   };
 
   const handleManualQuantity = (item: PosCartItem, value: string) => {
+    if (value === "") {
+      updateQuantity(item.productId, 0);
+      return;
+    }
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return;
     const next = Math.max(1, parsed);
@@ -156,10 +161,30 @@ const POSPage = () => {
   };
 
   const handlePriceChange = (item: PosCartItem, value: string) => {
+    setPriceDrafts((prev) => ({ ...prev, [item.productId]: value }));
+
+    if (value.trim() === "") {
+      updatePrice(item.productId, 0);
+      return;
+    }
+
+    if (!/^\d*\.?\d*$/.test(value)) return;
+
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return;
     updatePrice(item.productId, Math.max(0, parsed));
   };
+
+  useEffect(() => {
+    setPriceDrafts((prev) => {
+      const next: Record<number, string> = {};
+      items.forEach((item) => {
+        next[item.productId] =
+          prev[item.productId] ?? (item.precio?.toString() ?? "");
+      });
+      return next;
+    });
+  }, [items]);
 
   const confirmClear = () =>
     openDialog({
@@ -425,15 +450,16 @@ const POSPage = () => {
                       <div className="mt-1 flex items-center gap-1">
                         <span className="text-sm text-gray-500">S/</span>
                         <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          value={item.precio}
-                          onChange={(e) =>
-                            handlePriceChange(item, e.target.value)
-                          }
-                          className="w-full text-right border rounded-md px-2 py-1 text-sm"
-                        />
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={priceDrafts[item.productId] ?? item.precio}
+                        onChange={(e) =>
+                          handlePriceChange(item, e.target.value)
+                        }
+                        onFocus={(e) => e.target.select()}
+                        className="w-full text-right border rounded-md px-2 py-1 text-sm"
+                      />
                       </div>
                     </div>
                   </div>
@@ -448,11 +474,11 @@ const POSPage = () => {
                       </button>
                       <input
                         type="number"
-                        min={1}
-                        value={item.cantidad}
+                        value={item.cantidad === 0 ? "" : item.cantidad}
                         onChange={(e) =>
                           handleManualQuantity(item, e.target.value)
                         }
+                        onFocus={(e) => e.target.select()}
                         className="w-16 text-center border rounded-md py-1"
                       />
                       <button

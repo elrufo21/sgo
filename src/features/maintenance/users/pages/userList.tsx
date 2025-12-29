@@ -13,10 +13,13 @@ const UserList = () => {
       const ok = await updateUser(Number(selectedUser.UsuarioID), values);
       if (ok) {
         toast.success("Usuario actualizado");
+        setMode("create");
+        setSelectedUser(undefined);
+        return true;
       } else {
         toast.error("No se pudo actualizar el usuario");
+        return false;
       }
-      return;
     }
 
     const created = await addUser(values);
@@ -24,8 +27,10 @@ const UserList = () => {
       toast.success("Usuario creado correctamente");
       setMode("create");
       setSelectedUser(undefined);
+      return true;
     } else {
-      toast.error("No se pudo crear el usuario");
+      //toast.error("No se pudo crear el usuario");
+      return false;
     }
   };
 
