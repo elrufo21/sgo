@@ -5,7 +5,10 @@ import type {
   Control,
 } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
-import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
+import Autocomplete, {
+  createFilterOptions,
+  type FilterOptionsState,
+} from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
@@ -37,6 +40,10 @@ interface HookFormAutocompleteProps<
   allowCreate?: boolean;
   createLabel?: (value: string) => string;
   onCreateOption?: (value: string) => void;
+  filterOptions?: (
+    options: (TOption & { inputValue?: string })[],
+    state: FilterOptionsState<TOption & { inputValue?: string }>
+  ) => (TOption & { inputValue?: string })[];
 
   onOpenModal?: (option: TOption) => void;
   modalIcon?: React.ReactNode;
@@ -62,6 +69,7 @@ export function HookFormAutocomplete<
   allowCreate = false,
   createLabel = (value) => `Agregar "${value}"`,
   onCreateOption,
+  filterOptions,
 
   onOpenModal,
   modalIcon,
@@ -81,6 +89,30 @@ export function HookFormAutocomplete<
       option?.value === (value?.value ?? value));
 
   const filter = createFilterOptions<TOption & { inputValue?: string }>();
+  const appliedFilterOptions =
+    filterOptions ??
+    (allowCreate
+      ? (opts: (TOption & { inputValue?: string })[], params) => {
+          const filtered = filter(opts, params);
+          const input = (params.inputValue ?? "").trim();
+          const exists = opts.some((opt) =>
+            defaultIsEqual(opt, {
+              value: input,
+              label: input,
+            } as unknown as TOption)
+          );
+
+          if (input !== "" && !exists) {
+            filtered.push({
+              label: createLabel(input),
+              value: input,
+              inputValue: input,
+            } as TOption & { inputValue?: string });
+          }
+
+          return filtered;
+        }
+      : undefined);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return;
@@ -132,30 +164,7 @@ export function HookFormAutocomplete<
                 return defaultGetOptionLabel(option as TOption);
               }}
               isOptionEqualToValue={defaultIsEqual}
-              filterOptions={
-                allowCreate
-                  ? (opts, params) => {
-                      const filtered = filter(opts, params);
-                      const input = params.inputValue.trim();
-                      const exists = opts.some((opt) =>
-                        defaultIsEqual(opt, {
-                          value: input,
-                          label: input,
-                        } as unknown as TOption)
-                      );
-
-                      if (input !== "" && !exists) {
-                        filtered.push({
-                          label: createLabel(input),
-                          value: input,
-                          inputValue: input,
-                        } as TOption & { inputValue?: string });
-                      }
-
-                      return filtered;
-                    }
-                  : undefined
-              }
+              filterOptions={appliedFilterOptions}
               onChange={(_, option) => {
                 if (!option) {
                   field.onChange(null);

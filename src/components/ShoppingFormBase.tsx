@@ -79,6 +79,10 @@ export default function ShoppingFormBase({
 
   const defaults = useMemo<ShoppingFormData>(
     () => ({
+      providerId:
+        (initialData as any)?.providerId ??
+        (initialData as any)?.proveedorId ??
+        null,
       concepto: initialData?.concepto ?? "",
       proveedor: initialData?.proveedor ?? "",
       descripcion: initialData?.descripcion ?? "",
@@ -184,6 +188,7 @@ export default function ShoppingFormBase({
         value: prov.razon ?? "",
         label: prov.razon ?? "",
         ruc: prov.ruc ?? "",
+        id: prov.id,
       })),
     [providers]
   );
@@ -196,6 +201,7 @@ export default function ShoppingFormBase({
           value: prov.ruc ?? "",
           label: prov.ruc ?? "",
           razon: prov.razon ?? "",
+          id: prov.id,
         })),
     [providers]
   );
@@ -642,6 +648,10 @@ export default function ShoppingFormBase({
       ) ?? [];
     onSave({
       ...values,
+      providerId:
+        values.providerId ??
+        (values as any).proveedorId ??
+        (Number((values as any).ruc ?? 0) || null),
       proveedor: values.proveedor?.toUpperCase() ?? "",
       descripcion: values.descripcion?.toUpperCase() ?? "",
       concepto: values.concepto ?? "",
@@ -662,6 +672,7 @@ export default function ShoppingFormBase({
         importe: 0,
       };
       reset({
+        providerId: null,
         concepto: "",
         proveedor: "",
         descripcion: "",
@@ -699,6 +710,7 @@ export default function ShoppingFormBase({
       importe: 0,
     };
     reset({
+      providerId: null,
       concepto: "",
       proveedor: "",
       descripcion: "",
@@ -805,6 +817,11 @@ export default function ShoppingFormBase({
                                     shouldDirty: true,
                                   });
                                 }
+                                if (prov.id) {
+                                  setValue("providerId", prov.id, {
+                                    shouldDirty: true,
+                                  });
+                                }
                               },
                               maxWidth: "md",
                               fullWidth: true,
@@ -829,6 +846,11 @@ export default function ShoppingFormBase({
                             : "El proveedor es obligatorio"),
                       }}
                       onOptionSelected={(option) => {
+                        if (option?.id) {
+                          setValue("providerId", option.id, {
+                            shouldDirty: true,
+                          });
+                        }
                         if (option?.ruc) {
                           setValue("ruc", option.ruc, { shouldDirty: true });
                         }
@@ -856,9 +878,18 @@ export default function ShoppingFormBase({
                           shouldDirty: true,
                         });
                       }
+                      if (option?.id) {
+                        setValue("providerId", option.id, {
+                          shouldDirty: true,
+                        });
+                      }
                     }}
                   />
-
+                  <HookFormInput<ShoppingFormData>
+                    name="providerId"
+                    label="Proveedor ID"
+                    type="hidden"
+                  />
                   <HookFormInput<ShoppingFormData>
                     name="fechaEmision"
                     label="Fecha de emision"

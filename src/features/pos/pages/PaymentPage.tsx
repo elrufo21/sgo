@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router";
-import { CheckCircle2, ArrowLeft, Printer } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Printer, Receipt } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
@@ -21,11 +21,13 @@ const PaymentPage = () => {
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients } = useClientsStore();
+  const safeTrim = (value: string | null | undefined) => (value ?? "").trim();
   const [purchasedItems, setPurchasedItems] = useState(items);
   const [paidTotals, setPaidTotals] = useState(totals);
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
 
   const docTypeConfig: Record<
     "03" | "01" | "101",
@@ -82,6 +84,7 @@ const PaymentPage = () => {
       nroOperacion: "",
       notaUsuario: "",
       notes: "",
+      discount: 0,
     },
   });
 
@@ -101,17 +104,20 @@ const PaymentPage = () => {
   const nroOperacion = watch("nroOperacion");
   const notaUsuario = watch("notaUsuario");
   const notes = watch("notes");
+  const discountInput = watch("discount");
 
   const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
   const docConfig = docTypeConfig[docTypeCode];
   const docTypeName = docConfig?.docu ?? "BOLETA";
   const totalAmount = totalsToRender?.total ?? 0;
-  const gravada = totalAmount / 1.18;
-  const descuento = 0;
-  const igvAmount = totalAmount - gravada;
+  const descuento = Math.max(0, Number(discountInput ?? 0) || 0);
+  const discountedTotal = Math.max(0, totalAmount - descuento);
+  const gravada = discountedTotal / 1.18;
+  const igvAmount = discountedTotal - gravada;
 
-  const notaAdicional = paymentMethod === "TARJETA" ? totalAmount * 0.05 : 0;
-  const totalAPagar = totalAmount + notaAdicional;
+  const notaAdicional =
+    paymentMethod === "TARJETA" ? discountedTotal * 0.05 : 0;
+  const totalAPagar = discountedTotal + notaAdicional;
   const isCash = paymentMethod === "EFECTIVO";
   const isCard = paymentMethod === "TARJETA";
   const requiresBankSelection =
@@ -136,35 +142,147 @@ const PaymentPage = () => {
     }
   }, [clients.length, fetchClients]);
 
+  useEffect(() => {
+    // Reset documento y nombre al cambiar el tipo de documento para evitar cruces
+    setValue("customerId", "");
+    setValue("customerName", "");
+  }, [docTypeCode, setValue]);
+
+  const uniqueClients = useMemo(() => {
+    const seen = new Set<string>();
+    const result: typeof clients = [];
+    clients.forEach((client, index) => {
+      const dniKey = client.dni ? safeTrim(client.dni) : "";
+      const rucKey = (client as any).ruc ? safeTrim((client as any).ruc) : "";
+      const idKey =
+        client.id !== undefined && client.id !== null ? `id-${client.id}` : "";
+      const nameKey = client.nombreRazon ? `name-${client.nombreRazon}` : "";
+      const key =
+        (dniKey && `dni-${dniKey}`) ||
+        (rucKey && `ruc-${rucKey}`) ||
+        idKey ||
+        nameKey ||
+        `idx-${index}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      result.push(client);
+    });
+    return result;
+  }, [clients]);
+
   const clientOptions = useMemo(
     () =>
-      clients.map((client) => ({
+      uniqueClients.map((client) => ({
         value: client.nombreRazon ?? "",
         label: client.nombreRazon ?? "",
         dni: client.dni ?? "",
       })),
-    [clients]
+    [uniqueClients]
   );
 
   const dniOptions = useMemo(
     () =>
-      clients
+      uniqueClients
         .filter((client) => client.dni?.trim())
         .map((client) => ({
-          value: client.dni ?? "",
-          label: client.dni ?? "",
-          nombreRazon: client.nombreRazon ?? "",
+          value:
+            client.id !== undefined && client.id !== null
+              ? client.id
+              : (client.dni ?? "").trim() || (client.nombreRazon ?? "").trim(),
+          label: (client.dni ?? "").trim(),
+          dni: (client.dni ?? "").trim(),
+          nombreRazon: (client.nombreRazon ?? "").trim(),
           id: client.id,
         })),
-    [clients]
+    [uniqueClients]
+  );
+
+  const rucOptions = useMemo(
+    () =>
+      uniqueClients
+        .filter((client) => client.ruc?.trim())
+        .map((client) => ({
+          value:
+            client.id !== undefined && client.id !== null
+              ? client.id
+              : (client.ruc ?? "").trim() || (client.nombreRazon ?? "").trim(),
+          label: (client.ruc ?? "").trim(),
+          ruc: (client.ruc ?? "").trim(),
+          nombreRazon: (client.nombreRazon ?? "").trim(),
+          id: client.id,
+        })),
+    [uniqueClients]
+  );
+
+  const selectedDocument = useMemo(() => {
+    const source = docTypeCode === "01" ? rucOptions : dniOptions;
+    const match = source.find(
+      (opt) => String(opt.value) === String(customerId)
+    );
+    if (match?.label) return match.label;
+    return typeof customerId === "string" ? customerId : "";
+  }, [customerId, docTypeCode, dniOptions, rucOptions]);
+
+  const documentFilterOptions = useCallback(
+    (
+      options: Array<(typeof dniOptions)[number] | (typeof rucOptions)[number]>,
+      state: { inputValue: string }
+    ) => {
+      const input = (state.inputValue ?? "").trim().toLowerCase();
+      const filtered = options.filter((opt) => {
+        const label = (opt.label ?? "").toLowerCase();
+        const valueStr = String(opt.value ?? "").toLowerCase();
+        const docStr = (
+          (opt as any)?.dni ??
+          (opt as any)?.ruc ??
+          opt.label ??
+          ""
+        )
+          .toString()
+          .toLowerCase();
+        return (
+          input === "" ||
+          label.includes(input) ||
+          valueStr.includes(input) ||
+          docStr.includes(input)
+        );
+      });
+
+      if (input) {
+        const exists = filtered.some((opt) => {
+          const label = (opt.label ?? "").toLowerCase();
+          const valueStr = String(opt.value ?? "").toLowerCase();
+          const docStr = (
+            (opt as any)?.dni ??
+            (opt as any)?.ruc ??
+            opt.label ??
+            ""
+          )
+            .toString()
+            .toLowerCase();
+          return label === input || valueStr === input || docStr === input;
+        });
+
+        if (!exists) {
+          filtered.push({
+            label: `Usar ${docLabel}: ${state.inputValue}`,
+            value: state.inputValue,
+            inputValue: state.inputValue,
+          } as any);
+        }
+      }
+
+      return filtered;
+    },
+    [docLabel]
   );
 
   const ticketPreviewProps = useMemo(() => {
     const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
     const safeTotals = itemsToRender.length ? totalsToRender : paidTotals;
     return {
-      clientName: customerName.trim() || "Ultimo cliente",
-      clientId: customerId.trim(),
+      clientName: safeTrim(customerName) || "Ultimo cliente",
+      clientId: safeTrim(selectedDocument),
       docType: docTypeName.toLowerCase(),
       paymentMethod,
       items: safeItems,
@@ -215,7 +333,7 @@ const PaymentPage = () => {
         notaDocu: docTypeName,
         clienteId: clienteIdNumber,
         notaFecha: `${today}T00:00:00`,
-        notaUsuario: notaUsuario.trim() || usernameFromSession || "USUARIO",
+        notaUsuario: safeTrim(notaUsuario) || usernameFromSession || "USUARIO",
         notaFormaPago: paymentMethod,
         notaCondicion: "ALCONTADO",
         notaDias: 1,
@@ -224,10 +342,10 @@ const PaymentPage = () => {
         notaTelefono: null,
         notaSubtotal: Number(base.toFixed(2)),
         notaMovilidad: 0,
-        notaDescuento: descuento,
-        notaTotal: Number(totalAmount.toFixed(2)),
+        notaDescuento: Number(descuento.toFixed(2)),
+        notaTotal: Number(discountedTotal.toFixed(2)),
         notaAcuenta: 0,
-        notaSaldo: Number(totalAmount.toFixed(2)),
+        notaSaldo: Number(discountedTotal.toFixed(2)),
         notaAdicional: Number(notaAdicional.toFixed(2)),
         notaTarjeta: 0,
         notaPagar: Number(totalAPagar.toFixed(2)),
@@ -243,7 +361,7 @@ const PaymentPage = () => {
         icbper: 0,
         cajaId: 196,
         entidadBancaria: bankValue,
-        nroOperacion: isCash ? null : nroOperacion.trim() || null,
+        nroOperacion: isCash ? null : safeTrim(nroOperacion) || null,
         efectivo: isCash ? Number(totalAPagar.toFixed(2)) : 0,
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
@@ -276,6 +394,7 @@ const PaymentPage = () => {
     purchasedItems,
     totalAPagar,
     totalAmount,
+    selectedDocument,
   ]);
 
   useEffect(() => {
@@ -379,6 +498,249 @@ const PaymentPage = () => {
     );
   }
 
+  const ItemsList = (
+    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+      {itemsToRender.map((item) => (
+        <div
+          key={item.productId}
+          className="border rounded-lg p-3 flex justify-between gap-3 bg-gray-50"
+        >
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              {item.nombre}
+            </p>
+            <p className="text-xs text-gray-500">
+              {item.codigo} · {item.unidadMedida ?? "UND"}
+            </p>
+            <p className="text-xs text-gray-500">Cantidad: {item.cantidad}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">P. Unitario</p>
+            <p className="text-sm font-semibold">S/ {item.precio.toFixed(2)}</p>
+            <p className="text-xs text-gray-500">Subtotal</p>
+            <p className="text-base font-semibold text-slate-800">
+              S/ {(item.precio * item.cantidad).toFixed(2)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const PdfViewerCard = (
+    <div className="border rounded-lg overflow-hidden">
+      {canPreviewPdf ? (
+        <PDFViewer key={previewKey} style={{ width: "100%", height: 620 }}>
+          <TicketDocument {...ticketPreviewProps} />
+        </PDFViewer>
+      ) : (
+        <div className="p-3 text-xs text-gray-500">
+          Cargando vista previa del comprobante...
+        </div>
+      )}
+    </div>
+  );
+
+  const renderForm = () => (
+    <>
+      <HookForm
+        methods={formMethods}
+        onSubmit={handleSubmit(confirmPayment)}
+        className="bg-white rounded-xl shadow p-4 space-y-4"
+      >
+        <HookFormSelect
+          name="docTypeCode"
+          label="Tipo de documento"
+          disabled={isConfirmed}
+          options={[
+            { value: "101", label: "Proforma V" },
+            { value: "03", label: "Boleta" },
+            { value: "01", label: "Factura" },
+          ]}
+        />
+
+        <HookFormSelect
+          name="paymentMethod"
+          label="Forma de pago"
+          disabled={isConfirmed}
+          options={[
+            { value: "EFECTIVO", label: "Efectivo" },
+            { value: "TARJETA", label: "Tarjeta" },
+            { value: "TRANSFERENCIA", label: "Transferencia" },
+            { value: "YAPE", label: "Yape" },
+          ]}
+        />
+
+        <HookFormAutocomplete
+          name="customerName"
+          label="Nombre del cliente"
+          placeholder="Seleccionar cliente"
+          options={clientOptions}
+          disabled={isConfirmed}
+          onOptionSelected={(opt: any) => {
+            if (opt) {
+              if (opt?.dni) {
+                setValue("customerId", opt.dni, { shouldDirty: true });
+              }
+              if (opt?.value) {
+                setValue("clienteId", Number(opt.value) || 1, {
+                  shouldDirty: true,
+                });
+              }
+            }
+          }}
+        />
+        {docTypeCode === "01" ? (
+          <HookFormAutocomplete
+            name="customerId"
+            label="RUC"
+            placeholder="Número de RUC"
+            options={rucOptions}
+            disabled={isConfirmed}
+            allowCreate
+            createLabel={(value: string) => `Usar RUC: ${value}`}
+            filterOptions={documentFilterOptions as any}
+            isOptionEqualToValue={(option: any, value: any) =>
+              String(option?.value) === String((value as any)?.value ?? value)
+            }
+            onOptionSelected={(opt: any) => {
+              if (!opt) return;
+              if (opt?.nombreRazon) {
+                setValue("customerName", opt.nombreRazon, {
+                  shouldDirty: true,
+                });
+              }
+              if (opt?.id) {
+                setValue("clienteId", Number(opt.id) || 1, {
+                  shouldDirty: true,
+                });
+              }
+            }}
+          />
+        ) : (
+          <HookFormAutocomplete
+            name="customerId"
+            label="DNI"
+            placeholder="Número de DNI"
+            options={dniOptions}
+            disabled={isConfirmed}
+            allowCreate
+            createLabel={(value: string) => `Usar DNI: ${value}`}
+            filterOptions={documentFilterOptions as any}
+            isOptionEqualToValue={(option: any, value: any) =>
+              String(option?.value) === String((value as any)?.value ?? value)
+            }
+            onOptionSelected={(opt: any) => {
+              if (!opt) return;
+              if (opt?.nombreRazon) {
+                setValue("customerName", opt.nombreRazon, {
+                  shouldDirty: true,
+                });
+              }
+              if (opt?.id) {
+                setValue("clienteId", Number(opt.id) || 1, {
+                  shouldDirty: true,
+                });
+              }
+            }}
+          />
+        )}
+
+        <HookFormInput name="clienteId" label="Cliente ID" disabled hidden />
+
+        {paymentMethod !== "EFECTIVO" && (
+          <HookFormSelect
+            name="bankEntity"
+            label="Entidad bancaria"
+            disabled={isConfirmed || paymentMethod === "TARJETA"}
+            options={[
+              { value: "-", label: "-" },
+              { value: "BCP", label: "BCP" },
+              { value: "INTERBANK", label: "INTERBANK" },
+              { value: "CONTINENTAL", label: "CONTINENTAL" },
+            ]}
+          />
+        )}
+
+        {paymentMethod !== "EFECTIVO" && (
+          <HookFormInput
+            name="nroOperacion"
+            label="N° Operación"
+            disabled={isConfirmed}
+            placeholder="Número de operación"
+          />
+        )}
+
+        <div className="space-y-1 border-t pt-3">
+          <div className="flex justify-between text-sm text-gray-700">
+            <span>Op. gravada</span>
+            <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
+            <span>Descuento</span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-500">S/</span>
+              <HookFormInput
+                name="discount"
+                type="number"
+                step="0.01"
+                className="w-12 text-right"
+                disabled={isConfirmed}
+              />
+            </div>
+          </div>
+          <div className="flex justify-between text-sm text-gray-700">
+            <span>Sub total</span>
+            <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-gray-700">
+            <span>IGV (18%)</span>
+            <span className="font-semibold">S/ {igvAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-base text-slate-800 font-bold">
+            <span>Total pago</span>
+            <span>S/ {totalAPagar.toFixed(2)}</span>
+          </div>
+        </div>
+
+        {!isConfirmed && (
+          <button
+            type="submit"
+            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+            disabled={isSubmitting}
+          >
+            <CheckCircle2 className="w-5 h-5" />
+            Confirmar pago
+          </button>
+        )}
+      </HookForm>
+
+      {isConfirmed && (
+        <button
+          className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 bg-white text-orange-800 hover:bg-orange-50 transition-colors"
+          onClick={handleEnableEditing}
+        >
+          Editar
+        </button>
+      )}
+      <button
+        className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
+        onClick={() => handlePrint()}
+        disabled={isPrinting}
+      >
+        <Printer className="w-5 h-5" />
+        {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
+      </button>
+      <button
+        className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors"
+        onClick={handleBackToPos}
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Volver al POS
+      </button>
+    </>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -396,223 +758,75 @@ const PaymentPage = () => {
           Volver al POS
         </Link>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <section>
-          {" "}
-          <div className="border rounded-lg overflow-hidden">
-            {canPreviewPdf ? (
-              <PDFViewer
-                key={previewKey}
-                style={{ width: "100%", height: 660 }}
-              >
-                <TicketDocument {...ticketPreviewProps} />
-              </PDFViewer>
-            ) : (
-              <div className="p-3 text-xs text-gray-500">
-                Cargando vista previa del comprobante...
-              </div>
-            )}
-          </div>
-        </section>
-        <section className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-xl shadow p-4">
-            <h2 className="text-lg font-semibold text-slate-800 mb-3">
-              Items a cobrar
-            </h2>
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {itemsToRender.map((item) => (
-                <div
-                  key={item.productId}
-                  className="border rounded-lg p-3 flex justify-between gap-3 bg-gray-50"
-                >
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">
-                      {item.nombre}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.codigo} · {item.unidadMedida ?? "UND"}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Cantidad: {item.cantidad}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500">P. Unitario</p>
-                    <p className="text-sm font-semibold">
-                      S/ {item.precio.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-gray-500">Subtotal</p>
-                    <p className="text-base font-semibold text-slate-800">
-                      S/ {(item.precio * item.cantidad).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <HookForm
-            methods={formMethods}
-            onSubmit={handleSubmit(confirmPayment)}
-            className="bg-white rounded-xl shadow p-4 space-y-4"
-          >
-            <HookFormSelect
-              name="docTypeCode"
-              label="Tipo de documento"
-              disabled={isConfirmed}
-              options={[
-                { value: "101", label: "Proforma V" },
-                { value: "03", label: "Boleta" },
-                { value: "01", label: "Factura" },
-              ]}
-            />
-
-            <HookFormSelect
-              name="paymentMethod"
-              label="Forma de pago"
-              disabled={isConfirmed}
-              options={[
-                { value: "EFECTIVO", label: "Efectivo" },
-                { value: "TARJETA", label: "Tarjeta" },
-                { value: "TRANSFERENCIA", label: "Transferencia" },
-                { value: "YAPE", label: "Yape" },
-              ]}
-            />
-
-            <HookFormAutocomplete
-              name="customerName"
-              label="Nombre del cliente"
-              placeholder="Seleccionar cliente"
-              options={clientOptions}
-              disabled={isConfirmed}
-              onOptionSelected={(opt: any) => {
-                if (opt) {
-                  if (opt?.dni) {
-                    setValue("customerId", opt.dni, { shouldDirty: true });
-                  }
-                  if (opt?.value) {
-                    setValue("clienteId", Number(opt.value) || 1, {
-                      shouldDirty: true,
-                    });
-                  }
-                }
-              }}
-            />
-            <HookFormAutocomplete
-              name="customerId"
-              label={docLabel}
-              placeholder={`Número de ${docLabel}`}
-              options={dniOptions}
-              disabled={isConfirmed}
-              onOptionSelected={(opt: any) => {
-                if (!opt) return;
-                if (opt?.nombreRazon) {
-                  setValue("customerName", opt.nombreRazon, {
-                    shouldDirty: true,
-                  });
-                }
-                if (opt?.id) {
-                  setValue("clienteId", Number(opt.id) || 1, {
-                    shouldDirty: true,
-                  });
-                }
-              }}
-            />
-
-            <HookFormInput
-              name="clienteId"
-              label="Cliente ID"
-              disabled
-              hidden
-            />
-
-            <HookFormSelect
-              name="bankEntity"
-              label="Entidad bancaria"
-              disabled={
-                isConfirmed ||
-                paymentMethod === "EFECTIVO" ||
-                paymentMethod === "TARJETA"
-              }
-              options={[
-                { value: "-", label: "-" },
-                { value: "BCP", label: "BCP" },
-                { value: "INTERBANK", label: "INTERBANK" },
-                { value: "CONTINENTAL", label: "CONTINENTAL" },
-              ]}
-            />
-
-            {paymentMethod !== "EFECTIVO" && (
-              <HookFormInput
-                name="nroOperacion"
-                label="N° Operación"
-                disabled={isConfirmed}
-                placeholder="Número de operación"
-              />
-            )}
-
-            <div className="space-y-1 border-t pt-3">
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>Op. gravada</span>
-                <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>Descuento</span>
-                <span className="font-semibold">S/ {descuento.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>Sub total</span>
-                <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>IGV (18%)</span>
-                <span className="font-semibold">S/ {igvAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-base text-slate-800 font-bold">
-                <span>Total pago</span>
-                <span>S/ {totalAmount.toFixed(2)}</span>
-              </div>
-            </div>
-
-            {!isConfirmed && (
+      {/* Layout móvil/mediano: tabs combinados + formulario */}
+      <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-5 min-[1405px]:hidden">
+        <section className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+            <div className="flex items-center gap-1 border-b border-slate-200 p-2 bg-slate-50">
               <button
-                type="submit"
-                className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
-                disabled={isSubmitting}
+                type="button"
+                className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                  activeTab === "items"
+                    ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
+                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+                onClick={() => setActiveTab("items")}
               >
-                <CheckCircle2 className="w-5 h-5" />
-                Confirmar pago
+                Items a cobrar
               </button>
-            )}
-          </HookForm>
+              <button
+                type="button"
+                className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                  activeTab === "pdf"
+                    ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
+                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                }`}
+                onClick={() => setActiveTab("pdf")}
+              >
+                Comprobante
+              </button>
+            </div>
 
-          {isConfirmed && (
-            <button
-              className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 text-orange-800 hover:bg-orange-50 transition-colors"
-              onClick={handleEnableEditing}
-            >
-              Editar
-            </button>
-          )}
-          <button
-            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
-            onClick={() => handlePrint()}
-            disabled={isPrinting}
-          >
-            <Printer className="w-5 h-5" />
-            {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
-          </button>
-          <button
-            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50 transition-colors"
-            onClick={handleBackToPos}
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Volver al POS
-          </button>
+            <div className="p-5">
+              {activeTab === "items" && ItemsList}
+              {activeTab === "pdf" && PdfViewerCard}
+            </div>
+          </div>
         </section>
+
+        <section className="space-y-3">{renderForm()}</section>
+      </div>
+
+      {/* Layout grande: 3 columnas optimizadas */}
+      <div className="hidden min-[1405px]:grid grid-cols-[1.3fr_1.1fr_1fr] gap-5">
+        {/* Comprobante PDF */}
+        <section className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
+              <Receipt className="w-5 h-5 text-slate-700" />
+              <h2 className="text-lg font-bold text-slate-800">
+                Vista previa del comprobante
+              </h2>
+            </div>
+            {PdfViewerCard}
+          </div>
+        </section>
+
+        {/* Items a cobrar */}
+        <section className="space-y-4">
+          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
+            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
+              {itemsToRender.length}
+              <h2 className="text-lg font-bold text-slate-800">
+                Items a cobrar
+              </h2>
+            </div>
+            {ItemsList}
+          </div>
+        </section>
+
+        {/* Formulario */}
+        <section className="space-y-3">{renderForm()}</section>
       </div>
     </div>
   );

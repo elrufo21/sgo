@@ -1,5 +1,6 @@
 export interface Shopping {
   id: number;
+  providerId?: number | null;
   concepto: string;
   proveedor: string;
   descripcion: string;

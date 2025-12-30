@@ -97,6 +97,28 @@ const POSPage = () => {
   };
 
   const handleAddProduct = (product: Product) => {
+    const available = Number(product.cantidad ?? 0);
+    if (!Number.isFinite(available) || available <= 0) {
+      openDialog({
+        title: "Sin stock",
+        content: (
+          <p className="text-sm text-slate-700">
+            {product.nombre} no tiene stock disponible. ¿Deseas agregarlo de
+            todos modos?
+          </p>
+        ),
+        confirmText: "Agregar",
+        cancelText: "Cancelar",
+        onConfirm: () => {
+          addProduct(product, 1);
+          toast.success(`${product.nombre} agregado al carrito`, {
+            duration: 1200,
+          });
+        },
+      });
+      return;
+    }
+
     addProduct(product, 1);
     toast.success(`${product.nombre} agregado al carrito`, {
       duration: 1200,

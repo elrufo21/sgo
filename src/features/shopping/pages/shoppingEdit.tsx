@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import ShoppingFormBase from "@/components/ShoppingFormBase";
@@ -11,8 +11,15 @@ const ShoppingEdit = () => {
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
 
-  const { shoppings, fetchShoppings, updateShopping, deleteShopping } =
-    useShoppingStore();
+  const {
+    shoppings,
+    fetchShoppings,
+    fetchShoppingDetails,
+    updateShopping,
+    deleteShopping,
+  } = useShoppingStore();
+  const [details, setDetails] = useState<any[] | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     if (shoppings.length === 0) fetchShoppings();
@@ -20,8 +27,23 @@ const ShoppingEdit = () => {
 
   const shopping = shoppings.find((s) => s.id === Number(id));
 
+  useEffect(() => {
+    const loadDetails = async () => {
+      if (!shopping || details !== null) return;
+      setLoadingDetails(true);
+      const result = await fetchShoppingDetails(shopping.id);
+      setDetails(result);
+      setLoadingDetails(false);
+    };
+    loadDetails();
+  }, [details, fetchShoppingDetails, shopping]);
+
   if (!shopping) {
     return <div className="p-6">Cargando compra...</div>;
+  }
+
+  if (loadingDetails && details === null) {
+    return <div className="p-6">Cargando detalle de compra...</div>;
   }
 
   const handleSave = async (data: ShoppingFormData) => {
@@ -47,7 +69,7 @@ const ShoppingEdit = () => {
   return (
     <ShoppingFormBase
       mode="edit"
-      initialData={shopping}
+      initialData={{ ...shopping, items: details ?? shopping.items ?? [] }}
       onSave={handleSave}
       onNew={() => navigate("/shopping/create")}
       onDelete={handleDelete}
