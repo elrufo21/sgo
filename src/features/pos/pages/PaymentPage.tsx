@@ -424,7 +424,7 @@ const PaymentPage = () => {
     setPaidTotals(sourceTotals);
 
     const result = await apiRequest({
-      url: "http://localhost:5000/api/v1/Nota/register-with-detail",
+      url: "http://localhost:5000/api/v1/Nota/crearOrden",
       method: "POST",
       data: notaPayload,
       config: {
