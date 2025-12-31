@@ -885,11 +885,7 @@ export default function ShoppingFormBase({
                       }
                     }}
                   />
-                  <HookFormInput<ShoppingFormData>
-                    name="providerId"
-                    label="Proveedor ID"
-                    type="hidden"
-                  />
+
                   <HookFormInput<ShoppingFormData>
                     name="fechaEmision"
                     label="Fecha de emision"

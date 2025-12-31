@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router";
 import { CheckCircle2, ArrowLeft, Printer, Receipt } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "sonner";
 import TicketDocument from "@/components/Ticket";
@@ -84,6 +84,7 @@ const PaymentPage = () => {
       nroOperacion: "",
       notaUsuario: "",
       notes: "",
+      applyDiscount: false,
       discount: 0,
     },
   });
@@ -91,6 +92,8 @@ const PaymentPage = () => {
   const {
     watch,
     setValue,
+    register,
+    control,
     handleSubmit,
     formState: { isSubmitting },
   } = formMethods;
@@ -104,13 +107,20 @@ const PaymentPage = () => {
   const nroOperacion = watch("nroOperacion");
   const notaUsuario = watch("notaUsuario");
   const notes = watch("notes");
+  const applyDiscount = useWatch({
+    control,
+    name: "applyDiscount",
+    defaultValue: false,
+  }) as boolean;
   const discountInput = watch("discount");
 
   const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
   const docConfig = docTypeConfig[docTypeCode];
   const docTypeName = docConfig?.docu ?? "BOLETA";
   const totalAmount = totalsToRender?.total ?? 0;
-  const descuento = Math.max(0, Number(discountInput ?? 0) || 0);
+  const descuento = applyDiscount
+    ? Math.max(0, Number(discountInput ?? 0) || 0)
+    : 0;
   const discountedTotal = Math.max(0, totalAmount - descuento);
   const gravada = discountedTotal / 1.18;
   const igvAmount = discountedTotal - gravada;
@@ -141,6 +151,12 @@ const PaymentPage = () => {
       fetchClients();
     }
   }, [clients.length, fetchClients]);
+
+  useEffect(() => {
+    if (!applyDiscount) {
+      setValue("discount", 0, { shouldDirty: true });
+    }
+  }, [applyDiscount, setValue]);
 
   useEffect(() => {
     // Reset documento y nombre al cambiar el tipo de documento para evitar cruces
@@ -558,7 +574,6 @@ const PaymentPage = () => {
             { value: "01", label: "Factura" },
           ]}
         />
-
         <HookFormSelect
           name="paymentMethod"
           label="Forma de pago"
@@ -570,7 +585,6 @@ const PaymentPage = () => {
             { value: "YAPE", label: "Yape" },
           ]}
         />
-
         <HookFormAutocomplete
           name="customerName"
           label="Nombre del cliente"
@@ -645,9 +659,6 @@ const PaymentPage = () => {
             }}
           />
         )}
-
-        <HookFormInput name="clienteId" label="Cliente ID" disabled hidden />
-
         {paymentMethod !== "EFECTIVO" && (
           <HookFormSelect
             name="bankEntity"
@@ -661,7 +672,6 @@ const PaymentPage = () => {
             ]}
           />
         )}
-
         {paymentMethod !== "EFECTIVO" && (
           <HookFormInput
             name="nroOperacion"
@@ -670,25 +680,44 @@ const PaymentPage = () => {
             placeholder="Número de operación"
           />
         )}
-
+        <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
+          <span>Aplica descuento</span>
+          <input
+            type="checkbox"
+            className="w-4 h-4 accent-slate-700 rounded"
+            disabled={isConfirmed}
+            checked={applyDiscount}
+            {...register("applyDiscount", {
+              onChange: (e) =>
+                setValue("applyDiscount", e.target.checked, {
+                  shouldDirty: true,
+                }),
+            })}
+          />
+        </div>
         <div className="space-y-1 border-t pt-3">
           <div className="flex justify-between text-sm text-gray-700">
             <span>Op. gravada</span>
             <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
-            <span>Descuento</span>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-gray-500">S/</span>
-              <HookFormInput
-                name="discount"
-                type="number"
-                step="0.01"
-                className="w-12 text-right"
-                disabled={isConfirmed}
-              />
+
+          {applyDiscount && (
+            <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
+              <span>Descuento</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">S/</span>
+                <HookFormInput
+                  name="discount"
+                  type="number"
+                  step="0.01"
+                  className="w-12 text-right appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  style={{ MozAppearance: "textfield" }}
+                  onFocus={(e) => e.target.select()}
+                  disabled={isConfirmed}
+                />
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex justify-between text-sm text-gray-700">
             <span>Sub total</span>
             <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
@@ -702,7 +731,6 @@ const PaymentPage = () => {
             <span>S/ {totalAPagar.toFixed(2)}</span>
           </div>
         </div>
-
         {!isConfirmed && (
           <button
             type="submit"

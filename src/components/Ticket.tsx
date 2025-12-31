@@ -254,28 +254,35 @@ const styles = StyleSheet.create({
   },
   summaryRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     marginBottom: 3,
     fontSize: 9,
+    alignItems: "center",
   },
   summaryLabel: {
-    width: "70%",
-    textAlign: "right",
-    paddingRight: 10,
+    width: "55%",
+    fontWeight: "bold",
   },
   summaryValue: {
-    width: "30%",
+    width: "45%",
     textAlign: "right",
   },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 4,
-    paddingTop: 4,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 1,
     borderTopColor: "#000",
-    fontSize: 10,
+    alignItems: "center",
+  },
+  totalLabel: {
+    fontSize: 11,
     fontWeight: "bold",
+  },
+  totalValue: {
+    fontSize: 12,
+    fontWeight: "bold",
+    textAlign: "right",
   },
   footer: {
     marginTop: 12,
@@ -313,9 +320,7 @@ const TicketDocument = ({
 
   const ticketData = useMemo(() => {
     const hasItems = Boolean(items?.length);
-    const subtotalValue = hasItems
-      ? Number(totals?.subTotal ?? 0)
-      : 10000;
+    const subtotalValue = hasItems ? Number(totals?.subTotal ?? 0) : 10000;
     const totalValue = hasItems ? Number(totals?.total ?? 0) : 100.0;
     const igvValue = hasItems
       ? Math.max(0, totalValue - subtotalValue)
@@ -457,26 +462,26 @@ const TicketDocument = ({
         <View style={styles.divider} />
 
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>SUB TOTAL:</Text>
+          <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
           <Text style={styles.summaryValue}>
             S/ {ticketData.subtotal.toFixed(2)}
           </Text>
         </View>
         <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>IGV (18.00):</Text>
+          <Text style={styles.summaryLabel}>I.G.V. :</Text>
           <Text style={styles.summaryValue}>
             S/ {ticketData.igv.toFixed(2)}
           </Text>
         </View>
         <View style={styles.totalRow}>
-          <Text style={styles.summaryLabel}>IMPORTE TOTAL:</Text>
-          <Text style={styles.summaryValue}>
+          <Text style={styles.totalLabel}>TOTAL :</Text>
+          <Text style={styles.totalValue}>
             S/ {ticketData.total.toFixed(2)}
           </Text>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>{ticketData.son}</Text>
+          <Text style={styles.footerText}>SON: {ticketData.son}</Text>
           <Text style={styles.footerText}>{ticketData.authorization}</Text>
           <Text style={styles.footerText}>ID: {ticketData.id}</Text>
         </View>

@@ -86,10 +86,7 @@ export default function SendNoteFormBase({
     authUser?.displayName ??
     authUser?.username ??
     "";
-  const today = useMemo(
-    () => new Date().toISOString().slice(0, 10),
-    []
-  );
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   const defaults = useMemo<SendNoteFormValues>(
     () => ({
@@ -757,6 +754,7 @@ export default function SendNoteFormBase({
                       label="F-Emision"
                       type="date"
                       rules={{ required: "La fecha es obligatoria" }}
+                      disabled
                     />
                     <div className=" space-y-1 col-span-2">
                       <div className="flex items-center justify-between">

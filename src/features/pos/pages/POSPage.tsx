@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import DataTable from "@/components/DataTable";
+import NavigableNumberInput from "@/components/inputs/NavigableNumberInput";
 import { useProductsStore } from "@/store/products/products.store";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { useDialogStore } from "@/store/app/dialog.store";
@@ -471,22 +472,19 @@ const POSPage = () => {
                       </label>
                       <div className="mt-1 flex items-center gap-1">
                         <span className="text-sm text-gray-500">S/</span>
-                        <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={priceDrafts[item.productId] ?? item.precio}
-                        onChange={(e) =>
-                          handlePriceChange(item, e.target.value)
-                        }
-                        onFocus={(e) => e.target.select()}
-                        className="w-full text-right border rounded-md px-2 py-1 text-sm"
-                      />
+                        <NavigableNumberInput
+                          min={0}
+                          step="0.01"
+                          value={priceDrafts[item.productId] ?? item.precio}
+                          onChange={(value) => handlePriceChange(item, value)}
+                          navGroup="pos-price-input"
+                          className="w-full text-right border rounded-md px-2 py-1 text-sm"
+                        />
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="mt-3 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <button
                         className="p-1 rounded bg-white border hover:bg-slate-50"
@@ -494,13 +492,12 @@ const POSPage = () => {
                       >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <input
-                        type="number"
+                      <NavigableNumberInput
                         value={item.cantidad === 0 ? "" : item.cantidad}
-                        onChange={(e) =>
-                          handleManualQuantity(item, e.target.value)
+                        onChange={(value) =>
+                          handleManualQuantity(item, value)
                         }
-                        onFocus={(e) => e.target.select()}
+                        navGroup="pos-quantity-input"
                         className="w-16 text-center border rounded-md py-1"
                       />
                       <button
