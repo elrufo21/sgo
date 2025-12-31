@@ -13,6 +13,7 @@ import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { useClientsStore } from "@/store/customers/customers.store";
+import { useProductsStore } from "@/store/products/products.store";
 
 const PaymentPage = () => {
   const items = usePosStore((s) => s.items);
@@ -21,12 +22,14 @@ const PaymentPage = () => {
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients } = useClientsStore();
+  const { fetchProducts: refetchProducts } = useProductsStore();
   const safeTrim = (value: string | null | undefined) => (value ?? "").trim();
   const [purchasedItems, setPurchasedItems] = useState(items);
   const [paidTotals, setPaidTotals] = useState(totals);
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [notaId, setNotaId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
 
   const docTypeConfig: Record<
@@ -117,6 +120,7 @@ const PaymentPage = () => {
   const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
   const docConfig = docTypeConfig[docTypeCode];
   const docTypeName = docConfig?.docu ?? "BOLETA";
+  const isProforma = docTypeCode === "101";
   const totalAmount = totalsToRender?.total ?? 0;
   const descuento = applyDiscount
     ? Math.max(0, Number(discountInput ?? 0) || 0)
@@ -341,11 +345,11 @@ const PaymentPage = () => {
     const base = gravada;
     const clienteIdNumber = Number(clienteId ?? 1) || 1;
 
-    const bankValue = bankEntity?.trim() || null;
+    const bankValue = bankEntity?.trim() || "-";
 
     return {
       nota: {
-        notaId: 0,
+        notaId: notaId ?? 0,
         notaDocu: docTypeName,
         clienteId: clienteIdNumber,
         notaFecha: `${today}T00:00:00`,
@@ -375,15 +379,13 @@ const PaymentPage = () => {
         notaNumero: "00012345",
         notaGanancia: 0,
         icbper: 0,
-        cajaId: 196,
         entidadBancaria: bankValue,
-        nroOperacion: isCash ? null : safeTrim(nroOperacion) || null,
+        nroOperacion: isCash ? "" : safeTrim(nroOperacion) || "",
         efectivo: isCash ? Number(totalAPagar.toFixed(2)) : 0,
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
       detalles: safeItems.map((item) => ({
-        detalleId: 0,
-        notaId: 0,
+        detalleId: (item as any).detalleId ?? 0,
         idProducto: item.productId,
         detalleCantidad: item.cantidad,
         detalleUm: item.unidadMedida ?? "UND",
@@ -398,6 +400,7 @@ const PaymentPage = () => {
     };
   }, [
     bankEntity,
+    notaId,
     companyId,
     customerId,
     docConfig?.serie,
@@ -423,10 +426,64 @@ const PaymentPage = () => {
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
 
+    const isEditing = Boolean(notaId);
+    const baseNota = { ...notaPayload.nota, notaId: notaId ?? 0 };
+    const editNota = isEditing
+      ? {
+          notaId: baseNota.notaId,
+          notaDocu: baseNota.notaDocu,
+          clienteId: baseNota.clienteId,
+          notaUsuario: baseNota.notaUsuario,
+          notaFormaPago: baseNota.notaFormaPago,
+          notaCondicion: baseNota.notaCondicion,
+          notaSubtotal: baseNota.notaSubtotal,
+          notaTotal: baseNota.notaTotal,
+          notaPagar: baseNota.notaPagar,
+          notaEntrega: baseNota.notaEntrega,
+          notaSerie: baseNota.notaSerie,
+          notaNumero: baseNota.notaNumero,
+          companiaId: baseNota.companiaId,
+          icbper: baseNota.icbper,
+          entidadBancaria: baseNota.entidadBancaria,
+          efectivo: baseNota.efectivo,
+          deposito: baseNota.deposito,
+          notaGanancia: baseNota.notaGanancia,
+          notaConcepto: baseNota.notaConcepto,
+          notaEstado: baseNota.notaEstado,
+          modificadoPor: usernameFromSession || "USUARIO",
+          nroOperacion: baseNota.nroOperacion ?? "",
+        }
+      : baseNota;
+
+    const payloadToSend = {
+      nota: editNota,
+      detalles: notaPayload.detalles.map((detalle) => {
+        const baseDetalle = {
+          ...detalle,
+          detalleId: (detalle as any).detalleId ?? 0,
+        };
+        if (!isEditing) return baseDetalle;
+        return {
+          detalleId: baseDetalle.detalleId,
+          idProducto: baseDetalle.idProducto,
+          detalleCantidad: baseDetalle.detalleCantidad,
+          detalleUm: baseDetalle.detalleUm,
+          detalleDescripcion: baseDetalle.detalleDescripcion,
+          detalleCosto: baseDetalle.detalleCosto,
+          detallePrecio: baseDetalle.detallePrecio,
+          detalleImporte: baseDetalle.detalleImporte,
+          detalleEstado: baseDetalle.detalleEstado,
+          valorUM: baseDetalle.valorUM,
+        };
+      }),
+    };
+
     const result = await apiRequest({
-      url: "http://localhost:5000/api/v1/Nota/crearOrden",
-      method: "POST",
-      data: notaPayload,
+      url: isEditing
+        ? "http://localhost:5000/api/v1/Nota/editarOrden"
+        : "http://localhost:5000/api/v1/Nota/crearOrden",
+      method: isEditing ? "PUT" : "POST",
+      data: payloadToSend,
       config: {
         headers: {
           Accept: "*/*",
@@ -436,12 +493,39 @@ const PaymentPage = () => {
       fallback: null,
     });
 
-    if (result === false) {
+    if (!result || (result as any) === false) {
       toast.error("No se pudo registrar la nota.");
       return;
     }
 
-    toast.success("Pago registrado");
+    const parseNotaId = (val: any): number | null => {
+      if (typeof val === "string") {
+        const [idPart] = val.split("¬");
+        const numeric = Number(idPart);
+        return Number.isFinite(numeric) ? numeric : null;
+      }
+      if (typeof val === "number") {
+        return Number.isFinite(val) ? val : null;
+      }
+      const nested = (val as any)?.notaId ?? (val as any)?.nota?.notaId;
+      if (typeof nested === "string") {
+        const numeric = Number(nested);
+        return Number.isFinite(numeric) ? numeric : null;
+      }
+      if (typeof nested === "number" && Number.isFinite(nested)) {
+        return nested;
+      }
+      return null;
+    };
+
+    const returnedNotaId = parseNotaId(result);
+    if (returnedNotaId) {
+      setNotaId(Number(returnedNotaId));
+    }
+
+    refetchProducts();
+
+    toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
     if (items.length) {
       clearCart();
     }
@@ -459,6 +543,7 @@ const PaymentPage = () => {
   };
 
   const handleEnableEditing = () => {
+    if (!isProforma) return;
     openDialog({
       title: "Confirmar edición",
       content: "¿Desea editar?",
@@ -743,7 +828,7 @@ const PaymentPage = () => {
         )}
       </HookForm>
 
-      {isConfirmed && (
+      {isConfirmed && isProforma && (
         <button
           className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 bg-white text-orange-800 hover:bg-orange-50 transition-colors"
           onClick={handleEnableEditing}
