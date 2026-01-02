@@ -6,6 +6,7 @@ export interface PosCartItem {
   precio: number;
   cantidad: number;
   stock?: number;
+  detalleId?: number;
 }
 
 export interface PosTotals {

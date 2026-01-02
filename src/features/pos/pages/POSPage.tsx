@@ -243,11 +243,19 @@ const POSPage = () => {
     columnHelper.display({
       id: "stock",
       header: "Stock",
-      cell: ({ row }) => (
-        <span className="text-right block">
-          {Number(row.original.cantidad ?? 0)}
-        </span>
-      ),
+      cell: ({ row }) => {
+        const stockValue = Number(row.original.cantidad ?? 0);
+        const isNegative = stockValue < 0;
+        return (
+          <span
+            className={`text-right block ${
+              isNegative ? "text-red-600 font-semibold" : ""
+            }`}
+          >
+            {stockValue}
+          </span>
+        );
+      },
       meta: { tdClassName: "text-right" },
     }),
     columnHelper.display({
@@ -350,10 +358,16 @@ const POSPage = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                     {visibleProducts.map((product) => {
                       const image = product.images?.[0];
+                      const stockValue = Number(product.cantidad ?? 0);
+                      const isOutOfStock = !Number.isFinite(stockValue) || stockValue <= 0;
+                      const cardHighlight = isOutOfStock
+                        ? "border-red-200 bg-red-50"
+                        : "border-slate-200 bg-gray-50";
+
                       return (
                         <article
                           key={product.id}
-                          className="border rounded-xl p-3 bg-gray-50 hover:border-slate-300 transition-colors flex flex-col"
+                          className={`border rounded-xl p-3 hover:border-slate-300 transition-colors flex flex-col ${cardHighlight}`}
                         >
                           <div className="aspect-video rounded-lg overflow-hidden bg-white border flex items-center justify-center">
                             {image ? (
@@ -377,8 +391,12 @@ const POSPage = () => {
                               {product.nombre}
                             </h3>
                             <div className="flex items-center justify-between text-sm text-gray-600">
-                              <span>
-                                Stock: {Number(product.cantidad ?? 0)}
+                              <span
+                                className={
+                                  isOutOfStock ? "text-red-600 font-semibold" : ""
+                                }
+                              >
+                                Stock: {stockValue}
                               </span>
                               <span className="font-semibold text-slate-800">
                                 S/ {priceLabel(product)}
@@ -446,10 +464,18 @@ const POSPage = () => {
                 </div>
               )}
 
-              {items.map((item) => (
+              {items.map((item) => {
+                const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+                const isStockNegative = Number(item.stock ?? 0) < 0;
+                const highlightClass =
+                  isZeroOrNegative || isStockNegative
+                    ? "border-red-200 bg-red-50"
+                    : "border-slate-200 bg-gray-50";
+
+                return (
                 <article
                   key={item.productId}
-                  className="border rounded-lg p-3 hover:border-slate-300 transition-colors bg-gray-50"
+                  className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
                 >
                   <div className="flex justify-between gap-3">
                     <div>
@@ -461,7 +487,14 @@ const POSPage = () => {
                       </p>
                       {item.stock !== undefined && (
                         <p className="text-xs text-gray-500">
-                          Stock: {item.stock}
+                          Stock:{" "}
+                          <span
+                            className={
+                              isStockNegative ? "text-red-600 font-semibold" : ""
+                            }
+                          >
+                            {item.stock}
+                          </span>
                         </p>
                       )}
                     </div>
@@ -511,7 +544,11 @@ const POSPage = () => {
                     <div className="flex items-center gap-3">
                       <div className="text-right">
                         <p className="text-xs text-gray-500">Subtotal</p>
-                        <p className="text-base font-semibold text-slate-800">
+                        <p
+                          className={`text-base font-semibold ${
+                            isZeroOrNegative ? "text-red-600" : "text-slate-800"
+                          }`}
+                        >
                           S/ {(item.precio * item.cantidad).toFixed(2)}
                         </p>
                       </div>
@@ -525,7 +562,7 @@ const POSPage = () => {
                     </div>
                   </div>
                 </article>
-              ))}
+              )})}
             </div>
 
             <div className="mt-4 border-t pt-3 space-y-2">

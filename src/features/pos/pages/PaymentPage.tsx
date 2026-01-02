@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MouseEvent } from "react";
 import { useNavigate, Link } from "react-router";
-import { CheckCircle2, ArrowLeft, Printer, Receipt } from "lucide-react";
+import {
+  CheckCircle2,
+  ArrowLeft,
+  Printer,
+  Receipt,
+  Minus,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
@@ -14,22 +23,58 @@ import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useProductsStore } from "@/store/products/products.store";
+import type { PosCartItem } from "@/types/pos";
+
+type NotaDetallePayload = {
+  detalleId?: number;
+  idProducto: number;
+  detalleCantidad: number;
+  detalleUm?: string;
+  detalleDescripcion: string;
+  detalleCosto: number;
+  detallePrecio: number;
+  detalleImporte: number;
+  detalleEstado?: string;
+  valorUM?: number;
+};
 
 const PaymentPage = () => {
   const items = usePosStore((s) => s.items);
   const totals = usePosStore(selectTotals);
+  const updateQuantity = usePosStore((s) => s.updateQuantity);
+  const removeItem = usePosStore((s) => s.removeItem);
+  const setStoreItems = usePosStore((s) => s.setItems);
+  const editingNotaIdFromStore = usePosStore((s) => s.editingNotaId);
+  const serverItemsFromStore = usePosStore((s) => s.serverItemsFromNota);
+  const isEditingMode = usePosStore((s) => s.isEditingMode);
+  const setEditingNotaInStore = usePosStore((s) => s.setEditingNota);
+  const setEditingModeInStore = usePosStore((s) => s.setEditingMode);
+  const setServerItemsInStore = usePosStore((s) => s.setServerItemsFromNota);
+  const clearEditingNota = usePosStore((s) => s.clearEditingNota);
   const clearCart = usePosStore((s) => s.clearCart);
   const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients } = useClientsStore();
   const { fetchProducts: refetchProducts } = useProductsStore();
-  const safeTrim = (value: string | null | undefined) => (value ?? "").trim();
-  const [purchasedItems, setPurchasedItems] = useState(items);
-  const [paidTotals, setPaidTotals] = useState(totals);
+  const safeTrim = (value: unknown) => String(value ?? "").trim();
+  const initialItems =
+    serverItemsFromStore.length > 0 ? serverItemsFromStore : items;
+  const [purchasedItems, setPurchasedItems] = useState(initialItems);
+  const [serverItems, setServerItems] = useState<PosCartItem[]>(
+    serverItemsFromStore
+  );
+  const [paidTotals, setPaidTotals] = useState(
+    serverItemsFromStore.length
+      ? computeTotalsFromItems(serverItemsFromStore)
+      : totals
+  );
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
-  const [notaId, setNotaId] = useState<number | null>(null);
+  const [notaId, setNotaId] = useState<number | null>(
+    editingNotaIdFromStore ?? null
+  );
+  const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
 
   const docTypeConfig: Record<
@@ -38,7 +83,7 @@ const PaymentPage = () => {
   > = {
     "03": { docu: "BOLETA", serie: "BA01", label: "Boleta" },
     "01": { docu: "FACTURA", serie: "FA01", label: "Factura" },
-    "101": { docu: "PROFORMA", serie: "PF01", label: "Proforma V" },
+    "101": { docu: "PROFORMA V", serie: "PF01", label: "Proforma V" },
   };
 
   const { companyId, usernameFromSession } = useMemo(() => {
@@ -63,14 +108,51 @@ const PaymentPage = () => {
       Number.isFinite(companyIdNum) && companyIdNum > 0 ? companyIdNum : 1;
 
     const username =
-      parsedSession?.user?.username || parsedSession?.user?.displayName;
+      safeTrim(parsedSession?.user?.displayName) ||
+      safeTrim(parsedSession?.user?.username) ||
+      "";
 
-    return { companyId: safeCompanyId, usernameFromSession: username };
+    return {
+      companyId: safeCompanyId,
+      usernameFromSession: username || "USUARIO",
+    };
   }, []);
 
   const hasLiveItems = items.length > 0;
   const itemsToRender = hasLiveItems ? items : purchasedItems;
   const totalsToRender = hasLiveItems ? totals : paidTotals;
+  const canEditItems = hasLiveItems || isEditingMode;
+
+  const adjustLocalItems = (updater: (prev: PosCartItem[]) => PosCartItem[]) => {
+    setPurchasedItems((prev) => {
+      const next = updater(prev);
+      setPaidTotals(computeTotalsFromItems(next));
+      return next;
+    });
+  };
+
+  const handleQuantityChange = (item: PosCartItem, delta: number) => {
+    if (!canEditItems) return;
+    const desired = Math.max(0, (item.cantidad ?? 0) + delta);
+    if (hasLiveItems) {
+      updateQuantity(item.productId, desired);
+      return;
+    }
+    adjustLocalItems((prev) =>
+      prev.map((it) =>
+        it.productId === item.productId ? { ...it, cantidad: desired } : it
+      )
+    );
+  };
+
+  const handleRemoveItem = (productId: number) => {
+    if (!canEditItems) return;
+    if (hasLiveItems) {
+      removeItem(productId);
+      return;
+    }
+    adjustLocalItems((prev) => prev.filter((it) => it.productId !== productId));
+  };
 
   const formMethods = useForm({
     defaultValues: {
@@ -80,12 +162,11 @@ const PaymentPage = () => {
         | "TARJETA"
         | "TRANSFERENCIA"
         | "YAPE",
-      clienteId: 1,
+      clienteId: null as number | null,
       customerName: "",
       customerId: "",
       bankEntity: "-",
       nroOperacion: "",
-      notaUsuario: "",
       notes: "",
       applyDiscount: false,
       discount: 0,
@@ -98,7 +179,7 @@ const PaymentPage = () => {
     register,
     control,
     handleSubmit,
-    formState: { isSubmitting },
+    formState: { isSubmitting, dirtyFields },
   } = formMethods;
 
   const docTypeCode = watch("docTypeCode");
@@ -108,7 +189,6 @@ const PaymentPage = () => {
   const customerId = watch("customerId");
   const bankEntity = watch("bankEntity");
   const nroOperacion = watch("nroOperacion");
-  const notaUsuario = watch("notaUsuario");
   const notes = watch("notes");
   const applyDiscount = useWatch({
     control,
@@ -137,6 +217,276 @@ const PaymentPage = () => {
   const requiresBankSelection =
     paymentMethod === "TRANSFERENCIA" || paymentMethod === "YAPE";
 
+  const resolvedNotaUsuario = useMemo(
+    () => safeTrim(usernameFromSession) || "USUARIO",
+    [usernameFromSession]
+  );
+
+  const mapApiDetalleToItem = (detalle: any): PosCartItem => {
+    const detalleId = Number(
+      detalle?.detalleId ??
+        detalle?.idDetalle ??
+        detalle?.DetalleId ??
+        detalle?.id ??
+        0
+    );
+    const cantidad = Number(
+      detalle?.detalleCantidad ?? detalle?.cantidad ?? detalle?.Cantidad ?? 0
+    );
+    const precio = Number(
+      detalle?.detallePrecio ??
+        detalle?.detalleCosto ??
+        detalle?.precio ??
+        detalle?.Precio ??
+        0
+    );
+    const productId = Number(
+      detalle?.idProducto ??
+        detalle?.productoId ??
+        detalle?.productId ??
+        detalle?.ProductoId ??
+        0
+    );
+
+    return {
+      productId: Number.isFinite(productId) ? productId : 0,
+      codigo:
+        safeTrim(
+          detalle?.codigo ??
+            detalle?.productoCodigo ??
+            detalle?.codigoProducto ??
+            ""
+        ) || String(productId || ""),
+      nombre:
+        safeTrim(
+          detalle?.detalleDescripcion ??
+            detalle?.descripcion ??
+            detalle?.productoNombre ??
+            ""
+        ) || "Producto",
+      unidadMedida:
+        safeTrim(detalle?.detalleUm ?? detalle?.unidadMedida ?? "") || "UND",
+      precio: Number.isFinite(precio) ? precio : 0,
+      cantidad: Number.isFinite(cantidad) ? cantidad : 0,
+      stock: Number(detalle?.stock ?? detalle?.cantidadSaldo ?? 0) || undefined,
+      detalleId:
+        Number.isFinite(detalleId) && detalleId > 0 ? detalleId : undefined,
+    };
+  };
+
+  function computeTotalsFromItems(itemsList: PosCartItem[]) {
+    const subTotal = itemsList.reduce(
+      (acc, item) =>
+        acc + Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
+      0
+    );
+    const itemCount = itemsList.reduce(
+      (acc, item) => acc + Number(item.cantidad ?? 0),
+      0
+    );
+    return { subTotal, total: subTotal, itemCount };
+  }
+
+    const buildRequestDetalle = (
+    currentDetails: NotaDetallePayload[],
+    previousItems: PosCartItem[]
+  ) => {
+    const serverById = new Map<number, PosCartItem>();
+    previousItems.forEach((item) => {
+      if (item.detalleId && item.detalleId > 0) {
+        serverById.set(item.detalleId, item);
+      }
+    });
+
+    const requestDetalle: Array<Record<string, any>> = [];
+
+    const isDifferent = (curr: NotaDetallePayload, prev: PosCartItem) => {
+      return (
+        Number(curr.detalleCantidad ?? 0) !== Number(prev.cantidad ?? 0) ||
+        Number(curr.detallePrecio ?? 0) !== Number(prev.precio ?? 0) ||
+        safeTrim(curr.detalleDescripcion) !== safeTrim(prev.nombre) ||
+        safeTrim(curr.detalleUm) !== safeTrim(prev.unidadMedida ?? "UND")
+      );
+    };
+
+    currentDetails.forEach((detalle) => {
+      const detalleId = Number(detalle.detalleId ?? 0);
+      const unidadUpper = safeTrim(detalle.detalleUm ?? "UND").toUpperCase();
+      const payloadBase = {
+        DetalleId: detalleId,
+        productId: detalle.idProducto,
+        cantidad: detalle.detalleCantidad,
+        unidad: unidadUpper,
+        producto: detalle.detalleDescripcion,
+        costo: detalle.detalleCosto,
+        precio: detalle.detallePrecio,
+        importe: Number(
+          (detalle.detalleImporte ?? 0).toFixed?.(2) ??
+            detalle.detalleImporte ??
+            0
+        ),
+        valorUM: detalle.valorUM ?? 1,
+        DetalleEstado: detalle.detalleEstado ?? "PENDIENTE",
+      };
+
+      if (detalleId && serverById.has(detalleId)) {
+        const prev = serverById.get(detalleId)!;
+        if (isDifferent(detalle, prev)) {
+          requestDetalle.push({ ...payloadBase, action: "update" });
+        }
+        serverById.delete(detalleId);
+      } else {
+        // Item nuevo; sin action explícito para respetar el formato esperado
+        requestDetalle.push(payloadBase);
+      }
+    });
+
+    serverById.forEach((item) => {
+      const importe = Number(
+        ((item.precio ?? 0) * (item.cantidad ?? 0)).toFixed(2)
+      );
+      requestDetalle.push({
+        DetalleId: item.detalleId ?? 0,
+        productId: item.productId,
+        cantidad: item.cantidad,
+        unidad: safeTrim(item.unidadMedida ?? "UND").toUpperCase(),
+        producto: item.nombre,
+        costo: item.precio,
+        precio: item.precio,
+        importe,
+        valorUM: 1,
+        DetalleEstado: "PENDIENTE",
+        action: "delete",
+      });
+    });
+
+    return requestDetalle.length ? requestDetalle : null;
+  };
+  const fetchNotaFromServer = async (notaIdToLoad: number) => {
+    if (!Number.isFinite(notaIdToLoad) || notaIdToLoad <= 0) return;
+
+    try {
+      const [notaResponse, detallesResponse] = await Promise.all([
+        apiRequest({
+          url: `http://localhost:5000/api/v1/Nota/${notaIdToLoad}`,
+          method: "GET",
+          config: { headers: { Accept: "text/plain" } },
+          fallback: null,
+        }),
+        apiRequest({
+          url: `http://localhost:5000/api/v1/Nota/${notaIdToLoad}/detalles`,
+          method: "GET",
+          config: { headers: { Accept: "text/plain" } },
+          fallback: [],
+        }),
+      ]);
+
+      if (!Array.isArray(detallesResponse)) {
+        throw new Error("No se pudo obtener los detalles de la nota.");
+      }
+
+      const mappedItems = detallesResponse.map(mapApiDetalleToItem);
+      setPurchasedItems(mappedItems);
+      setPaidTotals(computeTotalsFromItems(mappedItems));
+      setServerItems(mappedItems);
+      setServerItemsInStore(mappedItems);
+      setEditingNotaInStore(notaIdToLoad);
+      console.log("Nota sincronizada", {
+        notaId: notaIdToLoad,
+        notaResponse,
+        detallesResponse,
+        mappedItems,
+      });
+
+      const notaRaw =
+        (notaResponse as any)?.nota ?? (notaResponse as any) ?? null;
+      const notaData =
+        notaRaw && typeof notaRaw === "object" && !(notaRaw instanceof Error)
+          ? notaRaw
+          : null;
+      if (notaData) {
+        const notaDocu = safeTrim(
+          (notaData as any).notaDocu ??
+            (notaData as any).docu ??
+            (notaData as any).notaTipo ??
+            ""
+        );
+        if (notaDocu) {
+          const match = Object.entries(docTypeConfig).find(
+            ([, cfg]) =>
+              safeTrim(cfg.docu).toUpperCase() === notaDocu.toUpperCase()
+          );
+          if (match) {
+            setValue("docTypeCode", match[0] as any, { shouldDirty: false });
+          }
+        }
+
+        const notaClienteId = Number(
+          (notaData as any).clienteId ?? (notaData as any).ClienteId ?? 0
+        );
+        if (Number.isFinite(notaClienteId) && notaClienteId > 0) {
+          setValue("clienteId", notaClienteId, { shouldDirty: false });
+        }
+
+        const notaClienteNombre = safeTrim(
+          (notaData as any).clienteNombre ??
+            (notaData as any).clienteRazon ??
+            (notaData as any).clienteRazonSocial ??
+            ""
+        );
+        if (notaClienteNombre) {
+          setValue("customerName", notaClienteNombre, { shouldDirty: false });
+        }
+
+        const notaDocValue =
+          safeTrim(
+            (notaData as any).clienteRuc ??
+              (notaData as any).clienteDni ??
+              (notaData as any).notaRuc ??
+              (notaData as any).notaDni ??
+              ""
+          ) || "";
+        if (notaDocValue) {
+          setValue("customerId", notaDocValue, { shouldDirty: false });
+        }
+
+        const formaPago = safeTrim(
+          (notaData as any).notaFormaPago ?? (notaData as any).formaPago ?? ""
+        );
+        if (formaPago) {
+          setValue("paymentMethod", formaPago as any, { shouldDirty: false });
+        }
+
+        const banco = safeTrim(
+          (notaData as any).entidadBancaria ?? (notaData as any).banco ?? ""
+        );
+        if (banco) {
+          setValue("bankEntity", banco, { shouldDirty: false });
+        }
+
+        const nroOperacionNota = safeTrim(
+          (notaData as any).nroOperacion ??
+            (notaData as any).numeroOperacion ??
+            ""
+        );
+        if (nroOperacionNota) {
+          setValue("nroOperacion", nroOperacionNota, { shouldDirty: false });
+        }
+
+        const descuentoNota = Number(
+          (notaData as any).notaDescuento ?? (notaData as any).descuento ?? 0
+        );
+        if (Number.isFinite(descuentoNota) && descuentoNota > 0) {
+          setValue("applyDiscount", true, { shouldDirty: false });
+          setValue("discount", descuentoNota, { shouldDirty: false });
+        }
+      }
+    } catch (error) {
+      console.error("Error al cargar la nota por id", error);
+      toast.error("No se pudo sincronizar la nota creada.");
+    }
+  };
+
   useEffect(() => {
     if (paymentMethod === "EFECTIVO") {
       setValue("bankEntity", "-");
@@ -150,11 +500,88 @@ const PaymentPage = () => {
     }
   }, [paymentMethod, bankEntity, setValue]);
 
+  const lastDocTypeRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!clients.length) {
       fetchClients();
     }
   }, [clients.length, fetchClients]);
+
+  // En nuevo registro, preselecciona cliente ID 1 (sin afectar edici�n)
+  useEffect(() => {
+    if (notaId || isEditingMode || hasLoadedNotaMeta) return;
+    const hasClientAlready =
+      (Number(clienteId) ?? 0) > 0 ||
+      safeTrim(customerName) ||
+      safeTrim(customerId);
+    if (hasClientAlready) return;
+
+    const defaultClient =
+      clients.find((c) => Number(c.id) === 1) ?? ({} as typeof clients[number]);
+
+    const defaultId = Number(defaultClient?.id ?? 1);
+    if (Number.isFinite(defaultId) && defaultId > 0) {
+      setValue("clienteId", defaultId, { shouldDirty: false });
+    }
+
+    const defaultName = safeTrim((defaultClient as any)?.nombreRazon ?? "");
+    if (defaultName) {
+      setValue("customerName", defaultName, { shouldDirty: false });
+    }
+
+    const defaultDoc =
+      docTypeCode === "01"
+        ? safeTrim((defaultClient as any)?.ruc ?? "")
+        : safeTrim((defaultClient as any)?.dni ?? "");
+    if (defaultDoc) {
+      setValue("customerId", defaultDoc, { shouldDirty: false });
+    }
+  }, [
+    notaId,
+    isEditingMode,
+    hasLoadedNotaMeta,
+    clienteId,
+    customerName,
+    customerId,
+    clients,
+    docTypeCode,
+    setValue,
+  ]);
+
+  // Hidratamos nombre/documento del cliente al volver con datos de nota
+  useEffect(() => {
+    if (!hasLoadedNotaMeta) return;
+    const clientIdNumeric = Number(clienteId);
+    if (!Number.isFinite(clientIdNumeric) || clientIdNumeric <= 0) return;
+    const client = clients.find(
+      (c) => Number(c.id) === clientIdNumeric
+    );
+    if (!client) return;
+
+    const currentName = safeTrim(customerName);
+    const currentDoc = safeTrim(customerId);
+    const suggestedName = safeTrim(client.nombreRazon ?? "");
+    const suggestedDoc =
+      docTypeCode === "01"
+        ? safeTrim((client as any).ruc ?? "")
+        : safeTrim(client.dni ?? "");
+
+    if (!currentName && suggestedName) {
+      setValue("customerName", suggestedName, { shouldDirty: false });
+    }
+    if (!currentDoc && suggestedDoc) {
+      setValue("customerId", suggestedDoc, { shouldDirty: false });
+    }
+  }, [
+    hasLoadedNotaMeta,
+    clienteId,
+    clients,
+    docTypeCode,
+    customerName,
+    customerId,
+    setValue,
+  ]);
 
   useEffect(() => {
     if (!applyDiscount) {
@@ -163,10 +590,55 @@ const PaymentPage = () => {
   }, [applyDiscount, setValue]);
 
   useEffect(() => {
-    // Reset documento y nombre al cambiar el tipo de documento para evitar cruces
-    setValue("customerId", "");
-    setValue("customerName", "");
-  }, [docTypeCode, setValue]);
+    // Solo resetea en flujo nuevo; en edici�n o con cliente cargado no limpiar
+    if (!dirtyFields?.docTypeCode) {
+      lastDocTypeRef.current = docTypeCode;
+      return;
+    }
+
+    const previousDocType = lastDocTypeRef.current;
+    lastDocTypeRef.current = docTypeCode;
+
+    // Solo limpiar al cambiar a Factura (RUC) para forzar nuevo documento
+    if (docTypeCode !== "01" || previousDocType === docTypeCode) return;
+    if (notaId || isEditingMode || hasLoadedNotaMeta) return;
+    const hasCustomerData = safeTrim(customerId) || safeTrim(customerName);
+    if (!hasCustomerData) return;
+
+    setValue("customerId", "", { shouldDirty: false });
+    setValue("customerName", "", { shouldDirty: false });
+  }, [
+    docTypeCode,
+    dirtyFields?.docTypeCode,
+    customerId,
+    customerName,
+    notaId,
+    isEditingMode,
+    hasLoadedNotaMeta,
+    setValue,
+  ]);
+
+  // Asegura que el formulario siga editable mientras no se haya confirmado
+  useEffect(() => {
+    if (!notaId) {
+      setIsConfirmed(false);
+    }
+  }, [notaId, items.length]);
+
+  const setClienteIdFromOption = useCallback(
+    (opt: any) => {
+      const candidate =
+        opt?.id ??
+        opt?.clienteId ??
+        opt?.clientId ??
+        (typeof opt?.value === "number" ? opt.value : undefined);
+      const numeric = Number(candidate);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        setValue("clienteId", numeric, { shouldDirty: true });
+      }
+    },
+    [setValue]
+  );
 
   const uniqueClients = useMemo(() => {
     const seen = new Set<string>();
@@ -196,6 +668,8 @@ const PaymentPage = () => {
         value: client.nombreRazon ?? "",
         label: client.nombreRazon ?? "",
         dni: client.dni ?? "",
+        ruc: client.ruc ?? "",
+        id: client.id,
       })),
     [uniqueClients]
   );
@@ -243,6 +717,73 @@ const PaymentPage = () => {
     return typeof customerId === "string" ? customerId : "";
   }, [customerId, docTypeCode, dniOptions, rucOptions]);
 
+  // Sincroniza: cambio en customerId (DNI/RUC) actualiza nombre y clienteId
+  useEffect(() => {
+    const docOptions = docTypeCode === "01" ? rucOptions : dniOptions;
+    const normalizedDoc = safeTrim(customerId).toLowerCase();
+    if (!normalizedDoc) return;
+
+    const match = docOptions.find((opt) => {
+      const valueStr = safeTrim(String(opt.value)).toLowerCase();
+      const labelStr = safeTrim(opt.label ?? "").toLowerCase();
+      const docStr = safeTrim((opt as any)?.dni ?? (opt as any)?.ruc ?? "").toLowerCase();
+      return (
+        valueStr === normalizedDoc ||
+        labelStr === normalizedDoc ||
+        docStr === normalizedDoc
+      );
+    });
+
+    if (!match) return;
+
+    const nameFromMatch = safeTrim((match as any).nombreRazon ?? match.label ?? "");
+    if (nameFromMatch && safeTrim(customerName) !== nameFromMatch) {
+      setValue("customerName", nameFromMatch, { shouldDirty: false });
+    }
+
+    const numericId = Number((match as any).id);
+    if (Number.isFinite(numericId) && numericId > 0 && Number(clienteId) !== numericId) {
+      setValue("clienteId", numericId, { shouldDirty: false });
+    }
+  }, [
+    customerId,
+    customerName,
+    clienteId,
+    docTypeCode,
+    dniOptions,
+    rucOptions,
+    setValue,
+  ]);
+
+  // Sincroniza: cambio en customerName actualiza documento y clienteId
+  useEffect(() => {
+    const normalizedName = safeTrim(customerName).toLowerCase();
+    if (!normalizedName) return;
+
+    const match = clientOptions.find((opt) => safeTrim(opt.label).toLowerCase() === normalizedName);
+    if (!match) return;
+
+    const docFromMatch =
+      docTypeCode === "01"
+        ? safeTrim((match as any).ruc ?? "")
+        : safeTrim((match as any).dni ?? "");
+
+    if (docFromMatch && safeTrim(customerId) !== docFromMatch) {
+      setValue("customerId", docFromMatch, { shouldDirty: false });
+    }
+
+    const numericId = Number((match as any).id);
+    if (Number.isFinite(numericId) && numericId > 0 && Number(clienteId) !== numericId) {
+      setValue("clienteId", numericId, { shouldDirty: false });
+    }
+  }, [
+    customerName,
+    customerId,
+    clienteId,
+    docTypeCode,
+    clientOptions,
+    setValue,
+  ]);
   const documentFilterOptions = useCallback(
     (
       options: Array<(typeof dniOptions)[number] | (typeof rucOptions)[number]>,
@@ -353,7 +894,7 @@ const PaymentPage = () => {
         notaDocu: docTypeName,
         clienteId: clienteIdNumber,
         notaFecha: `${today}T00:00:00`,
-        notaUsuario: safeTrim(notaUsuario) || usernameFromSession || "USUARIO",
+        notaUsuario: resolvedNotaUsuario,
         notaFormaPago: paymentMethod,
         notaCondicion: "ALCONTADO",
         notaDias: 1,
@@ -388,7 +929,7 @@ const PaymentPage = () => {
         detalleId: (item as any).detalleId ?? 0,
         idProducto: item.productId,
         detalleCantidad: item.cantidad,
-        detalleUm: item.unidadMedida ?? "UND",
+        detalleUm: safeTrim(item.unidadMedida ?? "UND").toUpperCase(),
         detalleDescripcion: item.nombre,
         detalleCosto: item.precio,
         detallePrecio: item.precio,
@@ -402,23 +943,30 @@ const PaymentPage = () => {
     bankEntity,
     notaId,
     companyId,
-    customerId,
+    clienteId,
     docConfig?.serie,
     docTypeName,
+    descuento,
+    discountedTotal,
     gravada,
     itemsToRender,
     notaAdicional,
-    notaUsuario,
+    nroOperacion,
+    resolvedNotaUsuario,
     paymentMethod,
     purchasedItems,
     totalAPagar,
-    totalAmount,
-    selectedDocument,
+    isCash,
   ]);
 
   useEffect(() => {
     setCanPreviewPdf(true);
   }, []);
+
+  useEffect(() => {
+    if (!notaId || hasLoadedNotaMeta) return;
+    fetchNotaFromServer(notaId).finally(() => setHasLoadedNotaMeta(true));
+  }, [notaId, hasLoadedNotaMeta]);
 
   const confirmPayment = async () => {
     const sourceItems = items.length ? items : purchasedItems;
@@ -426,7 +974,7 @@ const PaymentPage = () => {
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
 
-    const isEditing = Boolean(notaId);
+    const isEditing = Boolean(notaId) && isEditingMode;
     const baseNota = { ...notaPayload.nota, notaId: notaId ?? 0 };
     const editNota = isEditing
       ? {
@@ -450,40 +998,94 @@ const PaymentPage = () => {
           notaGanancia: baseNota.notaGanancia,
           notaConcepto: baseNota.notaConcepto,
           notaEstado: baseNota.notaEstado,
-          modificadoPor: usernameFromSession || "USUARIO",
+          modificadoPor: resolvedNotaUsuario,
           nroOperacion: baseNota.nroOperacion ?? "",
         }
       : baseNota;
 
-    const payloadToSend = {
+    const detallesPayload: NotaDetallePayload[] = notaPayload.detalles.map((detalle) => {
+      const baseDetalle = {
+        ...detalle,
+        detalleId: (detalle as any).detalleId ?? 0,
+      };
+      if (!isEditing) return baseDetalle;
+      return {
+        detalleId: baseDetalle.detalleId,
+        idProducto: baseDetalle.idProducto,
+        detalleCantidad: baseDetalle.detalleCantidad,
+        detalleUm: baseDetalle.detalleUm,
+        detalleDescripcion: baseDetalle.detalleDescripcion,
+        detalleCosto: baseDetalle.detalleCosto,
+        detallePrecio: baseDetalle.detallePrecio,
+        detalleImporte: baseDetalle.detalleImporte,
+        detalleEstado: baseDetalle.detalleEstado,
+        valorUM: baseDetalle.valorUM,
+      };
+    });
+
+    const basePayload = {
       nota: editNota,
-      detalles: notaPayload.detalles.map((detalle) => {
-        const baseDetalle = {
-          ...detalle,
-          detalleId: (detalle as any).detalleId ?? 0,
-        };
-        if (!isEditing) return baseDetalle;
-        return {
-          detalleId: baseDetalle.detalleId,
-          idProducto: baseDetalle.idProducto,
-          detalleCantidad: baseDetalle.detalleCantidad,
-          detalleUm: baseDetalle.detalleUm,
-          detalleDescripcion: baseDetalle.detalleDescripcion,
-          detalleCosto: baseDetalle.detalleCosto,
-          detallePrecio: baseDetalle.detallePrecio,
-          detalleImporte: baseDetalle.detalleImporte,
-          detalleEstado: baseDetalle.detalleEstado,
-          valorUM: baseDetalle.valorUM,
-        };
-      }),
+      detalles: detallesPayload,
     };
+
+    const requestDetalle = isEditing
+      ? buildRequestDetalle(
+          detallesPayload as any,
+          serverItems.length ? serverItems : purchasedItems
+        )
+      : undefined;
+    const requestDetallePayload =
+      requestDetalle && requestDetalle.length > 0 ? requestDetalle : undefined;
+
+    const editPayloadForApi = isEditing
+      ? {
+          NotaId: editNota.notaId ?? 0,
+          NotaDocu: editNota.notaDocu,
+          ClienteId: editNota.clienteId,
+          Usuario: editNota.notaUsuario,
+          FormaPago: editNota.notaFormaPago,
+          Condicion: editNota.notaCondicion,
+          Direccion: editNota.notaDireccion ?? "",
+          Telefono: editNota.notaTelefono ?? "",
+          SubTotal: editNota.notaSubtotal,
+          Movilidad: editNota.notaMovilidad,
+          Descuento: editNota.notaDescuento,
+          Total: editNota.notaTotal,
+          Acuenta: editNota.notaAcuenta,
+          Saldo: editNota.notaSaldo,
+          Adicional: editNota.notaAdicional,
+          Tarjeta: editNota.notaTarjeta,
+          Pagar: editNota.notaPagar,
+          CompaniaId: editNota.companiaId,
+          Entrega: editNota.notaEntrega,
+          ModificadoPor: editNota.modificadoPor ?? resolvedNotaUsuario,
+          Serie: editNota.notaSerie,
+          Numero: editNota.notaNumero,
+          Ganancia: editNota.notaGanancia,
+          NotaConcepto: editNota.notaConcepto ?? "MERCADERIA",
+          ICBPER: editNota.icbper,
+          IGV: Number(igvAmount.toFixed(2)),
+          DocuGravada: Number(gravada.toFixed(2)),
+          DocuDescuento: Number(descuento.toFixed(2)),
+          EntidadBancaria: editNota.entidadBancaria,
+          NroOperacion: editNota.nroOperacion ?? "",
+          Efectivo: editNota.efectivo,
+          Deposito: editNota.deposito,
+          ClienteRazon: safeTrim(customerName),
+          ClienteRuc: docTypeCode === "01" ? safeTrim(selectedDocument) : "",
+          ClienteDni: docTypeCode !== "01" ? safeTrim(selectedDocument) : "",
+          DireccionFiscal: "",
+          Items: detallesPayload.length,
+          ...(requestDetallePayload ? { requestDetalle: requestDetallePayload } : {}),
+        }
+      : basePayload;
 
     const result = await apiRequest({
       url: isEditing
         ? "http://localhost:5000/api/v1/Nota/editarOrden"
         : "http://localhost:5000/api/v1/Nota/crearOrden",
       method: isEditing ? "PUT" : "POST",
-      data: payloadToSend,
+      data: editPayloadForApi,
       config: {
         headers: {
           Accept: "*/*",
@@ -499,41 +1101,89 @@ const PaymentPage = () => {
     }
 
     const parseNotaId = (val: any): number | null => {
-      if (typeof val === "string") {
-        const [idPart] = val.split("¬");
-        const numeric = Number(idPart);
-        return Number.isFinite(numeric) ? numeric : null;
-      }
+      if (val === null || val === undefined) return null;
       if (typeof val === "number") {
         return Number.isFinite(val) ? val : null;
       }
-      const nested = (val as any)?.notaId ?? (val as any)?.nota?.notaId;
-      if (typeof nested === "string") {
-        const numeric = Number(nested);
-        return Number.isFinite(numeric) ? numeric : null;
+      if (typeof val === "string") {
+        const match = val.match(/\d+/);
+        if (match?.[0]) {
+          const numeric = Number(match[0]);
+          return Number.isFinite(numeric) ? numeric : null;
+        }
       }
-      if (typeof nested === "number" && Number.isFinite(nested)) {
-        return nested;
+      const nested =
+        (val as any)?.notaId ??
+        (val as any)?.nota?.notaId ??
+        (val as any)?.idNota ??
+        (val as any)?.data?.notaId ??
+        (val as any)?.data?.idNota ??
+        (val as any)?.data;
+
+      if (typeof nested === "number") {
+        return Number.isFinite(nested) ? nested : null;
+      }
+      if (typeof nested === "string") {
+        const matchNested = nested.match(/\d+/);
+        if (matchNested?.[0]) {
+          const numeric = Number(matchNested[0]);
+          return Number.isFinite(numeric) ? numeric : null;
+        }
       }
       return null;
     };
 
-    const returnedNotaId = parseNotaId(result);
-    if (returnedNotaId) {
-      setNotaId(Number(returnedNotaId));
+    const parsedNotaId = isEditing ? notaId : parseNotaId(result);
+    if (!isEditing && parsedNotaId) {
+      const numericNotaId = Number(parsedNotaId);
+      setNotaId(numericNotaId);
+      setEditingNotaInStore(numericNotaId);
+      setEditingModeInStore(false); // creación no activa edición
+      setServerItemsInStore(
+        serverItems.length ? serverItems : purchasedItems.length ? purchasedItems : items
+      );
+      await fetchNotaFromServer(numericNotaId);
+      // Rehabilita el formulario para permitir cambios posteriores
+      setIsConfirmed(false);
+    }
+
+    if (isEditingMode) {
+      setEditingModeInStore(false);
     }
 
     refetchProducts();
 
     toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
-    if (items.length) {
+    if (!isEditing && items.length) {
       clearCart();
     }
     setIsConfirmed(true);
     handlePrint();
   };
 
-  const handleBackToPos = () => {
+  const handleBackToPos = (ev?: MouseEvent) => {
+    ev?.preventDefault();
+    const itemsForReturn =
+      isEditingMode && items.length
+        ? items
+        : purchasedItems.length > 0
+        ? purchasedItems
+        : serverItems.length > 0
+        ? serverItems
+        : items;
+
+    if (isEditingMode && notaId && itemsForReturn.length) {
+      setStoreItems(itemsForReturn);
+      setPaidTotals(computeTotalsFromItems(itemsForReturn));
+      setEditingNotaInStore(notaId);
+      setServerItemsInStore(
+        serverItems.length ? serverItems : itemsForReturn
+      );
+      navigate("/pos");
+      return;
+    }
+
+    clearEditingNota();
     if (items.length) {
       setPurchasedItems(items);
       setPaidTotals(totals);
@@ -543,14 +1193,11 @@ const PaymentPage = () => {
   };
 
   const handleEnableEditing = () => {
-    if (!isProforma) return;
-    openDialog({
-      title: "Confirmar edición",
-      content: "¿Desea editar?",
-      confirmText: "Editar",
-      cancelText: "Cancelar",
-      onConfirm: () => setIsConfirmed(false),
-    });
+    if (!notaId) return;
+    setIsConfirmed(false);
+    setEditingNotaInStore(notaId);
+    setEditingModeInStore(true);
+    setServerItemsInStore(serverItems.length ? serverItems : purchasedItems);
   };
 
   const handlePrint = async (printerName = "Canon G2060 series HTTP") => {
@@ -582,13 +1229,17 @@ const PaymentPage = () => {
       setIsPrinting(false);
     }
   };
-
+  console.log("itemsToRender", itemsToRender);
   if (!itemsToRender.length) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <ArrowLeft className="w-4 h-4" />
-          <Link to="/pos" className="text-blue-600 hover:underline">
+          <Link
+            to="/pos"
+            className="text-blue-600 hover:underline"
+            onClick={(e) => handleBackToPos(e)}
+          >
             Regresar al POS
           </Link>
         </div>
@@ -601,30 +1252,87 @@ const PaymentPage = () => {
 
   const ItemsList = (
     <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-      {itemsToRender.map((item) => (
-        <div
-          key={item.productId}
-          className="border rounded-lg p-3 flex justify-between gap-3 bg-gray-50"
-        >
-          <div>
-            <p className="text-sm font-semibold text-slate-800">
-              {item.nombre}
-            </p>
-            <p className="text-xs text-gray-500">
-              {item.codigo} · {item.unidadMedida ?? "UND"}
-            </p>
-            <p className="text-xs text-gray-500">Cantidad: {item.cantidad}</p>
+      {itemsToRender.map((item) => {
+        const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+        const isStockNegative = Number(item.stock ?? 0) < 0;
+        const highlightClass =
+          isZeroOrNegative || isStockNegative
+            ? "border-red-200 bg-red-50"
+            : "border-slate-200 bg-gray-50";
+
+        return (
+          <div
+            key={item.productId}
+            className={`border rounded-lg p-3 flex justify-between gap-3 ${highlightClass}`}
+          >
+            <div>
+              <p className="text-sm font-semibold text-slate-800">
+                {item.nombre}
+              </p>
+              <p className="text-xs text-gray-500">
+                {item.codigo} · {item.unidadMedida ?? "UND"}
+              </p>
+              {item.stock !== undefined && (
+                <p className="text-xs text-gray-500">
+                  Stock:{" "}
+                  <span
+                    className={
+                      isStockNegative ? "text-red-600 font-semibold" : ""
+                    }
+                  >
+                    {item.stock}
+                  </span>
+                </p>
+              )}
+              <p className="text-xs text-gray-500">Cantidad: {item.cantidad}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">P. Unitario</p>
+              <p className="text-sm font-semibold">S/ {item.precio.toFixed(2)}</p>
+              <p className="text-xs text-gray-500">Subtotal</p>
+              <p
+                className={`text-base font-semibold ${
+                  isZeroOrNegative ? "text-red-600" : "text-slate-800"
+                }`}
+              >
+                S/ {(item.precio * item.cantidad).toFixed(2)}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="p-1 rounded bg-white border hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => handleQuantityChange(item, -1)}
+                  disabled={!canEditItems}
+                >
+                  <Minus className="w-4 h-4" />
+                </button>
+                <span className="min-w-[40px] text-center text-sm font-semibold">
+                  {item.cantidad}
+                </span>
+                <button
+                  type="button"
+                  className="p-1 rounded bg-white border hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => handleQuantityChange(item, 1)}
+                  disabled={!canEditItems}
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
+                onClick={() => handleRemoveItem(item.productId)}
+                disabled={!canEditItems}
+                title="Quitar"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">P. Unitario</p>
-            <p className="text-sm font-semibold">S/ {item.precio.toFixed(2)}</p>
-            <p className="text-xs text-gray-500">Subtotal</p>
-            <p className="text-base font-semibold text-slate-800">
-              S/ {(item.precio * item.cantidad).toFixed(2)}
-            </p>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
@@ -677,16 +1385,13 @@ const PaymentPage = () => {
           options={clientOptions}
           disabled={isConfirmed}
           onOptionSelected={(opt: any) => {
-            if (opt) {
-              if (opt?.dni) {
-                setValue("customerId", opt.dni, { shouldDirty: true });
-              }
-              if (opt?.value) {
-                setValue("clienteId", Number(opt.value) || 1, {
-                  shouldDirty: true,
-                });
-              }
+            if (!opt) return;
+            const docValue =
+              docTypeCode === "01" ? safeTrim(opt.ruc) : safeTrim(opt.dni);
+            if (docValue) {
+              setValue("customerId", docValue, { shouldDirty: true });
             }
+            setClienteIdFromOption(opt);
           }}
         />
         {docTypeCode === "01" ? (
@@ -709,11 +1414,7 @@ const PaymentPage = () => {
                   shouldDirty: true,
                 });
               }
-              if (opt?.id) {
-                setValue("clienteId", Number(opt.id) || 1, {
-                  shouldDirty: true,
-                });
-              }
+              setClienteIdFromOption(opt);
             }}
           />
         ) : (
@@ -736,11 +1437,7 @@ const PaymentPage = () => {
                   shouldDirty: true,
                 });
               }
-              if (opt?.id) {
-                setValue("clienteId", Number(opt.id) || 1, {
-                  shouldDirty: true,
-                });
-              }
+              setClienteIdFromOption(opt);
             }}
           />
         )}
@@ -866,6 +1563,7 @@ const PaymentPage = () => {
         <Link
           to="/pos"
           className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
+          onClick={(e) => handleBackToPos(e)}
         >
           <ArrowLeft className="w-4 h-4" />
           Volver al POS
@@ -946,3 +1644,13 @@ const PaymentPage = () => {
 };
 
 export default PaymentPage;
+
+
+
+
+
+
+
+
+
+
