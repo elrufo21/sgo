@@ -42,6 +42,7 @@ const PaymentPage = () => {
   const items = usePosStore((s) => s.items);
   const totals = usePosStore(selectTotals);
   const updateQuantity = usePosStore((s) => s.updateQuantity);
+  const updatePrice = usePosStore((s) => s.updatePrice);
   const removeItem = usePosStore((s) => s.removeItem);
   const setStoreItems = usePosStore((s) => s.setItems);
   const editingNotaIdFromStore = usePosStore((s) => s.editingNotaId);
@@ -60,9 +61,8 @@ const PaymentPage = () => {
   const initialItems =
     serverItemsFromStore.length > 0 ? serverItemsFromStore : items;
   const [purchasedItems, setPurchasedItems] = useState(initialItems);
-  const [serverItems, setServerItems] = useState<PosCartItem[]>(
-    serverItemsFromStore
-  );
+  const [serverItems, setServerItems] =
+    useState<PosCartItem[]>(serverItemsFromStore);
   const [paidTotals, setPaidTotals] = useState(
     serverItemsFromStore.length
       ? computeTotalsFromItems(serverItemsFromStore)
@@ -74,6 +74,10 @@ const PaymentPage = () => {
   const [notaId, setNotaId] = useState<number | null>(
     editingNotaIdFromStore ?? null
   );
+  const [notaNumero, setNotaNumero] = useState<string>("");
+  const [notaSerieOverride, setNotaSerieOverride] = useState<string | null>(
+    null
+  );
   const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
 
@@ -83,7 +87,7 @@ const PaymentPage = () => {
   > = {
     "03": { docu: "BOLETA", serie: "BA01", label: "Boleta" },
     "01": { docu: "FACTURA", serie: "FA01", label: "Factura" },
-    "101": { docu: "PROFORMA V", serie: "PF01", label: "Proforma V" },
+    "101": { docu: "PROFORMA V", serie: "0001", label: "Proforma V" },
   };
 
   const { companyId, usernameFromSession } = useMemo(() => {
@@ -123,7 +127,9 @@ const PaymentPage = () => {
   const totalsToRender = hasLiveItems ? totals : paidTotals;
   const canEditItems = hasLiveItems || isEditingMode;
 
-  const adjustLocalItems = (updater: (prev: PosCartItem[]) => PosCartItem[]) => {
+  const adjustLocalItems = (
+    updater: (prev: PosCartItem[]) => PosCartItem[]
+  ) => {
     setPurchasedItems((prev) => {
       const next = updater(prev);
       setPaidTotals(computeTotalsFromItems(next));
@@ -152,6 +158,24 @@ const PaymentPage = () => {
       return;
     }
     adjustLocalItems((prev) => prev.filter((it) => it.productId !== productId));
+  };
+
+  const handlePriceChange = (item: PosCartItem, value: string) => {
+    if (!canEditItems) return;
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) return;
+    const nextPrice = Math.max(0, parsed);
+
+    if (hasLiveItems) {
+      updatePrice(item.productId, nextPrice);
+      return;
+    }
+
+    adjustLocalItems((prev) =>
+      prev.map((it) =>
+        it.productId === item.productId ? { ...it, precio: nextPrice } : it
+      )
+    );
   };
 
   const formMethods = useForm({
@@ -199,7 +223,25 @@ const PaymentPage = () => {
 
   const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
   const docConfig = docTypeConfig[docTypeCode];
+  const notaSerie = (notaSerieOverride || docConfig?.serie || "BA01").trim();
+  const paddedNotaNumero = useMemo(() => {
+    const digitsOnly = (notaNumero || "").replace(/\D/g, "");
+    if (!digitsOnly) return "";
+    const padded = digitsOnly.padStart(8, "0");
+    return /^0+$/.test(padded) ? "" : padded;
+  }, [notaNumero]);
+  const documentNumber = useMemo(() => {
+    if (!paddedNotaNumero) return "";
+    const serie = notaSerie || "BA01";
+    return `${serie}-${paddedNotaNumero}`;
+  }, [notaSerie, paddedNotaNumero]);
   const docTypeName = docConfig?.docu ?? "BOLETA";
+  const docTypeForTicket =
+    docTypeCode === "01"
+      ? "factura"
+      : docTypeCode === "101"
+      ? "proforma"
+      : "boleta";
   const isProforma = docTypeCode === "101";
   const totalAmount = totalsToRender?.total ?? 0;
   const descuento = applyDiscount
@@ -287,7 +329,7 @@ const PaymentPage = () => {
     return { subTotal, total: subTotal, itemCount };
   }
 
-    const buildRequestDetalle = (
+  const buildRequestDetalle = (
     currentDetails: NotaDetallePayload[],
     previousItems: PosCartItem[]
   ) => {
@@ -450,6 +492,21 @@ const PaymentPage = () => {
           setValue("customerId", notaDocValue, { shouldDirty: false });
         }
 
+        const serieNota = safeTrim(
+          (notaData as any).notaSerie ?? (notaData as any).serie ?? ""
+        );
+        if (serieNota) {
+          setNotaSerieOverride(serieNota);
+        }
+
+        const notaNumeroRaw = safeTrim(
+          (notaData as any).notaNumero ?? (notaData as any).numero ?? ""
+        );
+        const notaNumeroDigits = notaNumeroRaw.replace(/\D/g, "");
+        if (notaNumeroDigits) {
+          setNotaNumero(notaNumeroDigits.padStart(8, "0"));
+        }
+
         const formaPago = safeTrim(
           (notaData as any).notaFormaPago ?? (notaData as any).formaPago ?? ""
         );
@@ -518,7 +575,8 @@ const PaymentPage = () => {
     if (hasClientAlready) return;
 
     const defaultClient =
-      clients.find((c) => Number(c.id) === 1) ?? ({} as typeof clients[number]);
+      clients.find((c) => Number(c.id) === 1) ??
+      ({} as (typeof clients)[number]);
 
     const defaultId = Number(defaultClient?.id ?? 1);
     if (Number.isFinite(defaultId) && defaultId > 0) {
@@ -554,9 +612,7 @@ const PaymentPage = () => {
     if (!hasLoadedNotaMeta) return;
     const clientIdNumeric = Number(clienteId);
     if (!Number.isFinite(clientIdNumeric) || clientIdNumeric <= 0) return;
-    const client = clients.find(
-      (c) => Number(c.id) === clientIdNumeric
-    );
+    const client = clients.find((c) => Number(c.id) === clientIdNumeric);
     if (!client) return;
 
     const currentName = safeTrim(customerName);
@@ -726,7 +782,9 @@ const PaymentPage = () => {
     const match = docOptions.find((opt) => {
       const valueStr = safeTrim(String(opt.value)).toLowerCase();
       const labelStr = safeTrim(opt.label ?? "").toLowerCase();
-      const docStr = safeTrim((opt as any)?.dni ?? (opt as any)?.ruc ?? "").toLowerCase();
+      const docStr = safeTrim(
+        (opt as any)?.dni ?? (opt as any)?.ruc ?? ""
+      ).toLowerCase();
       return (
         valueStr === normalizedDoc ||
         labelStr === normalizedDoc ||
@@ -736,13 +794,19 @@ const PaymentPage = () => {
 
     if (!match) return;
 
-    const nameFromMatch = safeTrim((match as any).nombreRazon ?? match.label ?? "");
+    const nameFromMatch = safeTrim(
+      (match as any).nombreRazon ?? match.label ?? ""
+    );
     if (nameFromMatch && safeTrim(customerName) !== nameFromMatch) {
       setValue("customerName", nameFromMatch, { shouldDirty: false });
     }
 
     const numericId = Number((match as any).id);
-    if (Number.isFinite(numericId) && numericId > 0 && Number(clienteId) !== numericId) {
+    if (
+      Number.isFinite(numericId) &&
+      numericId > 0 &&
+      Number(clienteId) !== numericId
+    ) {
       setValue("clienteId", numericId, { shouldDirty: false });
     }
   }, [
@@ -760,7 +824,9 @@ const PaymentPage = () => {
     const normalizedName = safeTrim(customerName).toLowerCase();
     if (!normalizedName) return;
 
-    const match = clientOptions.find((opt) => safeTrim(opt.label).toLowerCase() === normalizedName);
+    const match = clientOptions.find(
+      (opt) => safeTrim(opt.label).toLowerCase() === normalizedName
+    );
     if (!match) return;
 
     const docFromMatch =
@@ -773,7 +839,11 @@ const PaymentPage = () => {
     }
 
     const numericId = Number((match as any).id);
-    if (Number.isFinite(numericId) && numericId > 0 && Number(clienteId) !== numericId) {
+    if (
+      Number.isFinite(numericId) &&
+      numericId > 0 &&
+      Number(clienteId) !== numericId
+    ) {
       setValue("clienteId", numericId, { shouldDirty: false });
     }
   }, [
@@ -784,6 +854,52 @@ const PaymentPage = () => {
     clientOptions,
     setValue,
   ]);
+
+  const resolveDocumentValue = useCallback(
+    (value: any, type: "dni" | "ruc") => {
+      const source = type === "ruc" ? rucOptions : dniOptions;
+      const match = source.find(
+        (opt) => String(opt.value) === String((value as any)?.value ?? value)
+      );
+
+      const docFromMatch = match
+        ? safeTrim(
+            type === "ruc"
+              ? (match as any).ruc ?? match.label ?? ""
+              : (match as any).dni ?? match.label ?? ""
+          )
+        : "";
+
+      if (docFromMatch) return docFromMatch;
+
+      const fallback =
+        (value as any)?.inputValue ??
+        (value as any)?.label ??
+        (value as any)?.value ??
+        value;
+
+      return safeTrim(fallback);
+    },
+    [dniOptions, rucOptions]
+  );
+
+  const validateDniLength = useCallback(
+    (value: any) => {
+      const doc = resolveDocumentValue(value, "dni");
+      if (!doc) return true;
+      return /^\d{8}$/.test(doc) || "El DNI debe tener 8 digitos";
+    },
+    [resolveDocumentValue]
+  );
+
+  const validateRucLength = useCallback(
+    (value: any) => {
+      const doc = resolveDocumentValue(value, "ruc");
+      if (!doc) return true;
+      return /^\d{11}$/.test(doc) || "El RUC debe tener 11 digitos";
+    },
+    [resolveDocumentValue]
+  );
   const documentFilterOptions = useCallback(
     (
       options: Array<(typeof dniOptions)[number] | (typeof rucOptions)[number]>,
@@ -844,15 +960,17 @@ const PaymentPage = () => {
     return {
       clientName: safeTrim(customerName) || "Ultimo cliente",
       clientId: safeTrim(selectedDocument),
-      docType: docTypeName.toLowerCase(),
+      docType: docTypeForTicket,
       paymentMethod,
       items: safeItems,
       totals: safeTotals,
+      documentNumber,
     };
   }, [
     customerId,
     customerName,
-    docTypeName,
+    docTypeForTicket,
+    documentNumber,
     paymentMethod,
     itemsToRender,
     totalsToRender,
@@ -866,6 +984,7 @@ const PaymentPage = () => {
         paymentMethod,
         ticketPreviewProps.clientName,
         ticketPreviewProps.clientId,
+        ticketPreviewProps.documentNumber,
         totalsToRender.total.toFixed(2),
         itemsToRender.length,
       ].join("|"),
@@ -875,6 +994,7 @@ const PaymentPage = () => {
       paymentMethod,
       ticketPreviewProps.clientId,
       ticketPreviewProps.clientName,
+      ticketPreviewProps.documentNumber,
       totalsToRender.total,
     ]
   );
@@ -916,8 +1036,8 @@ const PaymentPage = () => {
         modificadoPor: null,
         fechaEdita: null,
         notaConcepto: "MERCADERIA",
-        notaSerie: docConfig?.serie ?? "BA01",
-        notaNumero: "00012345",
+        notaSerie,
+        notaNumero: paddedNotaNumero || "00000000",
         notaGanancia: 0,
         icbper: 0,
         entidadBancaria: bankValue,
@@ -944,8 +1064,9 @@ const PaymentPage = () => {
     notaId,
     companyId,
     clienteId,
-    docConfig?.serie,
+    notaSerie,
     docTypeName,
+    paddedNotaNumero,
     descuento,
     discountedTotal,
     gravada,
@@ -1003,25 +1124,27 @@ const PaymentPage = () => {
         }
       : baseNota;
 
-    const detallesPayload: NotaDetallePayload[] = notaPayload.detalles.map((detalle) => {
-      const baseDetalle = {
-        ...detalle,
-        detalleId: (detalle as any).detalleId ?? 0,
-      };
-      if (!isEditing) return baseDetalle;
-      return {
-        detalleId: baseDetalle.detalleId,
-        idProducto: baseDetalle.idProducto,
-        detalleCantidad: baseDetalle.detalleCantidad,
-        detalleUm: baseDetalle.detalleUm,
-        detalleDescripcion: baseDetalle.detalleDescripcion,
-        detalleCosto: baseDetalle.detalleCosto,
-        detallePrecio: baseDetalle.detallePrecio,
-        detalleImporte: baseDetalle.detalleImporte,
-        detalleEstado: baseDetalle.detalleEstado,
-        valorUM: baseDetalle.valorUM,
-      };
-    });
+    const detallesPayload: NotaDetallePayload[] = notaPayload.detalles.map(
+      (detalle) => {
+        const baseDetalle = {
+          ...detalle,
+          detalleId: (detalle as any).detalleId ?? 0,
+        };
+        if (!isEditing) return baseDetalle;
+        return {
+          detalleId: baseDetalle.detalleId,
+          idProducto: baseDetalle.idProducto,
+          detalleCantidad: baseDetalle.detalleCantidad,
+          detalleUm: baseDetalle.detalleUm,
+          detalleDescripcion: baseDetalle.detalleDescripcion,
+          detalleCosto: baseDetalle.detalleCosto,
+          detallePrecio: baseDetalle.detallePrecio,
+          detalleImporte: baseDetalle.detalleImporte,
+          detalleEstado: baseDetalle.detalleEstado,
+          valorUM: baseDetalle.valorUM,
+        };
+      }
+    );
 
     const basePayload = {
       nota: editNota,
@@ -1036,6 +1159,24 @@ const PaymentPage = () => {
       : undefined;
     const requestDetallePayload =
       requestDetalle && requestDetalle.length > 0 ? requestDetalle : undefined;
+
+    const extractApiMessage = (val: any): string => {
+      if (!val) return "";
+      if (typeof val === "string") return val;
+      if (typeof val === "object") {
+        const msg =
+          (val as any).message ??
+          (val as any).Message ??
+          (val as any).error ??
+          (val as any).Error ??
+          (val as any).data ??
+          (val as any).response?.data ??
+          (val as any).response?.data?.message ??
+          (val as any).response?.data?.error;
+        if (typeof msg === "string") return msg;
+      }
+      return "";
+    };
 
     const editPayloadForApi = isEditing
       ? {
@@ -1076,7 +1217,9 @@ const PaymentPage = () => {
           ClienteDni: docTypeCode !== "01" ? safeTrim(selectedDocument) : "",
           DireccionFiscal: "",
           Items: detallesPayload.length,
-          ...(requestDetallePayload ? { requestDetalle: requestDetallePayload } : {}),
+          ...(requestDetallePayload
+            ? { requestDetalle: requestDetallePayload }
+            : {}),
         }
       : basePayload;
 
@@ -1094,6 +1237,16 @@ const PaymentPage = () => {
       },
       fallback: null,
     });
+
+    const apiMessage = extractApiMessage(result);
+    const normalizedMessage = apiMessage
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    if (normalizedMessage.includes("aperturo caja")) {
+      toast.error(apiMessage || "No Aperturó Caja");
+      return;
+    }
 
     if (!result || (result as any) === false) {
       toast.error("No se pudo registrar la nota.");
@@ -1133,14 +1286,68 @@ const PaymentPage = () => {
       return null;
     };
 
+    const parseNotaCorrelative = (val: any): string | null => {
+      if (val && typeof val === "object") {
+        const objNumber = safeTrim(
+          (val as any).notaNumero ??
+            (val as any).numero ??
+            (val as any).Numero ??
+            (val as any).NotaNumero ??
+            (val as any)?.nota?.notaNumero ??
+            (val as any)?.data?.notaNumero ??
+            (val as any)?.data?.numero ??
+            (val as any)?.data?.Numero ??
+            ""
+        );
+        const objDigits = objNumber.replace(/\D/g, "");
+        if (objDigits) return objDigits.padStart(8, "0");
+      }
+
+      const resolveString = (): string => {
+        if (typeof val === "string") return val;
+        if (val && typeof (val as any).data === "string")
+          return (val as any).data;
+        if (val && typeof (val as any).message === "string")
+          return (val as any).message;
+        return "";
+      };
+
+      const raw = resolveString();
+      if (!raw) return null;
+
+      if (raw.includes("¬")) {
+        const [, correlativeRaw = ""] = raw.split("¬");
+        const digits = correlativeRaw.match(/\d+/)?.[0] ?? correlativeRaw;
+        const normalized = (digits ?? "").replace(/\D/g, "");
+        return normalized ? normalized.padStart(8, "0") : null;
+      }
+
+      const matches = raw.match(/(\d+)/g);
+      if (matches && matches.length >= 2) {
+        const candidate = matches[matches.length - 1] ?? "";
+        const normalized = candidate.replace(/\D/g, "");
+        return normalized ? normalized.padStart(8, "0") : null;
+      }
+
+      return null;
+    };
+
     const parsedNotaId = isEditing ? notaId : parseNotaId(result);
+    const parsedNotaCorrelative = parseNotaCorrelative(result);
+    if (parsedNotaCorrelative) {
+      setNotaNumero(parsedNotaCorrelative);
+    }
     if (!isEditing && parsedNotaId) {
       const numericNotaId = Number(parsedNotaId);
       setNotaId(numericNotaId);
       setEditingNotaInStore(numericNotaId);
       setEditingModeInStore(false); // creación no activa edición
       setServerItemsInStore(
-        serverItems.length ? serverItems : purchasedItems.length ? purchasedItems : items
+        serverItems.length
+          ? serverItems
+          : purchasedItems.length
+          ? purchasedItems
+          : items
       );
       await fetchNotaFromServer(numericNotaId);
       // Rehabilita el formulario para permitir cambios posteriores
@@ -1176,14 +1383,18 @@ const PaymentPage = () => {
       setStoreItems(itemsForReturn);
       setPaidTotals(computeTotalsFromItems(itemsForReturn));
       setEditingNotaInStore(notaId);
-      setServerItemsInStore(
-        serverItems.length ? serverItems : itemsForReturn
-      );
+      setServerItemsInStore(serverItems.length ? serverItems : itemsForReturn);
       navigate("/pos");
       return;
     }
 
     clearEditingNota();
+    // Si aún no se ha confirmado/guardado la nota inicial, conservar el carrito
+    if (!notaId && !isConfirmed) {
+      navigate("/pos");
+      return;
+    }
+
     if (items.length) {
       setPurchasedItems(items);
       setPaidTotals(totals);
@@ -1284,11 +1495,26 @@ const PaymentPage = () => {
                   </span>
                 </p>
               )}
-              <p className="text-xs text-gray-500">Cantidad: {item.cantidad}</p>
+              <p className="text-xs text-gray-500">CANTIDAD: {item.cantidad}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-gray-500">P. Unitario</p>
-              <p className="text-sm font-semibold">S/ {item.precio.toFixed(2)}</p>
+              <div className="mt-1 flex items-center gap-1">
+                <span className="text-xs text-gray-500">S/</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-20 text-right border rounded-md px-2 py-1 text-sm appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  value={item.precio === 0 ? "" : item.precio}
+                  onChange={(e) => {
+                    handlePriceChange(item, e.target.value);
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  disabled={!canEditItems}
+                  style={{ MozAppearance: "textfield" }}
+                />
+              </div>
               <p className="text-xs text-gray-500">Subtotal</p>
               <p
                 className={`text-base font-semibold ${
@@ -1308,9 +1534,28 @@ const PaymentPage = () => {
                 >
                   <Minus className="w-4 h-4" />
                 </button>
-                <span className="min-w-[40px] text-center text-sm font-semibold">
-                  {item.cantidad}
-                </span>
+                <input
+                  type="number"
+                  min={0}
+                  step="1"
+                  inputMode="numeric"
+                  className="w-16 text-center border rounded-md py-1 text-sm appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  value={item.cantidad === 0 ? "" : item.cantidad}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "") {
+                      handleQuantityChange(item, -item.cantidad);
+                      return;
+                    }
+                    const parsed = Number(value);
+                    if (Number.isNaN(parsed)) return;
+                    const desired = Math.max(0, parsed);
+                    handleQuantityChange(item, desired - (item.cantidad ?? 0));
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  disabled={!canEditItems}
+                  style={{ MozAppearance: "textfield" }}
+                />
                 <button
                   type="button"
                   className="p-1 rounded bg-white border hover:bg-slate-50 disabled:opacity-50"
@@ -1339,7 +1584,11 @@ const PaymentPage = () => {
   const PdfViewerCard = (
     <div className="border rounded-lg overflow-hidden">
       {canPreviewPdf ? (
-        <PDFViewer key={previewKey} style={{ width: "100%", height: 620 }}>
+        <PDFViewer
+          key={previewKey}
+          style={{ width: "100%", height: 620 }}
+          showToolbar={isConfirmed}
+        >
           <TicketDocument {...ticketPreviewProps} />
         </PDFViewer>
       ) : (
@@ -1355,6 +1604,7 @@ const PaymentPage = () => {
       <HookForm
         methods={formMethods}
         onSubmit={handleSubmit(confirmPayment)}
+        preventSubmitOnEnter
         className="bg-white rounded-xl shadow p-4 space-y-4"
       >
         <HookFormSelect
@@ -1383,6 +1633,7 @@ const PaymentPage = () => {
           label="Nombre del cliente"
           placeholder="Seleccionar cliente"
           options={clientOptions}
+          disableClearable={isConfirmed}
           disabled={isConfirmed}
           onOptionSelected={(opt: any) => {
             if (!opt) return;
@@ -1400,6 +1651,8 @@ const PaymentPage = () => {
             label="RUC"
             placeholder="Número de RUC"
             options={rucOptions}
+            rules={{ validate: validateRucLength }}
+            disableClearable={isConfirmed}
             disabled={isConfirmed}
             allowCreate
             createLabel={(value: string) => `Usar RUC: ${value}`}
@@ -1423,6 +1676,8 @@ const PaymentPage = () => {
             label="DNI"
             placeholder="Número de DNI"
             options={dniOptions}
+            rules={{ validate: validateDniLength }}
+            disableClearable={isConfirmed}
             disabled={isConfirmed}
             allowCreate
             createLabel={(value: string) => `Usar DNI: ${value}`}
@@ -1644,13 +1899,3 @@ const PaymentPage = () => {
 };
 
 export default PaymentPage;
-
-
-
-
-
-
-
-
-
-

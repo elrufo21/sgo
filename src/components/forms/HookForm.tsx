@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, KeyboardEvent } from "react";
 import type {
   FieldValues,
   SubmitHandler,
@@ -12,6 +12,7 @@ interface HookFormProps<T extends FieldValues> {
   children: ReactNode;
   className?: string;
   formId?: string;
+  preventSubmitOnEnter?: boolean;
 }
 
 export function HookForm<T extends FieldValues>({
@@ -20,13 +21,30 @@ export function HookForm<T extends FieldValues>({
   children,
   className,
   formId,
+  preventSubmitOnEnter = false,
 }: HookFormProps<T>) {
+  const handleKeyDownCapture = (event: KeyboardEvent<HTMLFormElement>) => {
+    if (!preventSubmitOnEnter) return;
+    if (event.key !== "Enter") return;
+
+    const target = event.target as HTMLElement | null;
+    const tag = target?.tagName?.toLowerCase();
+    const type = (target as HTMLInputElement | null)?.type?.toLowerCase();
+    const isButtonLike = tag === "button" || type === "submit" || type === "button";
+    const isTextArea = tag === "textarea";
+
+    if (isTextArea || isButtonLike) return;
+
+    event.preventDefault();
+  };
+
   return (
     <FormProvider {...methods}>
       <form
         className={className}
         id={formId}
         onSubmit={methods.handleSubmit(onSubmit)}
+        onKeyDownCapture={handleKeyDownCapture}
         noValidate
       >
         {children}

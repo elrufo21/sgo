@@ -18,6 +18,7 @@ type TicketDocumentProps = {
   paymentMethod?: string;
   items?: PosCartItem[];
   totals?: PosTotals;
+  documentNumber?: string;
 };
 
 const UNITS = [
@@ -315,6 +316,7 @@ const TicketDocument = ({
   paymentMethod,
   items,
   totals,
+  documentNumber,
 }: TicketDocumentProps) => {
   const [qrBase64, setQrBase64] = useState("");
 
@@ -341,8 +343,10 @@ const TicketDocument = ({
       documentType:
         docType === "factura"
           ? "FACTURA ELECTRONICA"
+          : docType === "proforma"
+          ? "PROFORMA DE VENTA"
           : "BOLETA DE VENTA ELECTRONICA",
-      documentNumber: "BA01-00000012",
+      documentNumber: documentNumber || "",
       emissionDate: new Date().toLocaleDateString("es-PE"),
       currency: "SOLES",
       paymentMethod: paymentMethod ?? "AL CONTADO",
@@ -374,7 +378,15 @@ const TicketDocument = ({
         "Autorizado mediante Resolución de Intendencia SUNAT N° 032-005-Representación impresa de la Boleta Electrónica Descarga tu Comprobante en -http://e-consulta.sunat.gob.pe/ol-ti-itconsvalicpe/ConsValiCpe.htm",
       id: "396548",
     };
-  }, [clientId, clientName, docType, items, paymentMethod, totals]);
+  }, [
+    clientId,
+    clientName,
+    docType,
+    documentNumber,
+    items,
+    paymentMethod,
+    totals,
+  ]);
 
   useEffect(() => {
     if (ticketData.qrBase64) {

@@ -36,6 +36,7 @@ interface HookFormAutocompleteProps<
   disableClearable?: boolean;
   className?: string;
   control?: Control<T>;
+  disabled?: boolean;
 
   allowCreate?: boolean;
   createLabel?: (value: string) => string;
@@ -65,6 +66,7 @@ export function HookFormAutocomplete<
   disableClearable = false,
   className,
   control,
+  disabled = false,
 
   allowCreate = false,
   createLabel = (value) => `Agregar "${value}"`,
@@ -156,6 +158,7 @@ export function HookFormAutocomplete<
               options={options}
               value={normalizedValue}
               freeSolo={allowCreate}
+              disabled={disabled}
               disableClearable={disableClearable}
               getOptionLabel={(option) => {
                 if (allowCreate && (option as any)?.inputValue) {
