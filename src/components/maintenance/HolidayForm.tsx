@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import type { Holiday } from "@/types/maintenance";
+import { useDialogStore } from "@/store/app/dialog.store";
 
 interface HolidayFormProps {
   initialData?: Partial<Holiday>;
@@ -35,6 +37,7 @@ export default function HolidayForm({
 }: HolidayFormProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isModal = variant === "modal";
+  const setDialogData = useDialogStore((s) => s.setData);
 
   const defaults = useMemo(
     () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
@@ -48,6 +51,7 @@ export default function HolidayForm({
   const {
     reset,
     handleSubmit,
+    watch,
     formState: { isSubmitting },
   } = formMethods;
 
@@ -58,6 +62,18 @@ export default function HolidayForm({
   useEffect(() => {
     focusFirstInput(containerRef.current);
   }, [mode, initialData]);
+
+  useEffect(() => {
+    if (!isModal) return;
+    setDialogData(defaults);
+    const subscription = watch((values) => {
+      setDialogData({
+        ...values,
+        motivo: values.motivo?.toUpperCase() ?? "",
+      });
+    });
+    return () => subscription.unsubscribe();
+  }, [defaults, isModal, setDialogData, watch]);
 
   const handleSave = async (values: Holiday) => {
     await onSave({
@@ -74,7 +90,14 @@ export default function HolidayForm({
   };
 
   return (
-    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className={
+        isModal
+          ? "h-auto"
+          : "h-auto py-8 px-4 sm:px-6 lg:px-8"
+      }
+    >
       <div
         className={`w-full mx-auto bg-white overflow-hidden ${
           isModal ? "" : "rounded-2xl shadow-xl"
@@ -83,9 +106,12 @@ export default function HolidayForm({
         <HookForm methods={formMethods} onSubmit={handleSubmit(handleSave)}>
           {!isModal && (
             <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <h1 className="text-base font-semibold">
-                {mode === "create" ? "Crear feriado" : "Editar feriado"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <BackArrowButton />
+                <h1 className="text-base font-semibold">
+                  {mode === "create" ? "Crear feriado" : "Editar feriado"}
+                </h1>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="submit"

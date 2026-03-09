@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import type { Category } from "@/types/maintenance";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useDialogStore } from "@/store/app/dialog.store";
@@ -64,6 +65,7 @@ export default function CategoriaForm({
 
   useEffect(() => {
     if (!isModal) return;
+    setDialogData(defaults);
     const subscription = watch((values) => {
       setDialogData({
         ...values,
@@ -96,9 +98,12 @@ export default function CategoriaForm({
   const Header = () =>
     isModal ? null : (
       <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-        <h1 className="text-base font-semibold">
-          {mode === "create" ? "Crear Categoria" : "Editar Categoria"}
-        </h1>
+        <div className="flex items-center gap-3">
+          <BackArrowButton />
+          <h1 className="text-base font-semibold">
+            {mode === "create" ? "Crear Categoria" : "Editar Categoria"}
+          </h1>
+        </div>
         <div className="flex items-center gap-2">
           <button
             type="submit"
@@ -136,7 +141,14 @@ export default function CategoriaForm({
     );
 
   return (
-    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className={
+        isModal
+          ? "h-auto"
+          : "h-auto py-8 px-4 sm:px-6 lg:px-8"
+      }
+    >
       <div className="max-w-4xl mx-auto">
         <div
           className={`bg-white ${
@@ -155,13 +167,11 @@ export default function CategoriaForm({
                   rules={{ required: "El nombre es obligatorio" }}
                 />
 
-                {mode === "edit" && (
-                  <HookFormInput<Category>
-                    name="codigoSunat"
-                    label="Codigo SUNAT"
-                    placeholder="Ej: 1232"
-                  />
-                )}
+                <HookFormInput<Category>
+                  name="codigoSunat"
+                  label="Codigo SUNAT"
+                  placeholder="Ej: 1232"
+                />
               </div>
             </div>
           </HookForm>

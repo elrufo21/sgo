@@ -1,16 +1,28 @@
-import type { KeyboardEvent, SelectHTMLAttributes } from "react";
+import type {
+  ChangeEvent,
+  FocusEvent,
+  KeyboardEvent,
+  SelectHTMLAttributes,
+} from "react";
 import type { FieldValues, Path, RegisterOptions } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
-import { focusNextInput } from "@/shared/helpers/focusNextInput";
+import TextField from "@mui/material/TextField";
+import {
+  focusNextInput,
+  focusPreviousInput,
+} from "@/shared/helpers/focusNextInput";
 
 type OptionValue = string | number;
 
-interface HookFormSelectProps<T extends FieldValues>
-  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, "name"> {
+interface HookFormSelectProps<T extends FieldValues> extends Omit<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  "name"
+> {
   name: Path<T>;
   label: string;
   options: { value: OptionValue; label: string }[];
   rules?: RegisterOptions<T>;
+  helperText?: string;
 }
 
 export function HookFormSelect<T extends FieldValues>({
@@ -18,75 +30,139 @@ export function HookFormSelect<T extends FieldValues>({
   label,
   options,
   rules,
+  helperText,
   className,
   onKeyDown,
   onChange,
+  onBlur,
+  disabled,
+  autoComplete,
   ...rest
 }: HookFormSelectProps<T>) {
   const {
     control,
-    formState: { errors },
+    formState: { isSubmitting },
   } = useFormContext<T>();
+  const resolvedAutoComplete = autoComplete ?? "new-password";
 
   return (
-    <Controller
-      control={control}
-      name={name}
-      rules={rules}
-      render={({ field, fieldState }) => {
-        const handleKeyDown = (event: KeyboardEvent<HTMLSelectElement>) => {
-          onKeyDown?.(event);
-          if (event.defaultPrevented) return;
+    <div className="mt-3">
+      <Controller
+        control={control}
+        name={name}
+        rules={rules}
+        render={({ field, fieldState }) => {
+          const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+            onKeyDown?.(event as unknown as KeyboardEvent<HTMLSelectElement>);
+            if (event.defaultPrevented) return;
+            const source = event.target as HTMLElement;
 
-          if (event.key === "Enter") {
-            event.preventDefault();
-            const moved = focusNextInput(event.currentTarget);
-            if (!moved) {
-              event.currentTarget.form?.requestSubmit();
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              focusPreviousInput(source);
+              return;
             }
-          }
-        };
 
-        const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-          field.onChange(event.target.value);
-          onChange?.(event);
-          focusNextInput(event.currentTarget);
-        };
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              focusNextInput(source);
+              return;
+            }
 
-        return (
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold text-gray-700">
-              {label}
-            </label>
-            <select
-              data-auto-next="true"
-              className={
-                className ??
-                "w-full px-3 py-2 border border-gray-200 rounded-md focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm"
+            if (event.key === "ArrowLeft") {
+              event.preventDefault();
+              focusPreviousInput(source);
+              return;
+            }
+
+            if (event.key === "ArrowRight") {
+              event.preventDefault();
+              focusNextInput(source);
+              return;
+            }
+
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const moved = focusNextInput(source);
+              if (!moved) {
+                event.currentTarget.form?.requestSubmit();
               }
-              aria-invalid={fieldState.error ? "true" : "false"}
+            }
+          };
+
+          const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+            field.onChange(event.target.value);
+            onChange?.(event as unknown as ChangeEvent<HTMLSelectElement>);
+            const source = event.target as HTMLElement;
+            const moved = focusNextInput(source);
+            if (moved) return;
+
+            const active = source.ownerDocument?.activeElement ?? document.activeElement;
+            if (active instanceof HTMLElement) {
+              focusNextInput(active);
+            }
+          };
+
+          const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+            field.onBlur();
+            onBlur?.(event as unknown as FocusEvent<HTMLSelectElement>);
+          };
+
+          return (
+            <TextField
+              fullWidth
+              select
+              variant="outlined"
+              size="small"
+              label={label}
+              SelectProps={{ native: true }}
               value={field.value ?? ""}
               onKeyDown={handleKeyDown}
               onChange={handleChange}
-              ref={field.ref}
-              onBlur={field.onBlur}
+              onBlur={handleBlur}
+              inputRef={field.ref}
               name={field.name}
-              {...rest}
+              autoComplete={resolvedAutoComplete}
+              error={!!fieldState.error}
+              disabled={disabled || isSubmitting}
+              helperText={fieldState.error?.message ?? helperText}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "0.45rem",
+                  backgroundColor: "#fff",
+                  "& fieldset": {
+                    borderWidth: "1px",
+                    borderColor: "#e5e7eb",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#3b82f6",
+                    boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
+                  },
+                },
+                "& .MuiInputBase-input": {
+                  fontSize: "0.875rem",
+                  py: 1,
+                },
+              }}
+              inputProps={
+                {
+                  ...rest,
+                  className,
+                  "data-auto-next": "true",
+                  "aria-invalid": fieldState.error ? "true" : "false",
+                  autoComplete: resolvedAutoComplete,
+                } as Record<string, unknown>
+              }
             >
               {options.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
-            {fieldState.error && (
-              <p className="text-sm text-red-600">
-                {String(fieldState.error.message ?? "Este campo es requerido")}
-              </p>
-            )}
-          </div>
-        );
-      }}
-    />
+            </TextField>
+          );
+        }}
+      />
+    </div>
   );
 }

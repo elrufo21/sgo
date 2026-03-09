@@ -9,7 +9,14 @@ export function GenericList({ moduleKey }: GenericListProps) {
   const entry = listRegistry[moduleKey];
   if (!entry) return null;
 
-  const { data, fetchData, deleteItem, renderFilters } = entry.useDeps();
+  const {
+    data,
+    fetchData,
+    deleteItem,
+    renderFilters,
+    onCreate,
+    onEdit,
+  } = entry.useDeps() as any;
 
   return (
     <CrudList
@@ -17,6 +24,8 @@ export function GenericList({ moduleKey }: GenericListProps) {
       fetchData={fetchData}
       deleteItem={deleteItem as any}
       renderFilters={renderFilters ?? entry.config.renderFilters}
+      onCreate={onCreate as any}
+      onEdit={onEdit as any}
       {...entry.config}
     />
   );

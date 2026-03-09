@@ -2,11 +2,12 @@ import DataTable from "@/components/DataTable";
 import { useCashFlowStore } from "@/store/cashFlow/cashFlow.store";
 import type { CashFlow } from "@/types/cashFlow";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, PlusIcon, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { formatDate } from "@/shared/helpers/formatDate";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 
 const CashFlowList = () => {
   const { flows, fetchFlows, deleteFlow, loading } = useCashFlowStore();
@@ -166,16 +167,8 @@ const CashFlowList = () => {
 
   return (
     <div className="p-4">
-      <div className="flex justify-between items-center mb-5">
-        <h1 className="text-2xl font-bold text-gray-800">
-          Control de Flujo de Caja
-        </h1>
-        <button
-          className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded transition-colors shadow-sm"
-          onClick={() => navigate("/cash_flow_control/create")}
-        >
-          Añadir Flujo de Caja
-        </button>
+      <div className="mb-3">
+        <h1 className="text-2xl font-semibold text-[#0f2748]">Flujo de Caja</h1>
       </div>
 
       {flows.length === 0 ? (
@@ -191,7 +184,23 @@ const CashFlowList = () => {
           </button>
         </div>
       ) : (
-        <DataTable columns={columns} data={flows} />
+        <DataTable
+          columns={columns}
+          data={flows}
+          toolbarLeading={
+            <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
+          }
+          toolbarAction={
+            <button
+              type="button"
+              onClick={() => navigate("/cash_flow_control/create")}
+              title="Añadir Flujo de Caja"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#B23636] text-white hover:bg-[#96312a] transition-colors shadow-sm"
+            >
+              <PlusIcon className="h-5 w-5" />
+            </button>
+          }
+        />
       )}
     </div>
   );

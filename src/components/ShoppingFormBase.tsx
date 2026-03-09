@@ -11,6 +11,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import ProviderForm from "@/components/maintenance/ProviderForm";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import type { ShoppingFormData, ShoppingItem } from "@/types/shopping";
@@ -738,9 +739,12 @@ export default function ShoppingFormBase({
       <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create" ? "Nueva Compra" : "Editar Compra"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <BackArrowButton />
+              <h1 className="text-base font-semibold">
+                {mode === "create" ? "Nueva Compra" : "Editar Compra"}
+              </h1>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="submit"

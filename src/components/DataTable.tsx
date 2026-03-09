@@ -7,6 +7,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Search } from "lucide-react";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 interface DataTableProps<T> {
@@ -15,7 +16,9 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
   filterKeys?: (keyof T & string)[];
   tdClassName?: string | ((cell: any) => string | undefined);
+  toolbarLeading?: ReactNode;
   renderFilters?: ReactNode;
+  toolbarAction?: ReactNode;
 }
 
 export default function DataTable<T>({
@@ -24,7 +27,9 @@ export default function DataTable<T>({
   onRowClick,
   filterKeys,
   tdClassName,
+  toolbarLeading,
   renderFilters,
+  toolbarAction,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState([]);
@@ -124,18 +129,27 @@ export default function DataTable<T>({
   };
 
   return (
-    <div className="w-full border rounded-xl bg-white shadow p-4">
+    <div className="w-full border border-slate-900 rounded-2xl bg-white p-4">
       {/* Filtros y buscador */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-        <input
-          ref={searchRef}
-          placeholder="Buscar..."
-          className="border px-3 py-2 rounded-lg w-full sm:flex-1"
-          value={globalFilter ?? ""}
-          onChange={(e) => setGlobalFilter(e.target.value)}
-        />
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-4">
+        {toolbarLeading && <div className="flex-shrink-0">{toolbarLeading}</div>}
+        <div className="relative w-full sm:w-[520px] sm:min-w-[520px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+          <input
+            ref={searchRef}
+            placeholder="Buscar en toda la tabla..."
+            className="h-11 w-full border border-slate-300 px-3 py-2 pl-10 rounded-xl bg-white focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 outline-none transition-colors"
+            value={globalFilter ?? ""}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+          />
+        </div>
+        {toolbarAction && (
+          <div className="flex-shrink-0">
+            {toolbarAction}
+          </div>
+        )}
         {renderFilters && (
-          <div className="flex-shrink-0 sm:w-auto w-full sm:max-w-[220px]">
+          <div className="flex-shrink-0 sm:ml-auto sm:w-auto w-full sm:max-w-[240px]">
             {renderFilters}
           </div>
         )}
@@ -143,7 +157,7 @@ export default function DataTable<T>({
 
       {/* Tabla */}
       <table className="w-full border-collapse">
-        <thead className="bg-gray-100 text-gray-700">
+        <thead className="bg-slate-100 text-slate-800">
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
               {hg.headers.map((header) => (
@@ -171,7 +185,7 @@ export default function DataTable<T>({
             table.getRowModel().rows.map((row) => (
               <tr
                 key={row.id}
-                className={`border-b hover:bg-gray-50 ${
+                className={`border-b border-slate-300 hover:bg-slate-50 ${
                   onRowClick ? "cursor-pointer" : ""
                 }`}
                 onClick={() => onRowClick?.(row.original)}

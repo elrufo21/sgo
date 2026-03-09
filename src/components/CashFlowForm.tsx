@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Save, Printer, X, Plus, Trash2 } from "lucide-react";
 import { useUsersStore } from "@/store/users/users.store";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 
 // Mock components para demostración
 const HookFormInput = ({
@@ -262,9 +263,12 @@ export default function CashFlowForm({
       className=" bg-gray-50 flex flex-col overflow-hidden"
     >
       <div className="bg-[#B23636] text-white px-2 sm:px-4 py-2 flex items-center justify-between flex-shrink-0">
-        <h1 className="text-xs sm:text-sm font-semibold">
-          Nuevo Control de Flujo de Caja
-        </h1>
+        <div className="flex items-center gap-2">
+          <BackArrowButton className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 transition-colors" />
+          <h1 className="text-xs sm:text-sm font-semibold">
+            Nuevo Control de Flujo de Caja
+          </h1>
+        </div>
         <div className="flex gap-1 sm:gap-2">
           <button
             className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"

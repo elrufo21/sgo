@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Printer,
   Receipt,
+  MessageCircle,
   Minus,
   Plus,
   Trash2,
@@ -66,20 +67,21 @@ const PaymentPage = () => {
   const [paidTotals, setPaidTotals] = useState(
     serverItemsFromStore.length
       ? computeTotalsFromItems(serverItemsFromStore)
-      : totals
+      : totals,
   );
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [notaId, setNotaId] = useState<number | null>(
-    editingNotaIdFromStore ?? null
+    editingNotaIdFromStore ?? null,
   );
   const [notaNumero, setNotaNumero] = useState<string>("");
   const [notaSerieOverride, setNotaSerieOverride] = useState<string | null>(
-    null
+    null,
   );
   const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
+  const whatsappNumberInputRef = useRef<HTMLInputElement | null>(null);
 
   const docTypeConfig: Record<
     "03" | "01" | "101",
@@ -128,7 +130,7 @@ const PaymentPage = () => {
   const canEditItems = hasLiveItems || isEditingMode;
 
   const adjustLocalItems = (
-    updater: (prev: PosCartItem[]) => PosCartItem[]
+    updater: (prev: PosCartItem[]) => PosCartItem[],
   ) => {
     setPurchasedItems((prev) => {
       const next = updater(prev);
@@ -146,8 +148,8 @@ const PaymentPage = () => {
     }
     adjustLocalItems((prev) =>
       prev.map((it) =>
-        it.productId === item.productId ? { ...it, cantidad: desired } : it
-      )
+        it.productId === item.productId ? { ...it, cantidad: desired } : it,
+      ),
     );
   };
 
@@ -173,8 +175,8 @@ const PaymentPage = () => {
 
     adjustLocalItems((prev) =>
       prev.map((it) =>
-        it.productId === item.productId ? { ...it, precio: nextPrice } : it
-      )
+        it.productId === item.productId ? { ...it, precio: nextPrice } : it,
+      ),
     );
   };
 
@@ -240,16 +242,16 @@ const PaymentPage = () => {
     docTypeCode === "01"
       ? "factura"
       : docTypeCode === "101"
-      ? "proforma"
-      : "boleta";
+        ? "proforma"
+        : "boleta";
   const isProforma = docTypeCode === "101";
   const totalAmount = totalsToRender?.total ?? 0;
   const descuento = applyDiscount
     ? Math.max(0, Number(discountInput ?? 0) || 0)
     : 0;
   const discountedTotal = Math.max(0, totalAmount - descuento);
-  const gravada = discountedTotal / 1.18;
-  const igvAmount = discountedTotal - gravada;
+  const gravada = isProforma ? discountedTotal : discountedTotal / 1.18;
+  const igvAmount = isProforma ? 0 : discountedTotal - gravada;
 
   const notaAdicional =
     paymentMethod === "TARJETA" ? discountedTotal * 0.05 : 0;
@@ -261,7 +263,7 @@ const PaymentPage = () => {
 
   const resolvedNotaUsuario = useMemo(
     () => safeTrim(usernameFromSession) || "USUARIO",
-    [usernameFromSession]
+    [usernameFromSession],
   );
 
   const mapApiDetalleToItem = (detalle: any): PosCartItem => {
@@ -270,24 +272,24 @@ const PaymentPage = () => {
         detalle?.idDetalle ??
         detalle?.DetalleId ??
         detalle?.id ??
-        0
+        0,
     );
     const cantidad = Number(
-      detalle?.detalleCantidad ?? detalle?.cantidad ?? detalle?.Cantidad ?? 0
+      detalle?.detalleCantidad ?? detalle?.cantidad ?? detalle?.Cantidad ?? 0,
     );
     const precio = Number(
       detalle?.detallePrecio ??
         detalle?.detalleCosto ??
         detalle?.precio ??
         detalle?.Precio ??
-        0
+        0,
     );
     const productId = Number(
       detalle?.idProducto ??
         detalle?.productoId ??
         detalle?.productId ??
         detalle?.ProductoId ??
-        0
+        0,
     );
 
     return {
@@ -297,14 +299,14 @@ const PaymentPage = () => {
           detalle?.codigo ??
             detalle?.productoCodigo ??
             detalle?.codigoProducto ??
-            ""
+            "",
         ) || String(productId || ""),
       nombre:
         safeTrim(
           detalle?.detalleDescripcion ??
             detalle?.descripcion ??
             detalle?.productoNombre ??
-            ""
+            "",
         ) || "Producto",
       unidadMedida:
         safeTrim(detalle?.detalleUm ?? detalle?.unidadMedida ?? "") || "UND",
@@ -320,18 +322,18 @@ const PaymentPage = () => {
     const subTotal = itemsList.reduce(
       (acc, item) =>
         acc + Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
-      0
+      0,
     );
     const itemCount = itemsList.reduce(
       (acc, item) => acc + Number(item.cantidad ?? 0),
-      0
+      0,
     );
     return { subTotal, total: subTotal, itemCount };
   }
 
   const buildRequestDetalle = (
     currentDetails: NotaDetallePayload[],
-    previousItems: PosCartItem[]
+    previousItems: PosCartItem[],
   ) => {
     const serverById = new Map<number, PosCartItem>();
     previousItems.forEach((item) => {
@@ -365,7 +367,7 @@ const PaymentPage = () => {
         importe: Number(
           (detalle.detalleImporte ?? 0).toFixed?.(2) ??
             detalle.detalleImporte ??
-            0
+            0,
         ),
         valorUM: detalle.valorUM ?? 1,
         DetalleEstado: detalle.detalleEstado ?? "PENDIENTE",
@@ -385,7 +387,7 @@ const PaymentPage = () => {
 
     serverById.forEach((item) => {
       const importe = Number(
-        ((item.precio ?? 0) * (item.cantidad ?? 0)).toFixed(2)
+        ((item.precio ?? 0) * (item.cantidad ?? 0)).toFixed(2),
       );
       requestDetalle.push({
         DetalleId: item.detalleId ?? 0,
@@ -451,12 +453,12 @@ const PaymentPage = () => {
           (notaData as any).notaDocu ??
             (notaData as any).docu ??
             (notaData as any).notaTipo ??
-            ""
+            "",
         );
         if (notaDocu) {
           const match = Object.entries(docTypeConfig).find(
             ([, cfg]) =>
-              safeTrim(cfg.docu).toUpperCase() === notaDocu.toUpperCase()
+              safeTrim(cfg.docu).toUpperCase() === notaDocu.toUpperCase(),
           );
           if (match) {
             setValue("docTypeCode", match[0] as any, { shouldDirty: false });
@@ -464,7 +466,7 @@ const PaymentPage = () => {
         }
 
         const notaClienteId = Number(
-          (notaData as any).clienteId ?? (notaData as any).ClienteId ?? 0
+          (notaData as any).clienteId ?? (notaData as any).ClienteId ?? 0,
         );
         if (Number.isFinite(notaClienteId) && notaClienteId > 0) {
           setValue("clienteId", notaClienteId, { shouldDirty: false });
@@ -474,7 +476,7 @@ const PaymentPage = () => {
           (notaData as any).clienteNombre ??
             (notaData as any).clienteRazon ??
             (notaData as any).clienteRazonSocial ??
-            ""
+            "",
         );
         if (notaClienteNombre) {
           setValue("customerName", notaClienteNombre, { shouldDirty: false });
@@ -486,21 +488,21 @@ const PaymentPage = () => {
               (notaData as any).clienteDni ??
               (notaData as any).notaRuc ??
               (notaData as any).notaDni ??
-              ""
+              "",
           ) || "";
         if (notaDocValue) {
           setValue("customerId", notaDocValue, { shouldDirty: false });
         }
 
         const serieNota = safeTrim(
-          (notaData as any).notaSerie ?? (notaData as any).serie ?? ""
+          (notaData as any).notaSerie ?? (notaData as any).serie ?? "",
         );
         if (serieNota) {
           setNotaSerieOverride(serieNota);
         }
 
         const notaNumeroRaw = safeTrim(
-          (notaData as any).notaNumero ?? (notaData as any).numero ?? ""
+          (notaData as any).notaNumero ?? (notaData as any).numero ?? "",
         );
         const notaNumeroDigits = notaNumeroRaw.replace(/\D/g, "");
         if (notaNumeroDigits) {
@@ -508,14 +510,14 @@ const PaymentPage = () => {
         }
 
         const formaPago = safeTrim(
-          (notaData as any).notaFormaPago ?? (notaData as any).formaPago ?? ""
+          (notaData as any).notaFormaPago ?? (notaData as any).formaPago ?? "",
         );
         if (formaPago) {
           setValue("paymentMethod", formaPago as any, { shouldDirty: false });
         }
 
         const banco = safeTrim(
-          (notaData as any).entidadBancaria ?? (notaData as any).banco ?? ""
+          (notaData as any).entidadBancaria ?? (notaData as any).banco ?? "",
         );
         if (banco) {
           setValue("bankEntity", banco, { shouldDirty: false });
@@ -524,14 +526,14 @@ const PaymentPage = () => {
         const nroOperacionNota = safeTrim(
           (notaData as any).nroOperacion ??
             (notaData as any).numeroOperacion ??
-            ""
+            "",
         );
         if (nroOperacionNota) {
           setValue("nroOperacion", nroOperacionNota, { shouldDirty: false });
         }
 
         const descuentoNota = Number(
-          (notaData as any).notaDescuento ?? (notaData as any).descuento ?? 0
+          (notaData as any).notaDescuento ?? (notaData as any).descuento ?? 0,
         );
         if (Number.isFinite(descuentoNota) && descuentoNota > 0) {
           setValue("applyDiscount", true, { shouldDirty: false });
@@ -693,7 +695,7 @@ const PaymentPage = () => {
         setValue("clienteId", numeric, { shouldDirty: true });
       }
     },
-    [setValue]
+    [setValue],
   );
 
   const uniqueClients = useMemo(() => {
@@ -727,7 +729,7 @@ const PaymentPage = () => {
         ruc: client.ruc ?? "",
         id: client.id,
       })),
-    [uniqueClients]
+    [uniqueClients],
   );
 
   const dniOptions = useMemo(
@@ -744,7 +746,7 @@ const PaymentPage = () => {
           nombreRazon: (client.nombreRazon ?? "").trim(),
           id: client.id,
         })),
-    [uniqueClients]
+    [uniqueClients],
   );
 
   const rucOptions = useMemo(
@@ -761,13 +763,13 @@ const PaymentPage = () => {
           nombreRazon: (client.nombreRazon ?? "").trim(),
           id: client.id,
         })),
-    [uniqueClients]
+    [uniqueClients],
   );
 
   const selectedDocument = useMemo(() => {
     const source = docTypeCode === "01" ? rucOptions : dniOptions;
     const match = source.find(
-      (opt) => String(opt.value) === String(customerId)
+      (opt) => String(opt.value) === String(customerId),
     );
     if (match?.label) return match.label;
     return typeof customerId === "string" ? customerId : "";
@@ -783,7 +785,7 @@ const PaymentPage = () => {
       const valueStr = safeTrim(String(opt.value)).toLowerCase();
       const labelStr = safeTrim(opt.label ?? "").toLowerCase();
       const docStr = safeTrim(
-        (opt as any)?.dni ?? (opt as any)?.ruc ?? ""
+        (opt as any)?.dni ?? (opt as any)?.ruc ?? "",
       ).toLowerCase();
       return (
         valueStr === normalizedDoc ||
@@ -795,7 +797,7 @@ const PaymentPage = () => {
     if (!match) return;
 
     const nameFromMatch = safeTrim(
-      (match as any).nombreRazon ?? match.label ?? ""
+      (match as any).nombreRazon ?? match.label ?? "",
     );
     if (nameFromMatch && safeTrim(customerName) !== nameFromMatch) {
       setValue("customerName", nameFromMatch, { shouldDirty: false });
@@ -825,7 +827,7 @@ const PaymentPage = () => {
     if (!normalizedName) return;
 
     const match = clientOptions.find(
-      (opt) => safeTrim(opt.label).toLowerCase() === normalizedName
+      (opt) => safeTrim(opt.label).toLowerCase() === normalizedName,
     );
     if (!match) return;
 
@@ -859,14 +861,14 @@ const PaymentPage = () => {
     (value: any, type: "dni" | "ruc") => {
       const source = type === "ruc" ? rucOptions : dniOptions;
       const match = source.find(
-        (opt) => String(opt.value) === String((value as any)?.value ?? value)
+        (opt) => String(opt.value) === String((value as any)?.value ?? value),
       );
 
       const docFromMatch = match
         ? safeTrim(
             type === "ruc"
-              ? (match as any).ruc ?? match.label ?? ""
-              : (match as any).dni ?? match.label ?? ""
+              ? ((match as any).ruc ?? match.label ?? "")
+              : ((match as any).dni ?? match.label ?? ""),
           )
         : "";
 
@@ -880,7 +882,7 @@ const PaymentPage = () => {
 
       return safeTrim(fallback);
     },
-    [dniOptions, rucOptions]
+    [dniOptions, rucOptions],
   );
 
   const validateDniLength = useCallback(
@@ -889,7 +891,7 @@ const PaymentPage = () => {
       if (!doc) return true;
       return /^\d{8}$/.test(doc) || "El DNI debe tener 8 digitos";
     },
-    [resolveDocumentValue]
+    [resolveDocumentValue],
   );
 
   const validateRucLength = useCallback(
@@ -898,12 +900,12 @@ const PaymentPage = () => {
       if (!doc) return true;
       return /^\d{11}$/.test(doc) || "El RUC debe tener 11 digitos";
     },
-    [resolveDocumentValue]
+    [resolveDocumentValue],
   );
   const documentFilterOptions = useCallback(
     (
       options: Array<(typeof dniOptions)[number] | (typeof rucOptions)[number]>,
-      state: { inputValue: string }
+      state: { inputValue: string },
     ) => {
       const input = (state.inputValue ?? "").trim().toLowerCase();
       const filtered = options.filter((opt) => {
@@ -951,7 +953,7 @@ const PaymentPage = () => {
 
       return filtered;
     },
-    [docLabel]
+    [docLabel],
   );
 
   const ticketPreviewProps = useMemo(() => {
@@ -996,7 +998,7 @@ const PaymentPage = () => {
       ticketPreviewProps.clientName,
       ticketPreviewProps.documentNumber,
       totalsToRender.total,
-    ]
+    ],
   );
 
   const notaPayload = useMemo(() => {
@@ -1143,7 +1145,7 @@ const PaymentPage = () => {
           detalleEstado: baseDetalle.detalleEstado,
           valorUM: baseDetalle.valorUM,
         };
-      }
+      },
     );
 
     const basePayload = {
@@ -1154,7 +1156,7 @@ const PaymentPage = () => {
     const requestDetalle = isEditing
       ? buildRequestDetalle(
           detallesPayload as any,
-          serverItems.length ? serverItems : purchasedItems
+          serverItems.length ? serverItems : purchasedItems,
         )
       : undefined;
     const requestDetallePayload =
@@ -1297,7 +1299,7 @@ const PaymentPage = () => {
             (val as any)?.data?.notaNumero ??
             (val as any)?.data?.numero ??
             (val as any)?.data?.Numero ??
-            ""
+            "",
         );
         const objDigits = objNumber.replace(/\D/g, "");
         if (objDigits) return objDigits.padStart(8, "0");
@@ -1346,8 +1348,8 @@ const PaymentPage = () => {
         serverItems.length
           ? serverItems
           : purchasedItems.length
-          ? purchasedItems
-          : items
+            ? purchasedItems
+            : items,
       );
       await fetchNotaFromServer(numericNotaId);
       // Rehabilita el formulario para permitir cambios posteriores
@@ -1374,10 +1376,10 @@ const PaymentPage = () => {
       isEditingMode && items.length
         ? items
         : purchasedItems.length > 0
-        ? purchasedItems
-        : serverItems.length > 0
-        ? serverItems
-        : items;
+          ? purchasedItems
+          : serverItems.length > 0
+            ? serverItems
+            : items;
 
     if (isEditingMode && notaId && itemsForReturn.length) {
       setStoreItems(itemsForReturn);
@@ -1411,27 +1413,152 @@ const PaymentPage = () => {
     setServerItemsInStore(serverItems.length ? serverItems : purchasedItems);
   };
 
-  const handlePrint = async (printerName = "Canon G2060 series HTTP") => {
+  const createComprobanteBlob = useCallback(
+    async () => pdf(<TicketDocument {...ticketPreviewProps} />).toBlob(),
+    [ticketPreviewProps],
+  );
+
+  const getComprobanteFileName = useCallback(() => {
+    const safeCorrelative =
+      safeTrim(documentNumber).replace(/[^a-zA-Z0-9-_]/g, "_") ||
+      `COMPROBANTE_${Date.now()}`;
+    return `${safeCorrelative}.pdf`;
+  }, [documentNumber]);
+
+  const downloadComprobante = useCallback((blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }, []);
+
+  const openWhatsApp = useCallback((phone: string, message: string) => {
+    const encodedMessage = encodeURIComponent(message);
+    const url = phone
+      ? `https://wa.me/${phone}?text=${encodedMessage}`
+      : `https://wa.me/?text=${encodedMessage}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, []);
+
+  const shareByWhatsApp = useCallback(
+    async (rawPhone?: string) => {
+      const normalizedPhone = String(rawPhone ?? "").replace(/\D/g, "");
+      if (
+        normalizedPhone &&
+        (normalizedPhone.length < 8 || normalizedPhone.length > 15)
+      ) {
+        toast.error("Ingresa un numero valido (8 a 15 digitos).");
+        return;
+      }
+
+      const blob = await createComprobanteBlob();
+      const fileName = getComprobanteFileName();
+      const file = new File([blob], fileName, { type: "application/pdf" });
+
+      const safeDocNumber = safeTrim(documentNumber) || "SIN-NUMERO";
+      const message = [
+        `Comprobante: ${safeDocNumber}`,
+        `Cliente: ${safeTrim(customerName) || "PUBLICO GENERAL"}`,
+        `Total: S/ ${totalAPagar.toFixed(2)}`,
+      ].join("\n");
+
+      if (!normalizedPhone && typeof navigator.share === "function") {
+        try {
+          const canShareFile =
+            typeof navigator.canShare === "function"
+              ? navigator.canShare({ files: [file] })
+              : false;
+
+          if (canShareFile) {
+            await navigator.share({
+              title: "Comprobante de pago",
+              text: message,
+              files: [file],
+            });
+            toast.success("Comprobante listo para enviar por WhatsApp.");
+            return;
+          }
+        } catch (error) {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+        }
+      }
+
+      downloadComprobante(blob, fileName);
+      openWhatsApp(normalizedPhone, message);
+
+      if (normalizedPhone) {
+        toast.success("WhatsApp abierto. Adjunta el PDF descargado.");
+        return;
+      }
+
+      toast.info(
+        "WhatsApp abierto. Selecciona el contacto y adjunta el comprobante descargado.",
+      );
+    },
+    [
+      createComprobanteBlob,
+      customerName,
+      documentNumber,
+      downloadComprobante,
+      getComprobanteFileName,
+      openWhatsApp,
+      totalAPagar,
+    ],
+  );
+
+  const handleOpenWhatsAppModal = useCallback(() => {
+    openDialog({
+      title: "Enviar por WhatsApp",
+      confirmText: "Enviar",
+      cancelText: "Cancelar",
+      maxWidth: "xs",
+      fullWidth: true,
+      content: (
+        <div className="space-y-3">
+          <p className="text-sm text-slate-600">
+            Ingresa el numero para abrir el chat directo. Si lo dejas vacio,
+            podras elegir el contacto en WhatsApp.
+          </p>
+          <input
+            ref={(node) => {
+              whatsappNumberInputRef.current = node;
+            }}
+            type="tel"
+            inputMode="numeric"
+            placeholder="Ej: 51987654321 (opcional)"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"
+          />
+        </div>
+      ),
+      onConfirm: async () => {
+        const phoneValue = whatsappNumberInputRef.current?.value ?? "";
+        await shareByWhatsApp(phoneValue);
+      },
+    });
+  }, [openDialog, shareByWhatsApp]);
+
+  const handlePrint = async () => {
     try {
       setIsPrinting(true);
-      const blob = await pdf(
-        <TicketDocument {...ticketPreviewProps} />
-      ).toBlob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const base64 = btoa(
-        String.fromCharCode(...(new Uint8Array(arrayBuffer) as any))
-      );
+      await createComprobanteBlob();
 
-      const res = await fetch("http://localhost:3000/print", {
+      /** const res = await fetch("http://localhost:3000/print", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pdfBase64: base64, printerName }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
+      const data = await res.json(); 
+       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Error al imprimir");
       }
       toast.success("Impresión enviada");
+      */
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "No se pudo imprimir";
@@ -1745,6 +1872,7 @@ const PaymentPage = () => {
                 <span className="text-xs text-gray-500">S/</span>
                 <HookFormInput
                   name="discount"
+                  label=""
                   type="number"
                   step="0.01"
                   className="w-12 text-right appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
@@ -1786,6 +1914,15 @@ const PaymentPage = () => {
           onClick={handleEnableEditing}
         >
           Editar
+        </button>
+      )}
+      {isConfirmed && (
+        <button
+          className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 transition-colors"
+          onClick={handleOpenWhatsAppModal}
+        >
+          <MessageCircle className="w-5 h-5" />
+          Enviar por WhatsApp
         </button>
       )}
       <button

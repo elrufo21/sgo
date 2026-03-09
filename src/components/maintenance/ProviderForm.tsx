@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { Provider, ProviderBankAccount } from "@/types/maintenance";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
@@ -96,6 +97,10 @@ export default function ProviderForm({
 
   useEffect(() => {
     if (!isModal) return;
+    setDialogData({
+      ...defaults,
+      cuentasBancarias,
+    });
     const subscription = formMethods.watch((values) => {
       setDialogData({
         ...values,
@@ -108,6 +113,19 @@ export default function ProviderForm({
     });
     return () => subscription.unsubscribe();
   }, [isModal, formMethods, setDialogData, cuentasBancarias]);
+
+  useEffect(() => {
+    if (!isModal) return;
+    const values = formMethods.getValues();
+    setDialogData({
+      ...values,
+      cuentasBancarias,
+      razon: values.razon?.toUpperCase() ?? "",
+      contacto: values.contacto?.toUpperCase() ?? "",
+      direccion: values.direccion?.toUpperCase() ?? "",
+      estado: values.estado?.toUpperCase() ?? "",
+    });
+  }, [cuentasBancarias, formMethods, isModal, setDialogData]);
 
   const handleNew = () => {
     reset({
@@ -226,7 +244,14 @@ export default function ProviderForm({
   };
 
   return (
-    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div
+      ref={containerRef}
+      className={
+        isModal
+          ? "h-auto"
+          : "h-auto py-8 px-4 sm:px-6 lg:px-8"
+      }
+    >
       <div
         className={`w-full mx-auto bg-white overflow-hidden ${
           isModal ? "" : "rounded-2xl shadow-xl"
@@ -235,9 +260,12 @@ export default function ProviderForm({
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
           {!isModal && (
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <h1 className="text-base font-semibold">
-                {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <BackArrowButton />
+                <h1 className="text-base font-semibold">
+                  {mode === "create" ? "Crear proveedor" : "Editar proveedor"}
+                </h1>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="submit"

@@ -8,6 +8,45 @@ interface ApiRequestParams<TBody = unknown, TFallback = unknown> {
   fallback?: TFallback;
 }
 
+const AUTH_STORAGE_KEY = "sgo.auth.session";
+
+const resolveAuthToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const rawSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!rawSession) return null;
+
+    const parsed = JSON.parse(rawSession);
+    return typeof parsed?.token === "string" && parsed.token.trim() !== ""
+      ? parsed.token
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const withAuthHeader = (
+  headers: AxiosRequestConfig["headers"]
+): AxiosRequestConfig["headers"] => {
+  const token = resolveAuthToken();
+  if (!token) return headers;
+
+  const normalizedHeaders = {
+    ...(headers as Record<string, string | number | boolean> | undefined),
+  };
+
+  const hasAuthorization = Object.keys(normalizedHeaders).some(
+    (key) => key.toLowerCase() === "authorization"
+  );
+
+  if (!hasAuthorization) {
+    normalizedHeaders.Authorization = `Bearer ${token}`;
+  }
+
+  return normalizedHeaders;
+};
+
 export async function apiRequest<
   TResponse = unknown,
   TBody = unknown,
@@ -20,11 +59,14 @@ export async function apiRequest<
   fallback,
 }: ApiRequestParams<TBody, TFallback>): Promise<TResponse | TFallback> {
   try {
+    const headers = withAuthHeader(config.headers);
+
     const response = await axios({
       url,
       method,
       data,
       ...config,
+      headers,
     });
     let result = response.data;
 
@@ -37,6 +79,6 @@ export async function apiRequest<
     return result;
   } catch (err) {
     console.error("⚠️ Error del api", err);
-    return err;
+    return err as TResponse | TFallback;
   }
 }

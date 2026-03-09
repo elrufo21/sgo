@@ -5,25 +5,31 @@ import type {
   Control,
 } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
-import Autocomplete, {
-  createFilterOptions,
-  type FilterOptionsState,
-} from "@mui/material/Autocomplete";
+import Autocomplete, { createFilterOptions } from "@mui/material/Autocomplete";
+import type { FilterOptionsState } from "@mui/material/useAutocomplete";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
 import { Pencil } from "lucide-react";
 import type { KeyboardEvent } from "react";
-import { focusNextInput } from "@/shared/helpers/focusNextInput";
+import {
+  focusNextInput,
+  focusPreviousInput,
+} from "@/shared/helpers/focusNextInput";
 
 type BaseOption = {
   label: string;
   value: string | number;
-} & Record<string, any>;
+} & Record<string, unknown>;
+
+type CreateOption = BaseOption & { inputValue?: string };
+type MuiKeyboardEvent = KeyboardEvent<HTMLInputElement> & {
+  defaultMuiPrevented?: boolean;
+};
 
 interface HookFormAutocompleteProps<
   T extends FieldValues,
-  TOption extends BaseOption = BaseOption
+  TOption extends BaseOption = BaseOption,
 > {
   name: Path<T>;
   label: string;
@@ -35,6 +41,7 @@ interface HookFormAutocompleteProps<
   onOptionSelected?: (option: TOption | null) => void;
   disableClearable?: boolean;
   className?: string;
+  autoComplete?: string;
   control?: Control<T>;
   disabled?: boolean;
 
@@ -43,7 +50,7 @@ interface HookFormAutocompleteProps<
   onCreateOption?: (value: string) => void;
   filterOptions?: (
     options: (TOption & { inputValue?: string })[],
-    state: FilterOptionsState<TOption & { inputValue?: string }>
+    state: FilterOptionsState<TOption & { inputValue?: string }>,
   ) => (TOption & { inputValue?: string })[];
 
   onOpenModal?: (option: TOption) => void;
@@ -53,7 +60,7 @@ interface HookFormAutocompleteProps<
 
 export function HookFormAutocomplete<
   T extends FieldValues,
-  TOption extends BaseOption = BaseOption
+  TOption extends BaseOption = BaseOption,
 >({
   name,
   label,
@@ -65,6 +72,7 @@ export function HookFormAutocomplete<
   onOptionSelected,
   disableClearable = false,
   className,
+  autoComplete = "new-password",
   control,
   disabled = false,
 
@@ -79,6 +87,10 @@ export function HookFormAutocomplete<
 }: HookFormAutocompleteProps<T, TOption>) {
   const methods = useFormContext<T>();
   const ctrl = control ?? methods.control;
+  const resolveValue = (val: unknown) =>
+    typeof val === "object" && val !== null && "value" in val
+      ? (val as { value: unknown }).value
+      : val;
 
   const defaultGetOptionLabel =
     getOptionLabel ??
@@ -87,8 +99,8 @@ export function HookFormAutocomplete<
 
   const defaultIsEqual =
     isOptionEqualToValue ??
-    ((option: TOption, value: any) =>
-      option?.value === (value?.value ?? value));
+    ((option: TOption, value: unknown) =>
+      option?.value === resolveValue(value));
 
   const filter = createFilterOptions<TOption & { inputValue?: string }>();
   const appliedFilterOptions =
@@ -101,7 +113,7 @@ export function HookFormAutocomplete<
             defaultIsEqual(opt, {
               value: input,
               label: input,
-            } as unknown as TOption)
+            } as unknown as TOption),
           );
 
           if (input !== "" && !exists) {
@@ -117,43 +129,88 @@ export function HookFormAutocomplete<
       : undefined);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const isPopupOpen =
+      event.currentTarget.getAttribute("aria-expanded") === "true";
+    const source = event.target as HTMLElement;
+    const input = event.target as HTMLInputElement;
+
+    const shouldMoveHorizontal = (direction: "left" | "right"): boolean => {
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      if (start === null || end === null) return true;
+      if (start !== end) return false;
+      return direction === "left" ? start === 0 : end === input.value.length;
+    };
+
+    if (event.key === "ArrowUp" && !isPopupOpen) {
+      event.preventDefault();
+      focusPreviousInput(source);
+      return;
+    }
+
+    if (event.key === "ArrowDown" && !isPopupOpen) {
+      event.preventDefault();
+      focusNextInput(source);
+      return;
+    }
+
+    if (
+      event.key === "ArrowLeft" &&
+      !isPopupOpen &&
+      shouldMoveHorizontal("left")
+    ) {
+      event.preventDefault();
+      focusPreviousInput(source);
+      return;
+    }
+
+    if (
+      event.key === "ArrowRight" &&
+      !isPopupOpen &&
+      shouldMoveHorizontal("right")
+    ) {
+      event.preventDefault();
+      focusNextInput(source);
+      return;
+    }
+
     if (event.key !== "Enter") return;
 
     // Let MUI handle option selection first
-    if (event.defaultPrevented || (event as any).defaultMuiPrevented) return;
+    if (
+      event.defaultPrevented ||
+      (event as MuiKeyboardEvent).defaultMuiPrevented
+    )
+      return;
 
     event.preventDefault();
-    const moved = focusNextInput(event.currentTarget);
+    const moved = focusNextInput(source);
     if (!moved) {
       event.currentTarget.form?.requestSubmit();
     }
   };
 
   return (
-    <Controller
-      control={ctrl}
-      name={name}
-      rules={rules}
-      render={({ field, fieldState }) => {
-        const selectedOption =
-          options.find((opt) => defaultIsEqual(opt, field.value)) ?? null;
+    <div className={`mt-3 ${className ?? ""}`}>
+      <Controller
+        control={ctrl}
+        name={name}
+        rules={rules}
+        render={({ field, fieldState }) => {
+          const selectedOption =
+            options.find((opt) => defaultIsEqual(opt, field.value)) ?? null;
 
-        const normalizedValue =
-          allowCreate && !selectedOption && field.value
-            ? ({
-                label: String(field.value),
-                value: field.value,
-              } as unknown as TOption)
-            : selectedOption;
+          const normalizedValue =
+            allowCreate && !selectedOption && field.value
+              ? ({
+                  label: String(field.value),
+                  value: field.value,
+                } as unknown as TOption)
+              : selectedOption;
 
-        return (
-          <div className={`space-y-2 ${className ?? ""}`}>
-            {/* Label */}
-            <label className="block text-sm font-semibold text-gray-700">
-              {label}
-            </label>
-
+          return (
             <Autocomplete
+              fullWidth
               size="small"
               options={options}
               value={normalizedValue}
@@ -161,14 +218,28 @@ export function HookFormAutocomplete<
               disabled={disabled}
               disableClearable={disableClearable}
               getOptionLabel={(option) => {
-                if (allowCreate && (option as any)?.inputValue) {
-                  return (option as any)?.label ?? (option as any).inputValue;
+                const optionWithInput = option as TOption & CreateOption;
+                if (allowCreate && optionWithInput.inputValue) {
+                  return optionWithInput.label ?? optionWithInput.inputValue;
                 }
                 return defaultGetOptionLabel(option as TOption);
               }}
               isOptionEqualToValue={defaultIsEqual}
               filterOptions={appliedFilterOptions}
-              onChange={(_, option) => {
+              onChange={(event, option) => {
+                const moveToNext = () => {
+                  const source = event.target as HTMLElement;
+                  const moved = focusNextInput(source);
+                  if (moved) return;
+
+                  const active =
+                    source.ownerDocument?.activeElement ??
+                    document.activeElement;
+                  if (active instanceof HTMLElement) {
+                    focusNextInput(active);
+                  }
+                };
+
                 if (!option) {
                   field.onChange(null);
                   onOptionSelected?.(null);
@@ -178,31 +249,42 @@ export function HookFormAutocomplete<
                 if (
                   allowCreate &&
                   typeof option === "object" &&
-                  (option as any).inputValue
+                  option !== null &&
+                  "inputValue" in option &&
+                  typeof option.inputValue === "string"
                 ) {
-                  const inputVal = (option as any).inputValue as string;
+                  const inputVal = option.inputValue;
                   field.onChange(inputVal);
                   onCreateOption?.(inputVal);
                   onOptionSelected?.({
                     label: inputVal,
                     value: inputVal,
                   } as unknown as TOption);
+                  window.requestAnimationFrame(moveToNext);
                   return;
                 }
 
-                const nextValue = (option as any).value ?? option;
+                const nextValue =
+                  typeof option === "object" &&
+                  option !== null &&
+                  "value" in option
+                    ? option.value
+                    : option;
                 field.onChange(nextValue);
                 onOptionSelected?.(option as TOption);
+                window.requestAnimationFrame(moveToNext);
               }}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   size="small"
+                  label={label || undefined}
                   placeholder={placeholder}
                   error={!!fieldState.error}
                   helperText={fieldState.error?.message}
                   variant="outlined"
                   fullWidth
+                  autoComplete={autoComplete}
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: "0.45rem",
@@ -217,22 +299,12 @@ export function HookFormAutocomplete<
                       },
                     },
                     "& .MuiOutlinedInput-input": {
-                      padding: "6px 10px",
-                      fontSize: "0.75rem",
+                      fontSize: "0.875rem",
+                      py: 1,
                     },
                   }}
                   InputProps={{
                     ...params.InputProps,
-                    inputProps: {
-                      ...params.InputProps?.inputProps,
-                      ...params.inputProps,
-                      "data-auto-next": "true",
-                      onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-                        params.inputProps?.onKeyDown?.(event);
-                        params.InputProps?.inputProps?.onKeyDown?.(event);
-                        handleKeyDown(event);
-                      },
-                    },
                     endAdornment: (
                       <Box className="flex items-center gap-1 pr-1">
                         {params.InputProps.endAdornment}
@@ -258,12 +330,26 @@ export function HookFormAutocomplete<
                       </Box>
                     ),
                   }}
+                  inputProps={{
+                    ...params.inputProps,
+                    "data-auto-next": "true",
+                    autoComplete,
+                    autoCorrect: "off",
+                    autoCapitalize: "off",
+                    spellCheck: false,
+                  }}
+                  onKeyDown={(event) => {
+                    params.inputProps?.onKeyDown?.(
+                      event as unknown as KeyboardEvent<HTMLInputElement>,
+                    );
+                    handleKeyDown(event as KeyboardEvent<HTMLInputElement>);
+                  }}
                 />
               )}
             />
-          </div>
-        );
-      }}
-    />
+          );
+        }}
+      />
+    </div>
   );
 }

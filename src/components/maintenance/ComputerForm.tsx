@@ -4,6 +4,7 @@ import { Save, Plus, Trash2 } from "lucide-react";
 
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer } from "@/types/maintenance";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
@@ -182,11 +183,14 @@ export default function ComputerForm({
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit}>
           <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create"
-                ? "Registrar nueva Computadora"
-                : "Editar Computadora"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <BackArrowButton />
+              <h1 className="text-base font-semibold">
+                {mode === "create"
+                  ? "Registrar nueva Computadora"
+                  : "Editar Computadora"}
+              </h1>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 type="submit"

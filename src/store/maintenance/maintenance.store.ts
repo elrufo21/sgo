@@ -61,6 +61,54 @@ const isDuplicateHoliday = (result: unknown) => {
   );
 };
 
+const isDuplicateCategoryResponse = (result: unknown) =>
+  typeof result === "string" && result.toLowerCase().includes("existe");
+
+const parseCategoryRegisterResponse = (
+  result: unknown,
+  fallback: { id: number; nombreSublinea: string; codigoSunat: string }
+): Category => {
+  if (result && typeof result === "object") {
+    const payload = result as Record<string, unknown>;
+    const parsedId =
+      Number(payload.id ?? payload.idSubLinea ?? fallback.id) || fallback.id;
+    const parsedName =
+      String(
+        payload.nombreSublinea ?? payload.nombre ?? fallback.nombreSublinea
+      ) || fallback.nombreSublinea;
+    const parsedCode =
+      String(payload.codigoSunat ?? fallback.codigoSunat) || fallback.codigoSunat;
+
+    return {
+      id: parsedId,
+      idSubLinea: parsedId,
+      nombreSublinea: parsedName,
+      codigoSunat: parsedCode,
+    };
+  }
+
+  if (typeof result === "string") {
+    const [idRaw = "", nameRaw = ""] = result.trim().split("|");
+    const parsedId = Number(idRaw.trim());
+    if (Number.isFinite(parsedId) && parsedId > 0) {
+      const parsedName = nameRaw.trim() || fallback.nombreSublinea;
+      return {
+        id: parsedId,
+        idSubLinea: parsedId,
+        nombreSublinea: parsedName,
+        codigoSunat: fallback.codigoSunat,
+      };
+    }
+  }
+
+  return {
+    id: fallback.id,
+    idSubLinea: fallback.id,
+    nombreSublinea: fallback.nombreSublinea,
+    codigoSunat: fallback.codigoSunat,
+  };
+};
+
 const mapProviderAccount = (
   item: any,
   fallbackProviderId?: number
@@ -317,13 +365,19 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
 
     // CRUD
     addCategory: async (data) => {
+      const fallbackId = Date.now();
+      const fallbackCategory = {
+        id: fallbackId,
+        nombreSublinea: data.nombreSublinea,
+        codigoSunat: data.codigoSunat,
+      };
       const payload = {
         idSubLinea: 0,
         nombreSublinea: data.nombreSublinea,
         codigoSunat: data.codigoSunat,
       };
 
-      const created = await apiRequest<Category | string>({
+      const created = await apiRequest<unknown>({
         url: "http://localhost:5000/api/v1/Linea/registerlinea",
         method: "POST",
         data: payload,
@@ -333,24 +387,18 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
             "Content-Type": "application/json",
           },
         },
-        fallback: { ...data, id: Date.now() },
+        fallback: fallbackCategory,
       });
 
-      if (
-        typeof created === "string" &&
-        created.toLowerCase().includes("existe")
-      ) {
+      if (isDuplicateCategoryResponse(created)) {
         toast.error("Ya existe esa categoria");
         return false;
       }
 
+      const nextCategory = parseCategoryRegisterResponse(created, fallbackCategory);
+
       set((state) => ({
-        categories: [
-          ...state.categories,
-          created?.id
-            ? created
-            : { ...data, id: Date.now(), nombreSublinea: data.nombreSublinea },
-        ],
+        categories: [...state.categories, nextCategory],
       }));
 
       await queryClient.invalidateQueries({ queryKey: categoriesQueryKey });
@@ -358,13 +406,26 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     },
 
     updateCategory: async (id, data) => {
-      const payload = {
-        idSubLinea: id,
-        nombreSublinea: data.nombreSublinea ?? data.nombre ?? "",
-        codigoSunat: data.codigoSunat ?? "",
+      const previousCategory = get().categories.find(
+        (c) => String(c.id ?? c.idSubLinea) === String(id)
+      );
+      const fallbackCategory = {
+        id,
+        nombreSublinea:
+          data.nombreSublinea ??
+          data.nombre ??
+          previousCategory?.nombreSublinea ??
+          "",
+        codigoSunat: data.codigoSunat ?? previousCategory?.codigoSunat ?? "",
       };
 
-      const updated = await apiRequest<Category | string>({
+      const payload = {
+        idSubLinea: id,
+        nombreSublinea: fallbackCategory.nombreSublinea,
+        codigoSunat: fallbackCategory.codigoSunat,
+      };
+
+      const updated = await apiRequest<unknown>({
         url: "http://localhost:5000/api/v1/Linea/registerlinea",
         method: "POST",
         data: payload,
@@ -374,23 +435,24 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
             "Content-Type": "application/json",
           },
         },
-        fallback: { ...data, id },
+        fallback: fallbackCategory,
       });
 
-      if (
-        typeof updated === "string" &&
-        updated.toLowerCase().includes("existe")
-      ) {
+      if (isDuplicateCategoryResponse(updated)) {
         toast.error("Ya existe esa categoria");
         return false;
       }
 
+      const nextCategory = parseCategoryRegisterResponse(updated, fallbackCategory);
+
       set((state) => ({
         categories: state.categories.map((c) =>
-          String(c.id) === String(id)
-            ? updated?.id
-              ? updated
-              : { ...c, ...data, id }
+          String(c.id ?? c.idSubLinea) === String(id)
+            ? {
+                ...c,
+                ...data,
+                ...nextCategory,
+              }
             : c
         ),
       }));

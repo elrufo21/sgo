@@ -5,7 +5,9 @@ import { useForm } from "react-hook-form";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useAuthStore } from "@/store/auth/auth.store";
 import type { Client } from "@/types/customer";
@@ -85,7 +87,11 @@ export default function CustomerFormBase({
 
   const {
     reset,
-    handleSubmit,
+    getValues,
+    setValue,
+    setFocus,
+    setError,
+    clearErrors,
     formState: { isSubmitting },
   } = formMethods;
 
@@ -134,6 +140,117 @@ export default function CustomerFormBase({
     focusFirstInput(containerRef.current);
   };
 
+  const handleConsultarDocumento = async () => {
+    const tipoDocumento = getValues("tipoDocumento");
+    const numeroDocumento = String(getValues("numeroDocumento") ?? "").trim();
+
+    if (!numeroDocumento) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message: "Ingrese un numero de documento",
+      });
+      return;
+    }
+
+    if (!/^\d+$/.test(numeroDocumento)) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message: "Solo se permiten numeros",
+      });
+      return;
+    }
+
+    const expectedLength = tipoDocumento === "dni" ? 8 : 11;
+    if (numeroDocumento.length !== expectedLength) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message:
+          tipoDocumento === "dni"
+            ? "Ingrese correctamente los 8 numeros del DNI"
+            : "Ingrese correctamente los 11 numeros del RUC",
+      });
+      return;
+    }
+
+    clearErrors("numeroDocumento");
+
+    const token = import.meta.env.VITE_API_DOCUMENTO;
+    if (!token) {
+      console.error("Falta VITE_API_DOCUMENTO en .env");
+      return;
+    }
+
+    const endpoint = tipoDocumento === "dni" ? "dni" : "ruc";
+    const url = `https://dniruc.apisperu.com/api/v1/${endpoint}/${numeroDocumento}?token=${token}`;
+
+    const response = await apiRequest({
+      url,
+      method: "GET",
+      fallback: null,
+    });
+
+    console.log(`[consulta ${endpoint}]`, response);
+
+    if (!response || typeof response !== "object") {
+      console.warn("Respuesta invalida del servicio de consulta");
+      return;
+    }
+
+    const data = response as Record<string, unknown>;
+
+    const asText = (value: unknown) => String(value ?? "").trim();
+    const pickFirst = (...values: unknown[]) =>
+      values.map(asText).find((v) => v.length > 0) ?? "";
+
+    if (tipoDocumento === "dni") {
+      const nombreCompleto = [
+        asText(data.nombres),
+        asText(data.apellidoPaterno),
+        asText(data.apellidoMaterno),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      const dni = pickFirst(data.dni, numeroDocumento);
+
+      if (nombreCompleto) {
+        setValue("nombreRazon", nombreCompleto, { shouldDirty: true });
+      }
+      setValue("dni", dni, { shouldDirty: true });
+      setValue("ruc", "", { shouldDirty: true });
+      setValue("direccionFiscal", "-", { shouldDirty: true });
+      setValue("direccionDespacho", "-", { shouldDirty: true });
+      setFocus("nombreRazon");
+      return;
+    }
+
+    const razonSocial = pickFirst(
+      data.razonSocial,
+      data.nombreORazonSocial,
+      data.nombre_o_razon_social,
+      data.nombre,
+      data.nombreRazon
+    );
+    const direccion = pickFirst(
+      data.direccion,
+      data.direccionCompleta,
+      data.domicilioFiscal
+    );
+    const ruc = pickFirst(data.ruc, numeroDocumento);
+
+    if (razonSocial) {
+      setValue("nombreRazon", razonSocial, { shouldDirty: true });
+    }
+    setValue("ruc", ruc, { shouldDirty: true });
+    setValue("dni", "", { shouldDirty: true });
+    if (direccion) {
+      setValue("direccionFiscal", direccion, { shouldDirty: true });
+      setValue("direccionDespacho", direccion, { shouldDirty: true });
+    }
+    setFocus("nombreRazon");
+  };
+
   const isModal = variant === "modal";
 
   return (
@@ -152,11 +269,14 @@ export default function CustomerFormBase({
           <HookForm methods={formMethods} onSubmit={handleSave}>
             {!isModal && (
               <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-                <h1 className="text-base font-semibold">
-                  {mode === "create"
-                    ? "Registrar Nuevo Cliente"
-                    : "Editar Cliente"}
-                </h1>
+                <div className="flex items-center gap-3">
+                  <BackArrowButton />
+                  <h1 className="text-base font-semibold">
+                    {mode === "create"
+                      ? "Registrar Nuevo Cliente"
+                      : "Editar Cliente"}
+                  </h1>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="submit"
@@ -340,9 +460,7 @@ export default function CustomerFormBase({
                       <button
                         type="button"
                         className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
-                        onClick={() => {
-                          console.log("Consultar documento");
-                        }}
+                        onClick={handleConsultarDocumento}
                       >
                         Consultar
                       </button>

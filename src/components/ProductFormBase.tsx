@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Save, Plus, Trash2, X, FileEdit, Camera, Upload } from "lucide-react";
+import {
+  Save,
+  Plus,
+  Trash2,
+  X,
+  FileEdit,
+  Camera,
+  Upload,
+  PlusIcon,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { Product } from "@/types/product";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
@@ -11,6 +20,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "./forms/HookFormAutocomplete";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import CategoriaForm from "./maintenance/CategoriaForm";
 import type { Category } from "@/types/maintenance";
 
@@ -18,7 +28,7 @@ interface ProductFormBaseProps {
   initialData?: Partial<Product>;
   mode: "create" | "edit";
   onSave: (
-    data: Omit<Product, "id"> & { images?: string[]; imageFile?: File | null }
+    data: Omit<Product, "id"> & { images?: string[]; imageFile?: File | null },
   ) => void;
   onNew?: () => void;
   onArchive?: () => void;
@@ -52,7 +62,7 @@ export default function ProductFormBase({
   const { products, fetchProducts } = useProductsStore();
   const fallbackUser = useMemo(
     () => authUser?.displayName ?? authUser?.username ?? buildUserDate(),
-    [authUser]
+    [authUser],
   );
   const productsLoading = useProductsStore((s) => s.loading);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -91,7 +101,7 @@ export default function ProductFormBase({
       imageFile: null,
       imageRemoved: false,
     }),
-    [initialData, mode, fallbackUser]
+    [initialData, mode, fallbackUser],
   );
 
   const formMethods = useForm<ProductFormValues>({
@@ -158,7 +168,7 @@ export default function ProductFormBase({
       return;
     }
     const selected = categories.find(
-      (cat) => String(cat.id ?? cat.idSubLinea) === String(selectedSubLineaId)
+      (cat) => String(cat.id ?? cat.idSubLinea) === String(selectedSubLineaId),
     );
     setValue("categoria", selected?.nombreSublinea ?? "");
   }, [categories, selectedSubLineaId, setValue]);
@@ -315,9 +325,14 @@ export default function ProductFormBase({
 
           <HookForm methods={formMethods} onSubmit={onSubmit}>
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <h1 className="text-base font-semibold">
-                {mode === "create" ? "Crear Nuevo Producto" : "Editar Producto"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <BackArrowButton />
+                <h1 className="text-base font-semibold">
+                  {mode === "create"
+                    ? "Crear Nuevo Producto"
+                    : "Editar Producto"}
+                </h1>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
@@ -356,43 +371,10 @@ export default function ProductFormBase({
             <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-sm font-semibold text-gray-700">
-                        Categoria
-                      </label>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openDialog({
-                              title: "Registrar categoria",
-                              content: (
-                                <CategoriaForm
-                                  variant="modal"
-                                  mode="create"
-                                  onSave={() => {}}
-                                  initialData={{}}
-                                />
-                              ),
-                              onConfirm: async (data) => {
-                                if (!data || typeof data !== "object") return;
-                                await addCategory(data as Category);
-                                await fetchCategories();
-                              },
-                              maxWidth: "md",
-                              fullWidth: true,
-                            })
-                          }
-                          className="text-blue-600 text-sm font-semibold hover:underline"
-                        >
-                          Registrar
-                        </button>
-                      </div>
-                    </div>
+                  <div className="flex min-w-0 items-end gap-2">
                     <HookFormAutocomplete<ProductFormValues>
                       name="idSubLinea"
-                      label=""
+                      label="Categoria"
                       options={[
                         { value: "", label: "Seleccionar..." },
                         ...categories.map((cat) => ({
@@ -401,8 +383,8 @@ export default function ProductFormBase({
                             cat.idSubLinea !== null
                               ? Number(cat.idSubLinea)
                               : cat.id !== undefined && cat.id !== null
-                              ? Number(cat.id)
-                              : "",
+                                ? Number(cat.id)
+                                : "",
                           label: cat.nombreSublinea,
                         })),
                       ]}
@@ -419,6 +401,16 @@ export default function ProductFormBase({
                         setValue("categoria", opt?.label ?? "")
                       }
                       onOpenModal={(selectedOption) => {
+                        const selectedId = Number(selectedOption?.value ?? 0);
+                        if (!Number.isFinite(selectedId) || selectedId <= 0)
+                          return;
+
+                        const selectedCategory = categories.find(
+                          (c) =>
+                            String(c.idSubLinea ?? c.id) === String(selectedId),
+                        );
+                        if (!selectedCategory) return;
+
                         openDialog({
                           title: "Editar categoria",
                           content: (
@@ -426,26 +418,122 @@ export default function ProductFormBase({
                               variant="modal"
                               mode="edit"
                               onSave={() => {}}
-                              initialData={categories.find(
-                                (c) => c.id === selectedOption.value
-                              )}
+                              initialData={selectedCategory}
                             />
                           ),
                           onConfirm: async (data) => {
-                            const idToEdit = selectedSubLineaId;
-                            if (!idToEdit || !data || typeof data !== "object")
-                              return;
-                            await updateCategory(
-                              Number(idToEdit),
-                              data as Category
+                            if (!data || typeof data !== "object") return;
+                            const payload = data as Category;
+                            const updated = await updateCategory(
+                              selectedId,
+                              payload,
                             );
+                            if (!updated) return;
                             await fetchCategories();
+
+                            const refreshedCategories =
+                              useMaintenanceStore.getState().categories ?? [];
+                            const updatedCategory = refreshedCategories.find(
+                              (c) =>
+                                String(c.idSubLinea ?? c.id) ===
+                                String(selectedId),
+                            );
+                            if (!updatedCategory) return;
+
+                            const updatedId = Number(
+                              updatedCategory.idSubLinea ??
+                                updatedCategory.id ??
+                                selectedId,
+                            );
+
+                            setValue("idSubLinea", updatedId, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                            setValue(
+                              "categoria",
+                              updatedCategory.nombreSublinea ??
+                                payload.nombreSublinea ??
+                                "",
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              },
+                            );
                           },
                           maxWidth: "md",
                           fullWidth: true,
                         });
                       }}
+                      className="min-w-0 flex-1"
                     />
+                    <button
+                      type="button"
+                      onClick={() =>
+                        openDialog({
+                          title: "Registrar categoria",
+                          content: (
+                            <CategoriaForm
+                              variant="modal"
+                              mode="create"
+                              onSave={() => {}}
+                              initialData={{}}
+                            />
+                          ),
+                          onConfirm: async (data) => {
+                            if (!data || typeof data !== "object") return;
+                            const payload = data as Category;
+                            const created = await addCategory(payload);
+                            if (!created) return;
+                            await fetchCategories();
+
+                            const normalizedName = (
+                              payload.nombreSublinea ?? ""
+                            )
+                              .trim()
+                              .toUpperCase();
+                            const refreshedCategories =
+                              useMaintenanceStore.getState().categories ?? [];
+
+                            const createdCategory = refreshedCategories.find(
+                              (c) =>
+                                (c.nombreSublinea ?? "")
+                                  .trim()
+                                  .toUpperCase() === normalizedName,
+                            );
+
+                            const createdId = Number(
+                              createdCategory?.idSubLinea ??
+                                createdCategory?.id ??
+                                0,
+                            );
+
+                            if (createdId > 0) {
+                              setValue("idSubLinea", createdId, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                              setValue(
+                                "categoria",
+                                createdCategory?.nombreSublinea ??
+                                  payload.nombreSublinea ??
+                                  "",
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                },
+                              );
+                            }
+                          },
+                          maxWidth: "md",
+                          fullWidth: true,
+                        })
+                      }
+                      className="mt-3 h-10 w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      title="Registrar categoria"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                    </button>
                   </div>
 
                   <div className="space-y-2">

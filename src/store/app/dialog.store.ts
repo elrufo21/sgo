@@ -7,7 +7,7 @@ type DialogOptions = {
   content: ReactNode;
   confirmText?: string;
   cancelText?: string;
-  onConfirm?: (data?: unknown) => Promise<void> | void;
+  onConfirm?: (data?: unknown) => Promise<boolean | void> | boolean | void;
   onCancel?: () => void;
   maxWidth?: DialogProps["maxWidth"];
   fullWidth?: boolean;
@@ -20,6 +20,8 @@ const defaults = {
   content: null as ReactNode,
   confirmText: "Aceptar",
   cancelText: "Cancelar",
+  onConfirm: undefined as DialogOptions["onConfirm"] | undefined,
+  onCancel: undefined as DialogOptions["onCancel"] | undefined,
   fullWidth: true,
   maxWidth: "sm" as DialogProps["maxWidth"],
   disableBackdropClose: false,

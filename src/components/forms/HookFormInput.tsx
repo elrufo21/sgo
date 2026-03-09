@@ -1,65 +1,196 @@
-import type { InputHTMLAttributes, KeyboardEvent } from "react";
+import type {
+  ChangeEvent,
+  FocusEvent,
+  InputHTMLAttributes,
+  KeyboardEvent,
+  ReactNode,
+} from "react";
 import type { FieldValues, Path, RegisterOptions } from "react-hook-form";
-import { useFormContext } from "react-hook-form";
-import { focusNextInput } from "@/shared/helpers/focusNextInput";
+import { Controller, useFormContext } from "react-hook-form";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import {
+  focusNextInput,
+  focusPreviousInput,
+} from "@/shared/helpers/focusNextInput";
 
 type HookFormInputProps<T extends FieldValues> = {
   name: Path<T>;
   label: string;
   rules?: RegisterOptions<T>;
+  helperText?: string;
+  endAdornment?: ReactNode;
 } & Omit<InputHTMLAttributes<HTMLInputElement>, "name">;
 
 export function HookFormInput<T extends FieldValues>({
   name,
   label,
   rules,
+  helperText,
   className,
   onKeyDown,
+  onChange,
+  onBlur,
   type = "text",
-  ...rest
+  disabled,
+  placeholder,
+  autoComplete,
+  endAdornment,
+  ...inputProps
 }: HookFormInputProps<T>) {
   const {
-    register,
-    formState: { errors },
+    control,
+    formState: { isSubmitting },
   } = useFormContext<T>();
-
-  const error = errors[name];
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    onKeyDown?.(event);
-    if (event.defaultPrevented) return;
-
-    if (event.key === "Enter") {
-      event.preventDefault();
-      const moved = focusNextInput(event.currentTarget);
-      if (!moved) {
-        event.currentTarget.form?.requestSubmit();
-      }
-    }
-  };
+  const resolvedAutoComplete = autoComplete ?? "new-password";
 
   return (
-    <div className="space-y-2">
-      <label className="block text-sm font-semibold text-gray-700">
-        {label}
-      </label>
-      <input
-        data-auto-next="true"
-        className={
-          className ??
-          "w-full px-3 py-2 border border-gray-200 rounded-md focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none text-sm h-[40px]"
-        }
-        aria-invalid={error ? "true" : "false"}
-        type={type}
-        onKeyDown={handleKeyDown}
-        {...register(name, rules)}
-        {...rest}
+    <div className="mt-3">
+      {" "}
+      <Controller
+        control={control}
+        name={name}
+        rules={rules}
+        render={({ field, fieldState }) => {
+          const isNumberType = type === "number";
+          const displayValue =
+            isNumberType && (field.value === 0 || field.value === "0")
+              ? ""
+              : (field.value ?? "");
+
+          const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+            field.onChange(event.target.value);
+            onChange?.(event);
+          };
+
+          const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+            field.onBlur();
+            onBlur?.(event);
+          };
+
+          const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+            onKeyDown?.(event);
+            if (event.defaultPrevented) return;
+            const source = event.target as HTMLElement;
+            const input = event.target as HTMLInputElement;
+
+            const shouldMoveHorizontal = (
+              direction: "left" | "right",
+            ): boolean => {
+              const start = input.selectionStart;
+              const end = input.selectionEnd;
+              if (start === null || end === null) return true;
+              if (start !== end) return false;
+              return direction === "left"
+                ? start === 0
+                : end === input.value.length;
+            };
+
+            if (event.key === "ArrowUp") {
+              event.preventDefault();
+              focusPreviousInput(source);
+              return;
+            }
+
+            if (event.key === "ArrowDown") {
+              event.preventDefault();
+              focusNextInput(source);
+              return;
+            }
+
+            if (event.key === "ArrowLeft" && shouldMoveHorizontal("left")) {
+              event.preventDefault();
+              focusPreviousInput(source);
+              return;
+            }
+
+            if (event.key === "ArrowRight" && shouldMoveHorizontal("right")) {
+              event.preventDefault();
+              focusNextInput(source);
+              return;
+            }
+
+            if (event.key === "Enter") {
+              event.preventDefault();
+              const moved = focusNextInput(source);
+              if (!moved) {
+                event.currentTarget.form?.requestSubmit();
+              }
+            }
+          };
+
+          return (
+            <TextField
+              fullWidth
+              size="small"
+              variant="outlined"
+              label={label}
+              type={type}
+              value={displayValue}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              onKeyDown={handleKeyDown}
+              name={field.name}
+              inputRef={field.ref}
+              disabled={disabled || isSubmitting}
+              placeholder={placeholder}
+              autoComplete={resolvedAutoComplete}
+              error={!!fieldState.error}
+              helperText={fieldState.error?.message ?? helperText}
+              InputProps={
+                endAdornment
+                  ? {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          {endAdornment}
+                        </InputAdornment>
+                      ),
+                    }
+                  : undefined
+              }
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  borderRadius: "0.45rem",
+                  backgroundColor: "#fff",
+                  "& fieldset": {
+                    borderWidth: "1px",
+                    borderColor: "#e5e7eb",
+                  },
+                  "&.Mui-focused fieldset": {
+                    borderColor: "#3b82f6",
+                    boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
+                  },
+                },
+                "& .MuiOutlinedInput-input": {
+                  fontSize: "0.875rem",
+                  py: 1,
+                },
+                ...(isNumberType
+                  ? {
+                      "& input[type=number]": {
+                        MozAppearance: "textfield",
+                      },
+                      "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+                        {
+                          WebkitAppearance: "none",
+                          margin: 0,
+                        },
+                    }
+                  : {}),
+              }}
+              inputProps={{
+                ...inputProps,
+                className,
+                "data-auto-next": "true",
+                autoComplete: resolvedAutoComplete,
+                autoCorrect: "off",
+                autoCapitalize: "off",
+                spellCheck: false,
+              }}
+            />
+          );
+        }}
       />
-      {error && (
-        <p className="text-sm text-red-600">
-          {String(error.message ?? "Este campo es requerido")}
-        </p>
-      )}
     </div>
   );
 }

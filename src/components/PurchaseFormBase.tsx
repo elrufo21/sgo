@@ -6,6 +6,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 
 interface CuentaBancaria {
@@ -166,11 +167,14 @@ export default function PurchaseFormBase({
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <HookForm methods={formMethods} onSubmit={onSubmit}>
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <h1 className="text-base font-semibold">
-                {mode === "create"
-                  ? "Crear Proveedor / Cliente"
-                  : "Editar Proveedor / Cliente"}
-              </h1>
+              <div className="flex items-center gap-3">
+                <BackArrowButton />
+                <h1 className="text-base font-semibold">
+                  {mode === "create"
+                    ? "Crear Proveedor / Cliente"
+                    : "Editar Proveedor / Cliente"}
+                </h1>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="submit"

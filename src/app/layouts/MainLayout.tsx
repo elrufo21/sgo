@@ -69,7 +69,7 @@ export default function MainLayout() {
   ];
 
   const filteredItems = navItems.filter((item) =>
-    item.label.toLowerCase().includes(search.toLowerCase())
+    item.label.toLowerCase().includes(search.toLowerCase()),
   );
 
   const breadcrumbItems = matches
@@ -85,7 +85,7 @@ export default function MainLayout() {
   // Render de items del menú
   const renderNavItem = (
     item: (typeof navItems)[0],
-    alwaysShowLabel = false
+    alwaysShowLabel = false,
   ) => {
     const active = pathname === item.to || pathname.startsWith(item.to + "/");
 
@@ -153,7 +153,7 @@ export default function MainLayout() {
         {/* Navegación */}
         <nav className="mt-4 flex flex-col gap-1 px-2 flex-1 text-white bg-[#222d32]">
           {(search ? filteredItems : navItems).map((item) =>
-            renderNavItem(item)
+            renderNavItem(item),
           )}
         </nav>
 
@@ -197,7 +197,7 @@ export default function MainLayout() {
 
         <nav className="mt-4 flex flex-col gap-1 px-2 flex-1">
           {(search ? filteredItems : navItems).map((item) =>
-            renderNavItem(item, true)
+            renderNavItem(item, true),
           )}
         </nav>
       </aside>
@@ -251,30 +251,6 @@ export default function MainLayout() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          {breadcrumbItems.length > 0 && (
-            <nav className="text-sm text-gray-500 mb-4" aria-label="Breadcrumb">
-              <ol className="list-reset flex">
-                <li>
-                  <Link to="/" className="hover:text-gray-700">
-                    Inicio
-                  </Link>
-                </li>
-                {breadcrumbItems.map((item, idx) => (
-                  <li key={idx} className="flex items-center">
-                    <span className="mx-2">/</span>
-                    {item.to ? (
-                      <Link to={item.to} className="hover:text-gray-700">
-                        {item.label}
-                      </Link>
-                    ) : (
-                      <span className="capitalize">{item.label}</span>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            </nav>
-          )}
-
           <Outlet />
         </main>
       </div>

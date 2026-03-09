@@ -4,8 +4,8 @@ import DataTable from "@/components/DataTable";
 import { Pencil, PlusIcon, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { createColumnHelper } from "@tanstack/react-table";
-import ButtonComponent from "./inputs/addButton";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 
 interface ColumnConfig<T> {
   key?: keyof T;
@@ -23,6 +23,8 @@ export interface CrudListConfig<T> {
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
   renderFilters?: React.ReactNode;
+  onCreate?: () => void;
+  onEdit?: (row: T, id: number) => void;
 }
 
 interface CrudListProps<T> {
@@ -36,6 +38,8 @@ interface CrudListProps<T> {
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
   renderFilters?: React.ReactNode;
+  onCreate?: () => void;
+  onEdit?: (row: T, id: number) => void;
 }
 
 export function CrudList<T>(props: CrudListProps<T>) {
@@ -50,11 +54,14 @@ export function CrudList<T>(props: CrudListProps<T>) {
     deleteMessage = "¿Seguro que deseas eliminar este elemento?",
     filterKeys,
     renderFilters,
+    onCreate,
+    onEdit,
   } = props;
 
   const openDialog = useDialogStore((s) => s.openDialog);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper<T>();
+  const isCategoriesList = basePath === "/maintenance/categories";
 
   useEffect(() => {
     fetchData();
@@ -97,8 +104,8 @@ export function CrudList<T>(props: CrudListProps<T>) {
           typeof rawId === "number"
             ? rawId
             : typeof rawId === "string"
-            ? Number(rawId)
-            : undefined;
+              ? Number(rawId)
+              : undefined;
         if (typeof id !== "number" || Number.isNaN(id)) return null;
 
         const askDelete = () =>
@@ -122,9 +129,15 @@ export function CrudList<T>(props: CrudListProps<T>) {
 
         return (
           <div className="flex gap-3">
-            <Link to={`${basePath}/${id}/edit`}>
-              <Pencil className="text-green-600" />
-            </Link>
+            {onEdit ? (
+              <button type="button" onClick={() => onEdit(row.original, id)}>
+                <Pencil className="text-green-600" />
+              </button>
+            ) : (
+              <Link to={`${basePath}/${id}/edit`}>
+                <Pencil className="text-green-600" />
+              </Link>
+            )}
 
             <button onClick={askDelete}>
               <Trash2 className="text-red-600 hover:text-red-800" />
@@ -137,22 +150,48 @@ export function CrudList<T>(props: CrudListProps<T>) {
 
   return (
     <div>
-      <div className="w-full flex mb-5">
-        <ButtonComponent
-          icon={<PlusIcon />}
-          onClick={() => navigate(`${basePath}/create`)}
-          variant="outlined"
-          color="success"
-        >
-          {createLabel}
-        </ButtonComponent>
-      </div>
+      {isCategoriesList ? (
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
+            <div className="leading-tight">
+              <p className="text-xs font-semibold tracking-wide uppercase text-[#B23636]">
+                Mantenimiento
+              </p>
+              <div className="flex items-end gap-2">
+                <h1 className="text-2xl sm:text-4xl font-semibold text-[#0f2748]">
+                  Categorías
+                </h1>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-1" />
+      )}
 
       <DataTable
         data={data}
         columns={tableColumns}
         filterKeys={filterKeys}
+        toolbarLeading={
+          !isCategoriesList ? (
+            <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
+          ) : undefined
+        }
         renderFilters={renderFilters}
+        toolbarAction={
+          <button
+            type="button"
+            onClick={() =>
+              onCreate ? onCreate() : navigate(`${basePath}/create`)
+            }
+            title={createLabel}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#B23636] text-white hover:bg-[#96312a] transition-colors shadow-sm"
+          >
+            <PlusIcon className="h-5 w-5" />
+          </button>
+        }
       />
     </div>
   );

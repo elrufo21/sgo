@@ -12,6 +12,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
+import { BackArrowButton } from "@/components/common/BackArrowButton";
 import AutocompleteTableCell from "@/components/forms/table/AutoCompleteTable";
 import EditableTextCell from "@/components/forms/table/EditableTextCell";
 import EditableDataTable from "@/components/forms/table/FormTable";
@@ -651,11 +652,14 @@ export default function SendNoteFormBase({
       <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
           <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-            <h1 className="text-base font-semibold">
-              {mode === "create"
-                ? "Nueva nota de pedido"
-                : "Editar nota de pedido"}
-            </h1>
+            <div className="flex items-center gap-3">
+              <BackArrowButton />
+              <h1 className="text-base font-semibold">
+                {mode === "create"
+                  ? "Nueva nota de pedido"
+                  : "Editar nota de pedido"}
+              </h1>
+            </div>
             <div className="flex items-center gap-4">
               <div className="hidden sm:flex items-center gap-2">
                 <HookFormSelect

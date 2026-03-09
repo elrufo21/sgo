@@ -39,13 +39,23 @@ export function GlobalDialog() {
 
   const handleConfirm = async () => {
     if (!onConfirm) return closeDialog();
+    let shouldResetData = true;
     try {
       setLoading(true);
-      await onConfirm(data);
+      const shouldClose = await onConfirm(data);
+      if (shouldClose === false) {
+        shouldResetData = false;
+        return;
+      }
       closeDialog();
+    } catch (error) {
+      shouldResetData = false;
+      console.error("Dialog confirm failed", error);
     } finally {
       setLoading(false);
-      setData(null);
+      if (shouldResetData) {
+        setData(null);
+      }
     }
   };
 
