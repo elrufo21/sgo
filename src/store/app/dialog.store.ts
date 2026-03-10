@@ -12,6 +12,8 @@ type DialogOptions = {
   maxWidth?: DialogProps["maxWidth"];
   fullWidth?: boolean;
   disableBackdropClose?: boolean;
+  disableClose?: boolean;
+  hideCancelButton?: boolean;
 };
 
 const defaults = {
@@ -25,6 +27,8 @@ const defaults = {
   fullWidth: true,
   maxWidth: "sm" as DialogProps["maxWidth"],
   disableBackdropClose: false,
+  disableClose: false,
+  hideCancelButton: false,
   loading: false,
   data: null as unknown,
 };

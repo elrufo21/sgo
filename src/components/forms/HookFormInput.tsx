@@ -34,7 +34,6 @@ export function HookFormInput<T extends FieldValues>({
   type = "text",
   disabled,
   placeholder,
-  autoComplete,
   endAdornment,
   ...inputProps
 }: HookFormInputProps<T>) {
@@ -42,7 +41,23 @@ export function HookFormInput<T extends FieldValues>({
     control,
     formState: { isSubmitting },
   } = useFormContext<T>();
-  const resolvedAutoComplete = autoComplete ?? "new-password";
+  const normalizedType = String(type ?? "text").toLowerCase();
+  const isTextLike =
+    normalizedType === "password" ||
+    normalizedType === "text" ||
+    normalizedType === "email" ||
+    normalizedType === "search" ||
+    normalizedType === "tel" ||
+    normalizedType === "url" ||
+    normalizedType === "number";
+  const requiresShrinkLabel =
+    normalizedType === "date" ||
+    normalizedType === "time" ||
+    normalizedType === "datetime-local" ||
+    normalizedType === "month" ||
+    normalizedType === "week";
+  const resolvedAutoComplete =
+    normalizedType === "password" ? "new-password" : isTextLike ? "off" : undefined;
 
   return (
     <div className="mt-3">
@@ -125,6 +140,7 @@ export function HookFormInput<T extends FieldValues>({
               size="small"
               variant="outlined"
               label={label}
+              InputLabelProps={requiresShrinkLabel ? { shrink: true } : undefined}
               type={type}
               value={displayValue}
               onChange={handleChange}
@@ -183,9 +199,17 @@ export function HookFormInput<T extends FieldValues>({
                 className,
                 "data-auto-next": "true",
                 autoComplete: resolvedAutoComplete,
-                autoCorrect: "off",
-                autoCapitalize: "off",
-                spellCheck: false,
+                ...(isTextLike
+                  ? {
+                      autoCorrect: "off",
+                      autoCapitalize: "off",
+                      spellCheck: false,
+                      "data-lpignore": "true",
+                      "data-1p-ignore": "true",
+                      "data-bwignore": "true",
+                      "data-form-type": "other",
+                    }
+                  : {}),
               }}
             />
           );

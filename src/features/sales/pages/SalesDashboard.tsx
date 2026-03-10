@@ -1,9 +1,4 @@
-import {
-  DollarSign,
-  ShoppingCart,
-  NotebookPen,
-  LucideDollarSign,
-} from "lucide-react";
+import { DollarSign, NotebookPen, LucideDollarSign } from "lucide-react";
 import { useNavigate } from "react-router";
 
 const cards = [
@@ -14,10 +9,10 @@ const cards = [
     route: "/sales/pos",
   },
   {
-    title: "Nota de pedido",
-    desc: "Administra las notas de pedido.",
+    title: "Lista pedidos",
+    desc: "Consulta el listado de pedidos.",
     icon: <NotebookPen className="w-10 h-10 text-amber-600" />,
-    route: "/sales/send_note/create",
+    route: "/sales/order_notes",
   },
   {
     title: "Caja chica",

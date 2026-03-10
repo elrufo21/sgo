@@ -19,6 +19,7 @@ interface UserFormBaseProps {
   onNew?: () => void;
   onDelete?: () => void;
   variant?: "page" | "modal";
+  fieldsMode?: "full" | "password-only";
 }
 
 type UserFormValues = {
@@ -65,6 +66,7 @@ export default function UserFormBase({
   onNew,
   onDelete,
   variant = "page",
+  fieldsMode = "full",
 }: UserFormBaseProps) {
   const { employees, fetchEmployees } = useEmployeesStore();
   const setDialogData = useDialogStore((s) => s.setData);
@@ -226,46 +228,50 @@ export default function UserFormBase({
 
             <div className="p-6 sm:p-8">
               <div className="space-y-4">
-                <HookFormAutocomplete
-                  name="PersonalId"
-                  label="Personal"
-                  placeholder="Buscar personal"
-                  options={employees.map((p) => ({
-                    label:
-                      `${p.personalNombres ?? ""} ${p.personalApellidos ?? ""}`.trim() ||
-                      p.personalCodigo ||
-                      `Personal ${p.personalId}`,
-                    value: p.personalId,
-                    data: p,
-                  }))}
-                  onOptionSelected={(option) => {
-                    if (option) {
-                      setFocus("UsuarioAlias");
-                    }
-                  }}
-                  rules={{
-                    required: "Seleccione personal",
-                    validate: (value) =>
-                      Number(value) > 0 || "Seleccione personal",
-                  }}
-                  data-focus-first
-                />
+                {fieldsMode === "full" && (
+                  <HookFormAutocomplete
+                    name="PersonalId"
+                    label="Personal"
+                    placeholder="Buscar personal"
+                    options={employees.map((p) => ({
+                      label:
+                        `${p.personalNombres ?? ""} ${p.personalApellidos ?? ""}`.trim() ||
+                        p.personalCodigo ||
+                        `Personal ${p.personalId}`,
+                      value: p.personalId,
+                      data: p,
+                    }))}
+                    onOptionSelected={(option) => {
+                      if (option) {
+                        setFocus("UsuarioAlias");
+                      }
+                    }}
+                    rules={{
+                      required: "Seleccione personal",
+                      validate: (value) =>
+                        Number(value) > 0 || "Seleccione personal",
+                    }}
+                    data-focus-first
+                  />
+                )}
 
-                <HookFormInput
-                  name="UsuarioAlias"
-                  label="Usuario / Alias"
-                  placeholder="Ej: jramirez"
-                  onKeyDown={(e) => {
-                    if (e.key === " ") {
-                      e.preventDefault();
-                    }
-                  }}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\s+/g, "");
-                    e.target.value = value;
-                  }}
-                  rules={{ required: "El alias es obligatorio" }}
-                />
+                {fieldsMode === "full" && (
+                  <HookFormInput
+                    name="UsuarioAlias"
+                    label="Usuario / Alias"
+                    placeholder="Ej: jramirez"
+                    onKeyDown={(e) => {
+                      if (e.key === " ") {
+                        e.preventDefault();
+                      }
+                    }}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/\s+/g, "");
+                      e.target.value = value;
+                    }}
+                    rules={{ required: "El alias es obligatorio" }}
+                  />
+                )}
 
                 <HookFormInput
                   name="UsuarioClave"
@@ -323,15 +329,17 @@ export default function UserFormBase({
                   }
                 />
 
-                <HookFormSelect
-                  name="UsuarioEstado"
-                  label="Estado"
-                  options={[
-                    { value: "ACTIVO", label: "Activo" },
-                    { value: "INACTIVO", label: "Inactivo" },
-                  ]}
-                  disabled={mode === "create"}
-                />
+                {fieldsMode === "full" && (
+                  <HookFormSelect
+                    name="UsuarioEstado"
+                    label="Estado"
+                    options={[
+                      { value: "ACTIVO", label: "Activo" },
+                      { value: "INACTIVO", label: "Inactivo" },
+                    ]}
+                    disabled={mode === "create"}
+                  />
+                )}
               </div>
             </div>
           </HookForm>

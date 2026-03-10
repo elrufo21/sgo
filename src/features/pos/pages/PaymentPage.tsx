@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { useNavigate, Link } from "react-router";
+import { useLocation, useNavigate, useParams, Link } from "react-router";
 import {
   CheckCircle2,
   ArrowLeft,
@@ -40,6 +40,9 @@ type NotaDetallePayload = {
 };
 
 const PaymentPage = () => {
+  const { notaId: notaIdParam } = useParams<{ notaId?: string }>();
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
   const items = usePosStore((s) => s.items);
   const totals = usePosStore(selectTotals);
   const updateQuantity = usePosStore((s) => s.updateQuantity);
@@ -54,11 +57,39 @@ const PaymentPage = () => {
   const setServerItemsInStore = usePosStore((s) => s.setServerItemsFromNota);
   const clearEditingNota = usePosStore((s) => s.clearEditingNota);
   const clearCart = usePosStore((s) => s.clearCart);
-  const navigate = useNavigate();
   const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients } = useClientsStore();
   const { fetchProducts: refetchProducts } = useProductsStore();
   const safeTrim = (value: unknown) => String(value ?? "").trim();
+  const routeNotaId = useMemo(() => {
+    const parsed = Number(notaIdParam ?? 0);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [notaIdParam]);
+  const searchParams = useMemo(() => new URLSearchParams(search), [search]);
+  const queryMode = useMemo(() => {
+    const raw = String(searchParams.get("mode") ?? "")
+      .trim()
+      .toLowerCase();
+    if (raw === "view" || raw === "edit") return raw;
+    return null;
+  }, [searchParams]);
+  const pathMode = useMemo(() => {
+    const normalizedPath = pathname.toLowerCase();
+    if (!normalizedPath.includes("/sales/order_notes/")) return null;
+    if (normalizedPath.endsWith("/view")) return "view";
+    if (normalizedPath.endsWith("/edit")) return "edit";
+    return null;
+  }, [pathname]);
+  const forcedMode = pathMode ?? queryMode;
+  const isOrderNotesFlow = useMemo(
+    () =>
+      pathname.toLowerCase().includes("/sales/order_notes/") ||
+      String(searchParams.get("from") ?? "").toLowerCase() === "order_notes",
+    [pathname, searchParams],
+  );
+  const isReadOnlyNoteView = isOrderNotesFlow && forcedMode === "view";
+  const backRoute = "/sales/pos";
+  const backLabel = "Volver al POS";
   const initialItems =
     serverItemsFromStore.length > 0 ? serverItemsFromStore : items;
   const [purchasedItems, setPurchasedItems] = useState(initialItems);
@@ -73,7 +104,7 @@ const PaymentPage = () => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [notaId, setNotaId] = useState<number | null>(
-    editingNotaIdFromStore ?? null,
+    routeNotaId ?? editingNotaIdFromStore ?? null,
   );
   const [notaNumero, setNotaNumero] = useState<string>("");
   const [notaSerieOverride, setNotaSerieOverride] = useState<string | null>(
@@ -124,10 +155,39 @@ const PaymentPage = () => {
     };
   }, []);
 
-  const hasLiveItems = items.length > 0;
+  useEffect(() => {
+    if (!routeNotaId) return;
+
+    if (isOrderNotesFlow) {
+      setPurchasedItems([]);
+      setServerItems([]);
+      setPaidTotals({ subTotal: 0, total: 0, itemCount: 0 });
+    }
+
+    setNotaId(routeNotaId);
+    setHasLoadedNotaMeta(false);
+    setEditingNotaInStore(routeNotaId);
+
+    if (forcedMode === "view") {
+      setEditingModeInStore(false);
+      setIsConfirmed(true);
+      return;
+    }
+
+    setEditingModeInStore(true);
+    setIsConfirmed(false);
+  }, [
+    forcedMode,
+    isOrderNotesFlow,
+    routeNotaId,
+    setEditingModeInStore,
+    setEditingNotaInStore,
+  ]);
+
+  const hasLiveItems = !isOrderNotesFlow && items.length > 0;
   const itemsToRender = hasLiveItems ? items : purchasedItems;
   const totalsToRender = hasLiveItems ? totals : paidTotals;
-  const canEditItems = hasLiveItems || isEditingMode;
+  const canEditItems = !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
 
   const adjustLocalItems = (
     updater: (prev: PosCartItem[]) => PosCartItem[],
@@ -202,10 +262,11 @@ const PaymentPage = () => {
   const {
     watch,
     setValue,
+    getValues,
     register,
     control,
     handleSubmit,
-    formState: { isSubmitting, dirtyFields },
+    formState: { isSubmitting, dirtyFields, touchedFields },
   } = formMethods;
 
   const docTypeCode = watch("docTypeCode");
@@ -245,6 +306,7 @@ const PaymentPage = () => {
         ? "proforma"
         : "boleta";
   const isProforma = docTypeCode === "101";
+  const formLocked = isConfirmed || isReadOnlyNoteView;
   const totalAmount = totalsToRender?.total ?? 0;
   const descuento = applyDiscount
     ? Math.max(0, Number(discountInput ?? 0) || 0)
@@ -547,17 +609,23 @@ const PaymentPage = () => {
   };
 
   useEffect(() => {
+    const currentBank = String(getValues("bankEntity") ?? "").trim();
     if (paymentMethod === "EFECTIVO") {
-      setValue("bankEntity", "-");
-      setValue("nroOperacion", "");
+      if (currentBank !== "-") {
+        setValue("bankEntity", "-", { shouldDirty: false });
+      }
+      setValue("nroOperacion", "", { shouldDirty: false });
     } else if (paymentMethod === "TARJETA") {
-      setValue("bankEntity", bankEntity || "BCP");
-      setValue("nroOperacion", "");
+      if (!currentBank || currentBank === "-") {
+        setValue("bankEntity", "BCP", { shouldDirty: false });
+      }
+      setValue("nroOperacion", "", { shouldDirty: false });
     } else {
-      setValue("bankEntity", "");
-      setValue("nroOperacion", "");
+      if (currentBank === "-") {
+        setValue("bankEntity", "", { shouldDirty: false });
+      }
     }
-  }, [paymentMethod, bankEntity, setValue]);
+  }, [getValues, paymentMethod, setValue]);
 
   const lastDocTypeRef = useRef<string | null>(null);
 
@@ -612,6 +680,7 @@ const PaymentPage = () => {
   // Hidratamos nombre/documento del cliente al volver con datos de nota
   useEffect(() => {
     if (!hasLoadedNotaMeta) return;
+    if (dirtyFields?.customerName || dirtyFields?.customerId) return;
     const clientIdNumeric = Number(clienteId);
     if (!Number.isFinite(clientIdNumeric) || clientIdNumeric <= 0) return;
     const client = clients.find((c) => Number(c.id) === clientIdNumeric);
@@ -636,8 +705,8 @@ const PaymentPage = () => {
     clienteId,
     clients,
     docTypeCode,
-    customerName,
-    customerId,
+    dirtyFields?.customerName,
+    dirtyFields?.customerId,
     setValue,
   ]);
 
@@ -685,15 +754,14 @@ const PaymentPage = () => {
 
   const setClienteIdFromOption = useCallback(
     (opt: any) => {
-      const candidate =
-        opt?.id ??
-        opt?.clienteId ??
-        opt?.clientId ??
-        (typeof opt?.value === "number" ? opt.value : undefined);
+      const candidate = opt?.id ?? opt?.clienteId ?? opt?.clientId;
       const numeric = Number(candidate);
       if (Number.isFinite(numeric) && numeric > 0) {
         setValue("clienteId", numeric, { shouldDirty: true });
+        return;
       }
+
+      setValue("clienteId", null, { shouldDirty: true });
     },
     [setValue],
   );
@@ -737,10 +805,7 @@ const PaymentPage = () => {
       uniqueClients
         .filter((client) => client.dni?.trim())
         .map((client) => ({
-          value:
-            client.id !== undefined && client.id !== null
-              ? client.id
-              : (client.dni ?? "").trim() || (client.nombreRazon ?? "").trim(),
+          value: (client.dni ?? "").trim(),
           label: (client.dni ?? "").trim(),
           dni: (client.dni ?? "").trim(),
           nombreRazon: (client.nombreRazon ?? "").trim(),
@@ -754,10 +819,7 @@ const PaymentPage = () => {
       uniqueClients
         .filter((client) => client.ruc?.trim())
         .map((client) => ({
-          value:
-            client.id !== undefined && client.id !== null
-              ? client.id
-              : (client.ruc ?? "").trim() || (client.nombreRazon ?? "").trim(),
+          value: (client.ruc ?? "").trim(),
           label: (client.ruc ?? "").trim(),
           ruc: (client.ruc ?? "").trim(),
           nombreRazon: (client.nombreRazon ?? "").trim(),
@@ -777,6 +839,7 @@ const PaymentPage = () => {
 
   // Sincroniza: cambio en customerId (DNI/RUC) actualiza nombre y clienteId
   useEffect(() => {
+    if (dirtyFields?.customerName || touchedFields?.customerName) return;
     const docOptions = docTypeCode === "01" ? rucOptions : dniOptions;
     const normalizedDoc = safeTrim(customerId).toLowerCase();
     if (!normalizedDoc) return;
@@ -818,11 +881,46 @@ const PaymentPage = () => {
     docTypeCode,
     dniOptions,
     rucOptions,
+    dirtyFields?.customerName,
+    touchedFields?.customerName,
     setValue,
   ]);
 
   // Sincroniza: cambio en customerName actualiza documento y clienteId
   useEffect(() => {
+    const clientIdNumeric = Number(clienteId);
+    if (Number.isFinite(clientIdNumeric) && clientIdNumeric > 0) {
+      const clientById = uniqueClients.find(
+        (client) => Number(client.id) === clientIdNumeric,
+      );
+
+      if (clientById) {
+        const nameFromId = safeTrim(clientById.nombreRazon ?? "");
+        const currentName = safeTrim(customerName);
+        const isMatchingName =
+          !currentName ||
+          currentName.toLowerCase() === nameFromId.toLowerCase();
+
+        if (!isMatchingName) {
+          setValue("clienteId", null, { shouldDirty: false });
+        } else {
+        const docFromId =
+          docTypeCode === "01"
+            ? safeTrim((clientById as any).ruc ?? "")
+            : safeTrim((clientById as any).dni ?? "");
+
+        if (nameFromId && safeTrim(customerName) !== nameFromId) {
+          setValue("customerName", nameFromId, { shouldDirty: false });
+        }
+
+        if (safeTrim(customerId) !== docFromId) {
+          setValue("customerId", docFromId, { shouldDirty: false });
+        }
+        return;
+        }
+      }
+    }
+
     const normalizedName = safeTrim(customerName).toLowerCase();
     if (!normalizedName) return;
 
@@ -836,7 +934,7 @@ const PaymentPage = () => {
         ? safeTrim((match as any).ruc ?? "")
         : safeTrim((match as any).dni ?? "");
 
-    if (docFromMatch && safeTrim(customerId) !== docFromMatch) {
+    if (safeTrim(customerId) !== docFromMatch) {
       setValue("customerId", docFromMatch, { shouldDirty: false });
     }
 
@@ -847,6 +945,8 @@ const PaymentPage = () => {
       Number(clienteId) !== numericId
     ) {
       setValue("clienteId", numericId, { shouldDirty: false });
+    } else if (!Number.isFinite(numericId) || numericId <= 0) {
+      setValue("clienteId", null, { shouldDirty: false });
     }
   }, [
     customerName,
@@ -854,6 +954,7 @@ const PaymentPage = () => {
     clienteId,
     docTypeCode,
     clientOptions,
+    uniqueClients,
     setValue,
   ]);
 
@@ -1092,8 +1193,10 @@ const PaymentPage = () => {
   }, [notaId, hasLoadedNotaMeta]);
 
   const confirmPayment = async () => {
-    const sourceItems = items.length ? items : purchasedItems;
-    const sourceTotals = items.length ? totals : paidTotals;
+    if (isReadOnlyNoteView) return;
+
+    const sourceItems = hasLiveItems ? items : purchasedItems;
+    const sourceTotals = hasLiveItems ? totals : paidTotals;
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
 
@@ -1363,7 +1466,7 @@ const PaymentPage = () => {
     refetchProducts();
 
     toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
-    if (!isEditing && items.length) {
+    if (!isEditing && hasLiveItems && items.length) {
       clearCart();
     }
     setIsConfirmed(true);
@@ -1372,6 +1475,12 @@ const PaymentPage = () => {
 
   const handleBackToPos = (ev?: MouseEvent) => {
     ev?.preventDefault();
+    if (isOrderNotesFlow) {
+      clearEditingNota();
+      navigate(backRoute);
+      return;
+    }
+
     const itemsForReturn =
       isEditingMode && items.length
         ? items
@@ -1386,14 +1495,14 @@ const PaymentPage = () => {
       setPaidTotals(computeTotalsFromItems(itemsForReturn));
       setEditingNotaInStore(notaId);
       setServerItemsInStore(serverItems.length ? serverItems : itemsForReturn);
-      navigate("/pos");
+      navigate(backRoute);
       return;
     }
 
     clearEditingNota();
     // Si aún no se ha confirmado/guardado la nota inicial, conservar el carrito
     if (!notaId && !isConfirmed) {
-      navigate("/pos");
+      navigate(backRoute);
       return;
     }
 
@@ -1402,11 +1511,15 @@ const PaymentPage = () => {
       setPaidTotals(totals);
     }
     clearCart();
-    navigate("/pos");
+    navigate(backRoute);
   };
 
   const handleEnableEditing = () => {
     if (!notaId) return;
+    if (isReadOnlyNoteView) {
+      navigate(`/sales/order_notes/${notaId}/edit`);
+      return;
+    }
     setIsConfirmed(false);
     setEditingNotaInStore(notaId);
     setEditingModeInStore(true);
@@ -1574,11 +1687,11 @@ const PaymentPage = () => {
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <ArrowLeft className="w-4 h-4" />
           <Link
-            to="/pos"
+            to={backRoute}
             className="text-blue-600 hover:underline"
             onClick={(e) => handleBackToPos(e)}
           >
-            Regresar al POS
+            {backLabel}
           </Link>
         </div>
         <div className="bg-white rounded-xl shadow p-6 text-center text-gray-600">
@@ -1737,7 +1850,7 @@ const PaymentPage = () => {
         <HookFormSelect
           name="docTypeCode"
           label="Tipo de documento"
-          disabled={isConfirmed}
+          disabled={formLocked}
           options={[
             { value: "101", label: "Proforma V" },
             { value: "03", label: "Boleta" },
@@ -1747,7 +1860,7 @@ const PaymentPage = () => {
         <HookFormSelect
           name="paymentMethod"
           label="Forma de pago"
-          disabled={isConfirmed}
+          disabled={formLocked}
           options={[
             { value: "EFECTIVO", label: "Efectivo" },
             { value: "TARJETA", label: "Tarjeta" },
@@ -1760,15 +1873,13 @@ const PaymentPage = () => {
           label="Nombre del cliente"
           placeholder="Seleccionar cliente"
           options={clientOptions}
-          disableClearable={isConfirmed}
-          disabled={isConfirmed}
+          disableClearable={formLocked}
+          disabled={formLocked}
           onOptionSelected={(opt: any) => {
             if (!opt) return;
             const docValue =
               docTypeCode === "01" ? safeTrim(opt.ruc) : safeTrim(opt.dni);
-            if (docValue) {
-              setValue("customerId", docValue, { shouldDirty: true });
-            }
+            setValue("customerId", docValue || "", { shouldDirty: true });
             setClienteIdFromOption(opt);
           }}
         />
@@ -1779,8 +1890,8 @@ const PaymentPage = () => {
             placeholder="Número de RUC"
             options={rucOptions}
             rules={{ validate: validateRucLength }}
-            disableClearable={isConfirmed}
-            disabled={isConfirmed}
+            disableClearable={formLocked}
+            disabled={formLocked}
             allowCreate
             createLabel={(value: string) => `Usar RUC: ${value}`}
             filterOptions={documentFilterOptions as any}
@@ -1788,10 +1899,13 @@ const PaymentPage = () => {
               String(option?.value) === String((value as any)?.value ?? value)
             }
             onOptionSelected={(opt: any) => {
-              if (!opt) return;
+              if (!opt) {
+                setValue("customerId", "", { shouldDirty: true });
+                return;
+              }
               if (opt?.nombreRazon) {
                 setValue("customerName", opt.nombreRazon, {
-                  shouldDirty: true,
+                  shouldDirty: false,
                 });
               }
               setClienteIdFromOption(opt);
@@ -1804,8 +1918,8 @@ const PaymentPage = () => {
             placeholder="Número de DNI"
             options={dniOptions}
             rules={{ validate: validateDniLength }}
-            disableClearable={isConfirmed}
-            disabled={isConfirmed}
+            disableClearable={formLocked}
+            disabled={formLocked}
             allowCreate
             createLabel={(value: string) => `Usar DNI: ${value}`}
             filterOptions={documentFilterOptions as any}
@@ -1813,10 +1927,13 @@ const PaymentPage = () => {
               String(option?.value) === String((value as any)?.value ?? value)
             }
             onOptionSelected={(opt: any) => {
-              if (!opt) return;
+              if (!opt) {
+                setValue("customerId", "", { shouldDirty: true });
+                return;
+              }
               if (opt?.nombreRazon) {
                 setValue("customerName", opt.nombreRazon, {
-                  shouldDirty: true,
+                  shouldDirty: false,
                 });
               }
               setClienteIdFromOption(opt);
@@ -1827,7 +1944,21 @@ const PaymentPage = () => {
           <HookFormSelect
             name="bankEntity"
             label="Entidad bancaria"
-            disabled={isConfirmed || paymentMethod === "TARJETA"}
+            disabled={formLocked || paymentMethod === "TARJETA"}
+            rules={{
+              validate: (value: any) => {
+                if (
+                  paymentMethod !== "YAPE" &&
+                  paymentMethod !== "TRANSFERENCIA"
+                ) {
+                  return true;
+                }
+                const normalized = safeTrim(value);
+                return normalized && normalized !== "-"
+                  ? true
+                  : "Entidad bancaria obligatoria";
+              },
+            }}
             options={[
               { value: "-", label: "-" },
               { value: "BCP", label: "BCP" },
@@ -1840,8 +1971,22 @@ const PaymentPage = () => {
           <HookFormInput
             name="nroOperacion"
             label="N° Operación"
-            disabled={isConfirmed}
+            disabled={formLocked}
             placeholder="Número de operación"
+            rules={{
+              validate: (value: any) => {
+                if (
+                  paymentMethod !== "TARJETA" &&
+                  paymentMethod !== "YAPE" &&
+                  paymentMethod !== "TRANSFERENCIA"
+                ) {
+                  return true;
+                }
+                return safeTrim(value)
+                  ? true
+                  : "N° de operación obligatorio";
+              },
+            }}
           />
         )}
         <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
@@ -1849,7 +1994,7 @@ const PaymentPage = () => {
           <input
             type="checkbox"
             className="w-4 h-4 accent-slate-700 rounded"
-            disabled={isConfirmed}
+            disabled={formLocked}
             checked={applyDiscount}
             {...register("applyDiscount", {
               onChange: (e) =>
@@ -1878,7 +2023,7 @@ const PaymentPage = () => {
                   className="w-12 text-right appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   style={{ MozAppearance: "textfield" }}
                   onFocus={(e) => e.target.select()}
-                  disabled={isConfirmed}
+                  disabled={formLocked}
                 />
               </div>
             </div>
@@ -1896,7 +2041,7 @@ const PaymentPage = () => {
             <span>S/ {totalAPagar.toFixed(2)}</span>
           </div>
         </div>
-        {!isConfirmed && (
+        {!formLocked && (
           <button
             type="submit"
             className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
@@ -1913,7 +2058,7 @@ const PaymentPage = () => {
           className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 bg-white text-orange-800 hover:bg-orange-50 transition-colors"
           onClick={handleEnableEditing}
         >
-          Editar
+          {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
         </button>
       )}
       {isConfirmed && (
@@ -1938,7 +2083,7 @@ const PaymentPage = () => {
         onClick={handleBackToPos}
       >
         <ArrowLeft className="w-5 h-5" />
-        Volver al POS
+        {backLabel}
       </button>
     </>
   );
@@ -1953,12 +2098,12 @@ const PaymentPage = () => {
           </h1>
         </div>
         <Link
-          to="/pos"
+          to={backRoute}
           className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
           onClick={(e) => handleBackToPos(e)}
         >
           <ArrowLeft className="w-4 h-4" />
-          Volver al POS
+          {backLabel}
         </Link>
       </div>
       {/* Layout móvil/mediano: tabs combinados + formulario */}

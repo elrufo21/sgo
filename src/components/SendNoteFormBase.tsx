@@ -53,6 +53,7 @@ interface SendNoteFormBaseProps {
   onSave: (data: Omit<SendNote, "id">) => void;
   onNew?: () => void;
   onDelete?: () => void;
+  readOnly?: boolean;
 }
 
 export default function SendNoteFormBase({
@@ -61,11 +62,12 @@ export default function SendNoteFormBase({
   onSave,
   onNew,
   onDelete,
+  readOnly = false,
 }: SendNoteFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { products, fetchProducts } = useProductsStore();
   const { clients, fetchClients, addClient } = useClientsStore();
-  const [isEditable, setIsEditable] = useState(true);
+  const [isEditable, setIsEditable] = useState(!readOnly);
   const openDialog = useDialogStore((s) => s.openDialog);
   const closeDialog = useDialogStore((s) => s.closeDialog);
   const authUser = useAuthStore((s) => s.user);
@@ -657,7 +659,9 @@ export default function SendNoteFormBase({
               <h1 className="text-base font-semibold">
                 {mode === "create"
                   ? "Nueva nota de pedido"
-                  : "Editar nota de pedido"}
+                  : isEditable
+                    ? "Editar nota de pedido"
+                    : "Ver nota de pedido"}
               </h1>
             </div>
             <div className="flex items-center gap-4">
@@ -681,26 +685,28 @@ export default function SendNoteFormBase({
                   className="min-w-[140px] px-3 py-1.5 rounded-md bg-white text-slate-800 border border-white/30 shadow-sm focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => setIsEditable((prev) => !prev)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                title={
-                  isEditable
-                    ? "Cambiar a modo lectura"
-                    : "Cambiar a modo edicion"
-                }
-                aria-pressed={isEditable}
-              >
-                {isEditable ? (
-                  <Pencil className="w-4 h-4" />
-                ) : (
-                  <Lock className="w-4 h-4" />
-                )}
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditable((prev) => !prev)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title={
+                    isEditable
+                      ? "Cambiar a modo lectura"
+                      : "Cambiar a modo edicion"
+                  }
+                  aria-pressed={isEditable}
+                >
+                  {isEditable ? (
+                    <Pencil className="w-4 h-4" />
+                  ) : (
+                    <Lock className="w-4 h-4" />
+                  )}
+                </button>
+              )}
               <button
                 type="submit"
-                disabled={isSubmitting || !isEditable}
+                disabled={readOnly || isSubmitting || !isEditable}
                 className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
                 title="Guardar"
               >
@@ -730,7 +736,7 @@ export default function SendNoteFormBase({
             </div>
           </div>
 
-          <fieldset disabled={!isEditable}>
+          <fieldset disabled={readOnly || !isEditable}>
             <div className="p-6 sm:p-7">
               <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 lg:gap-6 ">
                 <div className="space-y-4 col-span-2 h-[720px] overflow-auto">

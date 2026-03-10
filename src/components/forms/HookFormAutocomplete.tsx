@@ -72,7 +72,6 @@ export function HookFormAutocomplete<
   onOptionSelected,
   disableClearable = false,
   className,
-  autoComplete = "new-password",
   control,
   disabled = false,
 
@@ -103,6 +102,7 @@ export function HookFormAutocomplete<
       option?.value === resolveValue(value));
 
   const filter = createFilterOptions<TOption & { inputValue?: string }>();
+  const resolvedAutoComplete = "off";
   const appliedFilterOptions =
     filterOptions ??
     (allowCreate
@@ -284,7 +284,7 @@ export function HookFormAutocomplete<
                   helperText={fieldState.error?.message}
                   variant="outlined"
                   fullWidth
-                  autoComplete={autoComplete}
+                  autoComplete={resolvedAutoComplete}
                   sx={{
                     "& .MuiOutlinedInput-root": {
                       borderRadius: "0.45rem",
@@ -333,10 +333,14 @@ export function HookFormAutocomplete<
                   inputProps={{
                     ...params.inputProps,
                     "data-auto-next": "true",
-                    autoComplete,
+                    autoComplete: resolvedAutoComplete,
                     autoCorrect: "off",
                     autoCapitalize: "off",
                     spellCheck: false,
+                    "data-lpignore": "true",
+                    "data-1p-ignore": "true",
+                    "data-bwignore": "true",
+                    "data-form-type": "other",
                   }}
                   onKeyDown={(event) => {
                     params.inputProps?.onKeyDown?.(

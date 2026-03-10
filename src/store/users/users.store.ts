@@ -16,32 +16,85 @@ interface UsersState {
   deleteUser: (id: number) => Promise<boolean>;
 }
 
-const mapApiToUser = (item: any): User => ({
-  UsuarioID: item?.usuarioID ?? item?.UsuarioID ?? item?.id ?? 0,
-  PersonalId: item?.personalId ?? item?.PersonalId ?? item?.personalID ?? 0,
-  UsuarioAlias: item?.usuarioAlias ?? item?.UsuarioAlias ?? "",
-  UsuarioClave: item?.usuarioClave ?? item?.UsuarioClave ?? "",
-  UsuarioFechaReg: item?.usuarioFechaReg ?? item?.UsuarioFechaReg ?? "",
-  UsuarioEstado: item?.usuarioEstado ?? item?.UsuarioEstado ?? "",
-  UsuarioSerie: item?.usuarioSerie ?? item?.UsuarioSerie ?? "B001",
-  EnviaBoleta: item?.enviaBoleta ?? item?.EnviaBoleta ?? 0,
-  EnviarFactura: item?.enviarFactura ?? item?.EnviarFactura ?? 0,
-  EnviaNC: item?.enviaNC ?? item?.EnviaNC ?? 0,
-  EnviaND: item?.enviaND ?? item?.EnviaND ?? 0,
-  Administrador: item?.administrador ?? item?.Administrador ?? 0,
-  area: item?.area ?? item?.Area ?? "",
-});
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
+const pickNumber = (...values: unknown[]): number => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const pickString = (...values: unknown[]): string => {
+  for (const value of values) {
+    if (typeof value === "string") return value;
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+  return "";
+};
+
+const mapApiToUser = (item: unknown): User => {
+  const row = asRecord(item);
+  return ({
+    UsuarioID: pickNumber(
+      row.usuarioID,
+      row.usuarioId,
+      row.UsuarioID,
+      row.UsuarioId,
+      row.userId,
+      row.UserId,
+      row.id,
+    ),
+    PersonalId: pickNumber(
+      row.personalId,
+      row.personalID,
+      row.PersonalId,
+      row.PersonalID,
+      row.idPersonal,
+      row.IdPersonal,
+    ),
+    UsuarioAlias: pickString(
+      row.usuarioAlias,
+      row.usuario,
+      row.alias,
+      row.UsuarioAlias,
+      row.Usuario,
+      row.Alias,
+    ),
+    UsuarioClave: pickString(row.usuarioClave, row.UsuarioClave),
+    UsuarioFechaReg: pickString(row.usuarioFechaReg, row.UsuarioFechaReg),
+    UsuarioEstado: pickString(row.usuarioEstado, row.UsuarioEstado),
+    UsuarioSerie: pickString(row.usuarioSerie, row.UsuarioSerie) || "B001",
+    EnviaBoleta: pickNumber(row.enviaBoleta, row.EnviaBoleta),
+    EnviarFactura: pickNumber(row.enviarFactura, row.EnviarFactura),
+    EnviaNC: pickNumber(row.enviaNC, row.EnviaNC),
+    EnviaND: pickNumber(row.enviaND, row.EnviaND),
+    Administrador: pickNumber(row.administrador, row.Administrador),
+    area: pickString(row.area, row.Area),
+  });
+};
 
 const isAliasDuplicateResponse = (result: unknown) => {
+  const root = asRecord(result);
+  const nestedResponse = asRecord(root.response);
   const status =
-    (result as any)?.status ?? (result as any)?.response?.status ?? null;
+    (typeof root.status === "number" ? root.status : null) ??
+    (typeof nestedResponse.status === "number" ? nestedResponse.status : null);
 
   if (status === 409) return true;
 
   const message =
     typeof result === "string"
       ? result
-      : (result as any)?.message ?? (result as any)?.response?.data ?? "";
+      : (typeof root.message === "string"
+          ? root.message
+          : typeof nestedResponse.data === "string"
+            ? nestedResponse.data
+            : "");
 
   return (
     typeof message === "string" &&
@@ -70,7 +123,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         estado && estado.trim() !== ""
           ? `?estado=${encodeURIComponent(estado)}`
           : "";
-      const response = await apiRequest<any[]>({
+      const response = await apiRequest<unknown[]>({
         url: `${API_BASE_URL}/UsuariosCrud/list${query}`,
         method: "GET",
         fallback: [],
@@ -89,7 +142,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     try {
       const payload = mapUserToApiPayload({ ...newUser, UsuarioID: 0 });
 
-      const created = await apiRequest<any>({
+      const created = await apiRequest<unknown>({
         url: `${API_BASE_URL}/UsuariosCrud/register`,
         method: "POST",
         data: payload,
@@ -123,7 +176,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     try {
       const payload = mapUserToApiPayload({ ...data, UsuarioID: id });
 
-      const updated = await apiRequest<any>({
+      const updated = await apiRequest<unknown>({
         url: `${API_BASE_URL}/UsuariosCrud/${id}`,
         method: "PUT",
         data: payload,

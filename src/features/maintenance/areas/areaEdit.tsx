@@ -26,7 +26,10 @@ export default function AreaEdit() {
 
   const handleSave = async (data: Area) => {
     if (!id) return;
-    await updateArea(Number(id), data);
+    const updated = await updateArea(Number(id), data);
+    if (!updated) {
+      return;
+    }
     toast.success("Area actualizada correctamente");
     navigate("/maintenance/areas");
   };

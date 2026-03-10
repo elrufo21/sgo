@@ -1,10 +1,4 @@
-import {
-  Outlet,
-  Link,
-  useLocation,
-  useMatches,
-  useNavigate,
-} from "react-router";
+import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import {
   Home,
   Package,
@@ -16,20 +10,19 @@ import {
   StoreIcon,
   ChevronDown,
   CopySlashIcon,
-  NotebookPen,
-  LucideDollarSign,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import UserFormBase from "@/components/UserFormBase";
+import { PASSWORD_EXPIRATION_LOCK_ENABLED } from "@/config";
+import { useDialogStore } from "@/store/app/dialog.store";
 import { useAuthStore } from "@/store/auth/auth.store";
+import { useUsersStore } from "@/store/users/users.store";
+import type { User } from "@/store/users/users.store";
 
-interface BreadcrumbItem {
-  label: string;
-  to?: string;
-}
-
-interface RouteHandle {
-  breadcrumb?: BreadcrumbItem[];
-}
+const PASSWORD_POLICY_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{6,}$/;
+const PASSWORD_POLICY_MESSAGE =
+  "La contrasena debe tener minimo 6 caracteres, una mayuscula, una minuscula y un numero";
 
 export default function MainLayout() {
   const navigate = useNavigate();
@@ -38,13 +31,346 @@ export default function MainLayout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [search, setSearch] = useState(""); // 🔍 buscador
   const { pathname } = useLocation();
-  const matches = useMatches();
+  const openDialog = useDialogStore((state) => state.openDialog);
+
   const user = useAuthStore((state) => state.user);
+  const passwordExpiresAt = useAuthStore((state) => state.passwordExpiresAt);
+  const isPasswordExpired = useAuthStore((state) => state.isPasswordExpired);
   const logout = useAuthStore((state) => state.logout);
+
+  const users = useUsersStore((state) => state.users);
+  const fetchUsers = useUsersStore((state) => state.fetchUsers);
+  const updateUser = useUsersStore((state) => state.updateUser);
+
+  const passwordDialogOpenedRef = useRef(false);
+  const resolvingUserRef = useRef(false);
+  const userLoadErrorNotifiedRef = useRef(false);
+  const authSessionUserIdentity = useMemo(() => {
+    const toPositiveNumber = (value: unknown) => {
+      const n = Number(value);
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
+    const normalizeId = (value: unknown) => String(value ?? "").trim();
+
+    const normalizeAlias = (value: unknown) =>
+      String(value ?? "")
+        .trim()
+        .toLowerCase();
+
+    const stateUserIdRaw = normalizeId(user?.id);
+    const statePersonalIdRaw = normalizeId(user?.personalId);
+    const stateUserId = toPositiveNumber(user?.id);
+    const statePersonalId = toPositiveNumber(user?.personalId);
+    const stateAlias = normalizeAlias(user?.username);
+
+    if (typeof window === "undefined") {
+      return {
+        userIdRaw: stateUserIdRaw,
+        personalIdRaw: statePersonalIdRaw,
+        userId: stateUserId,
+        personalId: statePersonalId,
+        alias: stateAlias,
+      };
+    }
+
+    try {
+      const raw = window.localStorage.getItem("sgo.auth.session");
+      if (!raw) {
+        return {
+          userIdRaw: stateUserIdRaw,
+          personalIdRaw: statePersonalIdRaw,
+          userId: stateUserId,
+          personalId: statePersonalId,
+          alias: stateAlias,
+        };
+      }
+      const parsed = JSON.parse(raw) as {
+        id?: unknown;
+        usuarioID?: unknown;
+        user?: {
+          id?: unknown;
+          userId?: unknown;
+          usuarioID?: unknown;
+          personalId?: unknown;
+          username?: unknown;
+          UsuarioAlias?: unknown;
+        };
+      } | null;
+
+      const storageUserId =
+        toPositiveNumber(parsed?.user?.id) ||
+        toPositiveNumber(parsed?.user?.userId) ||
+        toPositiveNumber(parsed?.user?.usuarioID) ||
+        toPositiveNumber(parsed?.usuarioID) ||
+        toPositiveNumber(parsed?.id);
+      const storageUserIdRaw =
+        normalizeId(parsed?.user?.id) ||
+        normalizeId(parsed?.user?.userId) ||
+        normalizeId(parsed?.user?.usuarioID) ||
+        normalizeId(parsed?.usuarioID) ||
+        normalizeId(parsed?.id);
+      const storagePersonalId = toPositiveNumber(parsed?.user?.personalId);
+      const storagePersonalIdRaw = normalizeId(parsed?.user?.personalId);
+      const storageAlias =
+        normalizeAlias(parsed?.user?.username) ||
+        normalizeAlias(parsed?.user?.UsuarioAlias);
+
+      return {
+        userIdRaw: stateUserIdRaw || storageUserIdRaw,
+        personalIdRaw: statePersonalIdRaw || storagePersonalIdRaw,
+        userId: stateUserId || storageUserId,
+        personalId: statePersonalId || storagePersonalId,
+        alias: stateAlias || storageAlias,
+      };
+    } catch {
+      return {
+        userIdRaw: stateUserIdRaw,
+        personalIdRaw: statePersonalIdRaw,
+        userId: stateUserId,
+        personalId: statePersonalId,
+        alias: stateAlias,
+      };
+    }
+  }, [user?.id, user?.personalId, user?.username]);
+
+  const hasSessionIdentity = useMemo(() => {
+    const identity = authSessionUserIdentity;
+    return Boolean(
+      identity.userId ||
+      identity.personalId ||
+      identity.userIdRaw ||
+      identity.personalIdRaw ||
+      identity.alias,
+    );
+  }, [authSessionUserIdentity]);
   const userInitial =
     user?.displayName?.charAt(0)?.toUpperCase() ||
     user?.username?.charAt(0)?.toUpperCase() ||
     "?";
+
+  const passwordExpirationDateLabel = useMemo(() => {
+    if (!passwordExpiresAt) return "fecha no disponible";
+    const parsed = Date.parse(passwordExpiresAt);
+    if (Number.isNaN(parsed)) return passwordExpiresAt;
+    return new Date(parsed).toLocaleDateString("es-PE");
+  }, [passwordExpiresAt]);
+
+  const currentUserForPasswordUpdate = useMemo<User | null>(() => {
+    const { userId, personalId, alias } = authSessionUserIdentity;
+    if (!userId && !personalId && !alias) return null;
+
+    return (
+      users.find((item) => Number(item.UsuarioID) === userId) ??
+      users.find((item) => Number(item.PersonalId) === personalId) ??
+      users.find(
+        (item) =>
+          String(item.UsuarioAlias ?? "")
+            .trim()
+            .toLowerCase() === alias,
+      ) ??
+      null
+    );
+  }, [authSessionUserIdentity, users]);
+
+  const resolveCurrentUserFromStore = useCallback((): User | null => {
+    const { userId, personalId, alias, userIdRaw, personalIdRaw } =
+      authSessionUserIdentity;
+    if (!userId && !personalId && !alias && !userIdRaw && !personalIdRaw)
+      return null;
+
+    const rows = useUsersStore.getState().users;
+    const normalizeId = (value: unknown) => String(value ?? "").trim();
+    const rowMatchesRawId = (row: User) =>
+      normalizeId(row.UsuarioID) === userIdRaw ||
+      normalizeId(row.PersonalId) === personalIdRaw ||
+      normalizeId(row.UsuarioID) === personalIdRaw ||
+      normalizeId(row.PersonalId) === userIdRaw;
+
+    return (
+      rows.find((item) => Number(item.UsuarioID) === userId) ??
+      rows.find((item) => Number(item.PersonalId) === personalId) ??
+      rows.find((item) => Number(item.UsuarioID) === personalId) ??
+      rows.find((item) => Number(item.PersonalId) === userId) ??
+      rows.find((item) => rowMatchesRawId(item)) ??
+      rows.find(
+        (item) =>
+          String(item.UsuarioAlias ?? "")
+            .trim()
+            .toLowerCase() === alias,
+      ) ??
+      null
+    );
+  }, [authSessionUserIdentity]);
+
+  const ensureCurrentUserLoaded =
+    useCallback(async (): Promise<User | null> => {
+      const inMemory = resolveCurrentUserFromStore();
+      if (inMemory) return inMemory;
+
+      const attempts: Array<"" | "ACTIVO" | "INACTIVO"> = [
+        "",
+        "ACTIVO",
+        "INACTIVO",
+      ];
+      for (const estado of attempts) {
+        await fetchUsers(estado);
+        const found = resolveCurrentUserFromStore();
+        if (found) return found;
+      }
+
+      return null;
+    }, [fetchUsers, resolveCurrentUserFromStore]);
+
+  const openPasswordExpiredDialog = useCallback(
+    (row: User) => {
+      openDialog({
+        title: "Cambiar la contraseña",
+        content: (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-700">
+              Tu clave ha vencido. Debes cambiar la contraseña para continuar
+              usando el sistema.
+            </p>
+            <p className="text-sm text-slate-700">
+              Fecha de vencimiento:{" "}
+              <span className="font-semibold">
+                {passwordExpirationDateLabel}
+              </span>
+            </p>
+            <UserFormBase
+              variant="modal"
+              mode="edit"
+              fieldsMode="password-only"
+              initialData={row}
+              onSave={() => true}
+            />
+          </div>
+        ),
+        confirmText: "Guardar contraseña",
+        cancelText: "Cerrar sesión",
+        maxWidth: "sm",
+        fullWidth: true,
+        disableBackdropClose: true,
+        onCancel: () => {
+          logout();
+          navigate("/login", { replace: true });
+        },
+        onConfirm: async (rawData) => {
+          const data = (rawData ?? {}) as Partial<User> & {
+            ConfirmClave?: string;
+          };
+
+          const password = data.UsuarioClave ?? "";
+          const confirmPassword = data.ConfirmClave ?? "";
+
+          if (!password || !confirmPassword || password !== confirmPassword) {
+            toast.error("Las contrasenas no coinciden");
+            return false;
+          }
+
+          if (!PASSWORD_POLICY_REGEX.test(password)) {
+            toast.error(PASSWORD_POLICY_MESSAGE);
+            return false;
+          }
+
+          const updated = await updateUser(row.UsuarioID, {
+            PersonalId: Number(data.PersonalId ?? row.PersonalId ?? 0),
+            UsuarioAlias: (
+              data.UsuarioAlias ??
+              row.UsuarioAlias ??
+              user?.username ??
+              ""
+            ).trim(),
+            UsuarioClave: password,
+            UsuarioFechaReg:
+              data.UsuarioFechaReg ??
+              row.UsuarioFechaReg ??
+              new Date().toISOString(),
+            UsuarioEstado: data.UsuarioEstado ?? row.UsuarioEstado ?? "ACTIVO",
+            UsuarioSerie: data.UsuarioSerie ?? row.UsuarioSerie ?? "B001",
+            EnviaBoleta: data.EnviaBoleta ?? row.EnviaBoleta ?? 0,
+            EnviarFactura: data.EnviarFactura ?? row.EnviarFactura ?? 0,
+            EnviaNC: data.EnviaNC ?? row.EnviaNC ?? 0,
+            EnviaND: data.EnviaND ?? row.EnviaND ?? 0,
+            Administrador: data.Administrador ?? row.Administrador ?? 0,
+            area: row.area,
+          });
+
+          if (!updated) {
+            toast.error("No se pudo actualizar la contraseña.");
+            return false;
+          }
+
+          await fetchUsers("ACTIVO");
+          toast.success("Contrasena actualizada correctamente");
+          logout();
+          navigate("/login", { replace: true });
+          return true;
+        },
+      });
+    },
+    [
+      fetchUsers,
+      openDialog,
+      logout,
+      navigate,
+      passwordExpirationDateLabel,
+      updateUser,
+      user?.username,
+    ],
+  );
+
+  useEffect(() => {
+    if (!PASSWORD_EXPIRATION_LOCK_ENABLED || !isPasswordExpired) {
+      passwordDialogOpenedRef.current = false;
+      resolvingUserRef.current = false;
+      userLoadErrorNotifiedRef.current = false;
+      return;
+    }
+
+    if (!hasSessionIdentity) return;
+    if (passwordDialogOpenedRef.current) return;
+    if (resolvingUserRef.current) return;
+
+    let cancelled = false;
+    resolvingUserRef.current = true;
+
+    const run = async () => {
+      const row =
+        currentUserForPasswordUpdate ?? (await ensureCurrentUserLoaded());
+      if (cancelled) return;
+
+      if (!row) {
+        if (!userLoadErrorNotifiedRef.current) {
+          userLoadErrorNotifiedRef.current = true;
+          toast.error(
+            "No se pudo cargar el usuario completo para cambiar la contraseña.",
+          );
+        }
+        return;
+      }
+
+      userLoadErrorNotifiedRef.current = false;
+      passwordDialogOpenedRef.current = true;
+      openPasswordExpiredDialog(row);
+    };
+
+    void run().finally(() => {
+      if (!cancelled) {
+        resolvingUserRef.current = false;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    currentUserForPasswordUpdate,
+    ensureCurrentUserLoaded,
+    hasSessionIdentity,
+    isPasswordExpired,
+    openPasswordExpiredDialog,
+  ]);
 
   const navItems = [
     { label: "Dashboard", to: "/", icon: <Home size={18} /> },
@@ -71,16 +397,6 @@ export default function MainLayout() {
   const filteredItems = navItems.filter((item) =>
     item.label.toLowerCase().includes(search.toLowerCase()),
   );
-
-  const breadcrumbItems = matches
-    .filter((match) => {
-      const handle = match.handle as RouteHandle | undefined;
-      return handle?.breadcrumb;
-    })
-    .flatMap((match) => {
-      const handle = match.handle as RouteHandle;
-      return handle.breadcrumb || [];
-    });
 
   // Render de items del menú
   const renderNavItem = (
@@ -126,7 +442,7 @@ export default function MainLayout() {
               open ? "opacity-100" : "opacity-0"
             }`}
           >
-            Mi Sistema
+            SGO VENTAS
           </h1>
 
           <button

@@ -4,6 +4,7 @@ import PaymentPage from "@/features/pos/pages/PaymentPage";
 import SendNoteList from "@/features/sendNote/pages/sendNoteList";
 import SendNoteCreate from "@/features/sendNote/pages/sendNoteCreate";
 import SendNoteEdit from "@/features/sendNote/pages/sendNoteEdit";
+import OrderNotesList from "@/features/orderNotes/pages/orderNotesList";
 import PurchanseList from "@/features/purchanses/pages/purchanseList";
 import PurchanseCreate from "@/features/purchanses/pages/purchanseCreate";
 import PurchanseEdit from "@/features/purchanses/pages/purchanseEdit";
@@ -104,6 +105,51 @@ export default [
       breadcrumb: [
         { label: "Ventas", to: "/sales" },
         { label: "Nota de pedido", to: "/sales/send_note" },
+        { label: "Editar" },
+      ],
+    },
+  },
+
+  // Nota pedidos
+  {
+    path: "sales/order_notes",
+    element: <OrderNotesList />,
+    handle: {
+      breadcrumb: [
+        { label: "Ventas", to: "/sales" },
+        { label: "Nota pedidos" },
+      ],
+    },
+  },
+  {
+    path: "sales/pos/payment/:notaId",
+    element: <PaymentPage />,
+    handle: {
+      breadcrumb: [
+        { label: "Ventas", to: "/sales" },
+        { label: "Punto de venta", to: "/sales/pos" },
+        { label: "Pago" },
+      ],
+    },
+  },
+  {
+    path: "sales/order_notes/:notaId/view",
+    element: <PaymentPage />,
+    handle: {
+      breadcrumb: [
+        { label: "Ventas", to: "/sales" },
+        { label: "Nota pedidos", to: "/sales/order_notes" },
+        { label: "Ver" },
+      ],
+    },
+  },
+  {
+    path: "sales/order_notes/:notaId/edit",
+    element: <PaymentPage />,
+    handle: {
+      breadcrumb: [
+        { label: "Ventas", to: "/sales" },
+        { label: "Nota pedidos", to: "/sales/order_notes" },
         { label: "Editar" },
       ],
     },

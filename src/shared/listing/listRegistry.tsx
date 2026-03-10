@@ -184,7 +184,10 @@ const useAreaListDeps = () => {
             toast.error("El nombre del area es obligatorio");
             return false;
           }
-          await updateArea(id, { area });
+          const updated = await updateArea(id, { area });
+          if (!updated) {
+            return false;
+          }
           await refetch();
           toast.success("Area actualizada");
           return true;

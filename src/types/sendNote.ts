@@ -12,6 +12,7 @@ export interface SendNoteItem {
 
 export interface SendNote {
   id: number;
+  clienteId?: number;
   formaPago: string;
   entidad: string;
   opr: string;
@@ -30,4 +31,7 @@ export interface SendNote {
   atendidoPor?: string;
   estado?: string;
   fechaEmitido?: string;
+  fechaPago?: string;
+  notaCondicion?: string;
+  notaDocu?: string;
 }

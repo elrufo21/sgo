@@ -20,6 +20,7 @@ export interface AuthSession {
   token: string;
   user: AuthUser;
   expiresAt: number;
+  passwordExpiresAt: string | null;
 }
 
 interface LoginPayload {
@@ -31,6 +32,8 @@ interface AuthState {
   user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
+  passwordExpiresAt: string | null;
+  isPasswordExpired: boolean;
   hydrated: boolean;
   loading: boolean;
   error: string | null;
@@ -38,6 +41,7 @@ interface AuthState {
   login: (payload: LoginPayload) => Promise<boolean>;
   logout: () => void;
   hydrate: () => void;
+  setPasswordExpiration: (value: string | null) => void;
 }
 
 interface LoginResponse {
@@ -47,6 +51,7 @@ interface LoginResponse {
   usuario: string;
   companiaId: string;
   razonSocial: string;
+  fechaVencimientoClave?: string | null;
   token: string;
   expiresAtUtc?: string;
   expiresInSeconds?: number;
@@ -54,13 +59,16 @@ interface LoginResponse {
 
 let sessionTimeoutId: number | null = null;
 
-const isAuthSession = (value: unknown): value is AuthSession =>
-  !!value &&
-  typeof value === "object" &&
-  "token" in value &&
-  "user" in value &&
-  "expiresAt" in value &&
-  typeof (value as any).token === "string";
+const isAuthSession = (value: unknown): value is AuthSession => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    "token" in candidate &&
+    "user" in candidate &&
+    "expiresAt" in candidate &&
+    typeof candidate.token === "string"
+  );
+};
 
 const readSessionFromStorage = (): AuthSession | null => {
   if (typeof window === "undefined") return null;
@@ -101,6 +109,41 @@ const scheduleSessionExpiration = (expiresAt: number, onExpire: () => void) => {
   }, msUntilExpire);
 };
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const parsePasswordExpirationMs = (value?: string | null): number | null => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  if (DATE_ONLY_REGEX.test(raw)) {
+    const [year, month, day] = raw.split("-").map(Number);
+    return new Date(year, month - 1, day).getTime();
+  }
+
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const hasPasswordExpired = (value?: string | null): boolean => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+
+  const parsed = parsePasswordExpirationMs(raw);
+  if (parsed === null) return false;
+
+  if (DATE_ONLY_REGEX.test(raw)) {
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime();
+    return todayStart >= parsed;
+  }
+
+  return Date.now() >= parsed;
+};
+
 export const useAuthStore = create<AuthState>((set, get) => {
   const storedSession = readSessionFromStorage();
 
@@ -120,6 +163,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
       user: null,
       token: null,
       isAuthenticated: false,
+      passwordExpiresAt: null,
+      isPasswordExpired: false,
       error: reason ?? null,
       hydrated: true,
     });
@@ -129,10 +174,13 @@ export const useAuthStore = create<AuthState>((set, get) => {
     if (get().hydrated) return;
     const session = readSessionFromStorage();
     if (session && !isExpired(session.expiresAt)) {
+      const passwordExpiresAt = session.passwordExpiresAt ?? null;
       set({
         user: session.user,
         token: session.token,
         isAuthenticated: true,
+        passwordExpiresAt,
+        isPasswordExpired: hasPasswordExpired(passwordExpiresAt),
         hydrated: true,
       });
       scheduleSessionExpiration(session.expiresAt, () => logout(SESSION_EXPIRED_MESSAGE));
@@ -145,11 +193,37 @@ export const useAuthStore = create<AuthState>((set, get) => {
     user: hasValidStoredSession ? storedSession?.user : null,
     token: hasValidStoredSession ? storedSession?.token : null,
     isAuthenticated: !!hasValidStoredSession,
+    passwordExpiresAt: hasValidStoredSession
+      ? (storedSession?.passwordExpiresAt ?? null)
+      : null,
+    isPasswordExpired: hasValidStoredSession
+      ? hasPasswordExpired(storedSession?.passwordExpiresAt ?? null)
+      : false,
     hydrated: false,
     loading: false,
     error: null,
 
     hydrate,
+
+    setPasswordExpiration: (value) => {
+      const normalized = value?.trim() ? value.trim() : null;
+      const state = get();
+      set({
+        passwordExpiresAt: normalized,
+        isPasswordExpired: hasPasswordExpired(normalized),
+      });
+
+      if (!state.user || !state.token || !state.isAuthenticated) return;
+
+      const currentSession = readSessionFromStorage();
+      const session: AuthSession = {
+        token: state.token,
+        user: state.user,
+        expiresAt: currentSession?.expiresAt ?? Date.now() + 5 * 60 * 1000,
+        passwordExpiresAt: normalized,
+      };
+      persistSession(session);
+    },
 
     login: async ({ username, password }) => {
       set({ loading: true, error: null });
@@ -186,6 +260,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const session: AuthSession = {
         token: parsed.token,
         expiresAt: expiresAt ?? Date.now() + 5 * 60 * 1000, // fallback a 5 min si el API no envía expiración
+        passwordExpiresAt: parsed.fechaVencimientoClave ?? null,
         user: {
           id: parsed.id,
           personalId: parsed.personalId,
@@ -203,6 +278,8 @@ export const useAuthStore = create<AuthState>((set, get) => {
         isAuthenticated: true,
         user: session.user,
         token: session.token,
+        passwordExpiresAt: session.passwordExpiresAt,
+        isPasswordExpired: hasPasswordExpired(session.passwordExpiresAt),
         hydrated: true,
         error: null,
       });

@@ -152,7 +152,7 @@ interface MaintenanceState {
   deleteCategory: (idSubLinea: number) => Promise<boolean>;
 
   addArea: (data: Omit<Area, "id">) => Promise<boolean>;
-  updateArea: (id: number, data: Partial<Area>) => Promise<void>;
+  updateArea: (id: number, data: Partial<Area>) => Promise<boolean>;
   deleteArea: (id: number) => Promise<boolean>;
 
   addComputer: (data: Omit<Computer, "id">) => Promise<void>;
@@ -546,8 +546,8 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         areaId?: number;
         areaNombre?: string;
       }>({
-        url: `http://localhost:5000/api/v1/Area/${id}`,
-        method: "PUT",
+        url: "http://localhost:5000/api/v1/Area/registerarea",
+        method: "POST",
         data: payload,
         config: {
           headers: {
@@ -557,6 +557,14 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         },
         fallback: { ...data, id },
       });
+
+      if (
+        typeof updated === "string" &&
+        updated.toLowerCase().includes("existe")
+      ) {
+        toast.error("Ya existe esta area");
+        return false;
+      }
 
       set((state) => ({
         areas: state.areas.map((a) => {
@@ -580,6 +588,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }));
 
       await queryClient.invalidateQueries({ queryKey: areasQueryKey });
+      return true;
     },
     deleteArea: async (id) => {
       const result = await apiRequest({

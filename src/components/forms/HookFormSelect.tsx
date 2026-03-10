@@ -7,6 +7,7 @@ import type {
 import type { FieldValues, Path, RegisterOptions } from "react-hook-form";
 import { useFormContext, Controller } from "react-hook-form";
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import {
   focusNextInput,
   focusPreviousInput,
@@ -36,14 +37,13 @@ export function HookFormSelect<T extends FieldValues>({
   onChange,
   onBlur,
   disabled,
-  autoComplete,
   ...rest
 }: HookFormSelectProps<T>) {
   const {
     control,
     formState: { isSubmitting },
   } = useFormContext<T>();
-  const resolvedAutoComplete = autoComplete ?? "new-password";
+  const resolvedAutoComplete = "off";
 
   return (
     <div className="mt-3">
@@ -52,10 +52,15 @@ export function HookFormSelect<T extends FieldValues>({
         name={name}
         rules={rules}
         render={({ field, fieldState }) => {
-          const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+          const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
             onKeyDown?.(event as unknown as KeyboardEvent<HTMLSelectElement>);
             if (event.defaultPrevented) return;
             const source = event.target as HTMLElement;
+            const trigger = event.currentTarget as HTMLElement;
+            const isMenuOpen = trigger.getAttribute("aria-expanded") === "true";
+
+            // Let MUI Select handle keyboard navigation/selection while menu is open.
+            if (isMenuOpen) return;
 
             if (event.key === "ArrowUp") {
               event.preventDefault();
@@ -85,25 +90,23 @@ export function HookFormSelect<T extends FieldValues>({
               event.preventDefault();
               const moved = focusNextInput(source);
               if (!moved) {
-                event.currentTarget.form?.requestSubmit();
+                const target =
+                  event.currentTarget as HTMLInputElement | HTMLTextAreaElement;
+                target.form?.requestSubmit();
               }
             }
           };
 
-          const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+          const handleChange = (
+            event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+          ) => {
             field.onChange(event.target.value);
             onChange?.(event as unknown as ChangeEvent<HTMLSelectElement>);
-            const source = event.target as HTMLElement;
-            const moved = focusNextInput(source);
-            if (moved) return;
-
-            const active = source.ownerDocument?.activeElement ?? document.activeElement;
-            if (active instanceof HTMLElement) {
-              focusNextInput(active);
-            }
           };
 
-          const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+          const handleBlur = (
+            event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>,
+          ) => {
             field.onBlur();
             onBlur?.(event as unknown as FocusEvent<HTMLSelectElement>);
           };
@@ -115,7 +118,8 @@ export function HookFormSelect<T extends FieldValues>({
               variant="outlined"
               size="small"
               label={label}
-              SelectProps={{ native: true }}
+              InputLabelProps={{ shrink: true }}
+              SelectProps={{ displayEmpty: true }}
               value={field.value ?? ""}
               onKeyDown={handleKeyDown}
               onChange={handleChange}
@@ -155,9 +159,9 @@ export function HookFormSelect<T extends FieldValues>({
               }
             >
               {options.map((option) => (
-                <option key={option.value} value={option.value}>
+                <MenuItem key={option.value} value={option.value}>
                   {option.label}
-                </option>
+                </MenuItem>
               ))}
             </TextField>
           );

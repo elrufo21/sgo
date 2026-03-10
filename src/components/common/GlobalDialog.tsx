@@ -18,6 +18,8 @@ export function GlobalDialog() {
     maxWidth,
     fullWidth,
     disableBackdropClose,
+    disableClose,
+    hideCancelButton,
     loading,
     data,
     onConfirm,
@@ -28,6 +30,7 @@ export function GlobalDialog() {
   } = useDialogStore();
 
   const handleClose = (_e?: unknown, reason?: string) => {
+    if (disableClose) return;
     if (
       disableBackdropClose &&
       (reason === "backdropClick" || reason === "escapeKeyDown")
@@ -65,13 +68,16 @@ export function GlobalDialog() {
       onClose={handleClose}
       fullWidth={fullWidth}
       maxWidth={maxWidth}
+      disableEscapeKeyDown={disableClose || disableBackdropClose}
     >
       {title ? <DialogTitle>{title}</DialogTitle> : null}
       <DialogContent dividers>{content}</DialogContent>
       <DialogActions>
-        <Button onClick={handleClose} disabled={loading}>
-          {cancelText}
-        </Button>
+        {!hideCancelButton && (
+          <Button onClick={handleClose} disabled={loading}>
+            {cancelText}
+          </Button>
+        )}
         {onConfirm && (
           <Button
             onClick={handleConfirm}
