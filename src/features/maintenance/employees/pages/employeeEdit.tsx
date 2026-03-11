@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 import EmployeeFormBase from "@/components/EmployeeFormBase";
 import { useEmployeesStore } from "@/store/employees/employees.store";

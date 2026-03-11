@@ -3,7 +3,7 @@ import CustomerFormBase from "@/components/CustomerFormBase";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useNavigate, useParams } from "react-router";
 import { useDialogStore } from "@/store/app/dialog.store";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 const CustomerEdit = () => {
   const { id } = useParams<{ id: string }>();

@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import SendNoteFormBase from "@/components/SendNoteFormBase";
 import { useSendNoteStore } from "@/store/sendNote/sendNote.store";
 import type { SendNote } from "@/types/sendNote";

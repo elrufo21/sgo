@@ -7,6 +7,7 @@ import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 
@@ -21,6 +22,10 @@ interface ProviderFormProps {
   onDelete?: () => void;
   variant?: "page" | "modal";
 }
+
+type ProviderFormValues = Provider & {
+  numeroDocumento?: string;
+};
 
 export default function ProviderForm({
   initialData,
@@ -37,7 +42,7 @@ export default function ProviderForm({
   const fetchBankEntities = useMaintenanceStore((s) => s.fetchBankEntities);
   const isModal = variant === "modal";
 
-  const defaults = useMemo<Provider>(
+  const defaults = useMemo<ProviderFormValues>(
     () => ({
       id: initialData?.id ?? 0,
       razon: initialData?.razon ?? "",
@@ -48,17 +53,22 @@ export default function ProviderForm({
       correo: initialData?.correo ?? "",
       direccion: initialData?.direccion ?? "",
       estado: initialData?.estado ?? "ACTIVO",
+      numeroDocumento: initialData?.ruc ?? "",
     }),
     [initialData]
   );
 
-  const formMethods = useForm<Provider>({
+  const formMethods = useForm<ProviderFormValues>({
     defaultValues: defaults,
   });
 
   const {
-    handleSubmit,
     reset,
+    getValues,
+    setValue,
+    setFocus,
+    setError,
+    clearErrors,
     formState: { isSubmitting },
   } = formMethods;
 
@@ -138,24 +148,102 @@ export default function ProviderForm({
       correo: "",
       direccion: "",
       estado: "ACTIVO",
+      numeroDocumento: "",
     });
     setCuentasBancarias([]);
     onNew?.();
     focusFirstInput(containerRef.current);
   };
 
-  const onSubmit = async (values: Provider) => {
+  const onSubmit = async (values: ProviderFormValues) => {
+    const { numeroDocumento: _numeroDocumento, ...providerValues } = values;
     const payload: Provider = {
-      ...values,
-      razon: values.razon?.toUpperCase() ?? "",
-      contacto: values.contacto?.toUpperCase() ?? "",
-      direccion: values.direccion?.toUpperCase() ?? "",
-      estado: values.estado?.toUpperCase() ?? "",
+      ...providerValues,
+      razon: providerValues.razon?.toUpperCase() ?? "",
+      contacto: providerValues.contacto?.toUpperCase() ?? "",
+      direccion: providerValues.direccion?.toUpperCase() ?? "",
+      estado: providerValues.estado?.toUpperCase() ?? "",
     };
     await onSave({ ...payload, cuentasBancarias });
     if (mode === "create") {
       handleNew();
     }
+  };
+
+  const handleConsultarDocumento = async () => {
+    const numeroDocumento = String(getValues("numeroDocumento") ?? "").trim();
+
+    if (!numeroDocumento) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message: "Ingrese un numero de documento",
+      });
+      return;
+    }
+
+    if (!/^\d+$/.test(numeroDocumento)) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message: "Solo se permiten numeros",
+      });
+      return;
+    }
+
+    if (numeroDocumento.length !== 11) {
+      setError("numeroDocumento", {
+        type: "manual",
+        message: "Ingrese correctamente los 11 numeros del RUC",
+      });
+      return;
+    }
+
+    clearErrors("numeroDocumento");
+
+    const token = import.meta.env.VITE_API_DOCUMENTO;
+    if (!token) {
+      console.error("Falta VITE_API_DOCUMENTO en .env");
+      return;
+    }
+
+    const url = `https://dniruc.apisperu.com/api/v1/ruc/${numeroDocumento}?token=${token}`;
+    const response = await apiRequest({
+      url,
+      method: "GET",
+      fallback: null,
+    });
+
+    if (!response || typeof response !== "object") {
+      console.warn("Respuesta invalida del servicio de consulta");
+      return;
+    }
+
+    const data = response as Record<string, unknown>;
+    const asText = (value: unknown) => String(value ?? "").trim();
+    const pickFirst = (...values: unknown[]) =>
+      values.map(asText).find((value) => value.length > 0) ?? "";
+
+    const razonSocial = pickFirst(
+      data.razonSocial,
+      data.nombreORazonSocial,
+      data.nombre_o_razon_social,
+      data.nombre,
+      data.nombreRazon,
+    );
+    const direccion = pickFirst(
+      data.direccion,
+      data.direccionCompleta,
+      data.domicilioFiscal,
+    );
+    const ruc = pickFirst(data.ruc, numeroDocumento);
+
+    if (razonSocial) {
+      setValue("razon", razonSocial, { shouldDirty: true });
+    }
+    setValue("ruc", ruc, { shouldDirty: true });
+    if (direccion) {
+      setValue("direccion", direccion, { shouldDirty: true });
+    }
+    setFocus("razon");
   };
 
   const estadoOptions = [
@@ -257,7 +345,7 @@ export default function ProviderForm({
           isModal ? "" : "rounded-2xl shadow-xl"
         }`}
       >
-        <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
+        <HookForm methods={formMethods} onSubmit={onSubmit}>
           {!isModal && (
             <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -305,48 +393,52 @@ export default function ProviderForm({
           <div className="p-6 sm:p-8">
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-[40%] space-y-4">
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="razon"
                   label="Nombre / Razon Social"
                   placeholder="Ingrese nombre o razon social"
                   rules={{ required: "La razon social es obligatoria" }}
                   data-focus-first
                 />
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="ruc"
                   label="RUC"
                   placeholder="Ingrese RUC"
                   inputMode="numeric"
                   rules={{
-                    validate: (value) =>
-                      !value?.trim() ||
-                      /^\d{8,20}$/.test(value.trim()) ||
-                      "Ingrese un RUC valido",
+                    validate: (value) => {
+                      const normalized = String(value ?? "").trim();
+                      return (
+                        !normalized ||
+                        /^\d{8,20}$/.test(normalized) ||
+                        "Ingrese un RUC valido"
+                      );
+                    },
                   }}
                 />
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="contacto"
                   label="Contacto"
                   placeholder="Nombre del contacto"
                 />
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="celular"
                   label="Celular"
                   placeholder="Ingrese numero de celular"
                   inputMode="tel"
                 />
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="correo"
                   label="Email"
                   placeholder="Ingrese correo electronico"
                   type="email"
                 />
-                <HookFormInput<Provider>
+                <HookFormInput<ProviderFormValues>
                   name="direccion"
                   label="Direccion"
                   placeholder="Ingrese direccion"
                 />
-                <HookFormSelect<Provider>
+                <HookFormSelect<ProviderFormValues>
                   name="estado"
                   label="Estado"
                   options={estadoOptions}
@@ -358,20 +450,24 @@ export default function ProviderForm({
               <div className="w-full md:w-[60%] mt-6 md:mt-0">
                 <div className="space-y-4 w-[50%]">
                   <div className="flex flex-col gap-2">
-                    <HookFormInput<Provider>
-                      name={"numeroDocumento" as keyof Provider as any}
+                    <HookFormInput<ProviderFormValues>
+                      name="numeroDocumento"
                       label="Numero de documento"
                       type="number"
                       inputMode="numeric"
                       pattern="[0-9]*"
                       placeholder="Ingrese RUC"
+                      rules={{
+                        pattern: {
+                          value: /^\d{11}$/,
+                          message: "Debe tener 11 digitos",
+                        },
+                      }}
                     />
                     <button
                       type="button"
                       className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors self-start"
-                      onClick={() => {
-                        console.log("Consultar documento");
-                      }}
+                      onClick={handleConsultarDocumento}
                     >
                       Consultar
                     </button>

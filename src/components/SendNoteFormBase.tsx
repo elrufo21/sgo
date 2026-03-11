@@ -27,7 +27,7 @@ import { useClientsStore } from "@/store/customers/customers.store";
 import type { Client } from "@/types/customer";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useAuthStore } from "@/store/auth/auth.store";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 const entidadOptions = [
   { value: "Banco 1", label: "Banco 1" },

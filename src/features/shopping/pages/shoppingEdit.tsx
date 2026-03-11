@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import ShoppingFormBase from "@/components/ShoppingFormBase";
 import { useShoppingStore } from "@/store/shopping/shopping.store";
 import type { ShoppingFormData } from "@/types/shopping";

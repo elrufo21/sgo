@@ -7,6 +7,8 @@ import type { SendNote, SendNoteItem } from "@/types/sendNote";
 interface FetchOrderNotesParams {
   page?: number;
   pageSize?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
 }
 
 interface OrderNoteState {
@@ -35,6 +37,15 @@ const normalizeText = (value: unknown, fallback = "-") => {
   return text || fallback;
 };
 
+const dateLikePattern = /^(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})$/;
+const numberLikePattern = /^-?\d+(?:[.,]\d+)?$/;
+
+const isDateLike = (value: unknown) =>
+  dateLikePattern.test(String(value ?? "").trim());
+
+const isNumberLike = (value: unknown) =>
+  numberLikePattern.test(String(value ?? "").trim());
+
 const normalizeLower = (value: unknown) =>
   String(value ?? "")
     .trim()
@@ -43,6 +54,20 @@ const normalizeLower = (value: unknown) =>
 const toNumber = (value: unknown, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const formatDateForList = (rawValue: unknown) => {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw) return "-";
+  if (dateLikePattern.test(raw) && raw.includes("/")) return raw;
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  return raw;
 };
 
 const mapDocTypeToCode = (docValue: string) => {
@@ -107,21 +132,239 @@ const resolveSessionUsername = () => {
 };
 
 const mapApiToOrderNote = (item: OrderNoteApiItem, index: number): OrderNote => {
-  const notaId = normalizeText(item?.notaId, "0");
+  const notaId = normalizeText(item?.notaId ?? item?.NotaId, "0");
+  const notaDocu = normalizeText(item?.notaDocu ?? item?.NotaDocu, "");
+  const notaSerie = normalizeText(item?.notaSerie ?? item?.NotaSerie, "");
+  const notaNumero = normalizeText(item?.notaNumero ?? item?.NotaNumero, "");
+  const documentNumber =
+    notaSerie || notaNumero
+      ? `${notaSerie}${notaSerie && notaNumero ? "-" : ""}${notaNumero}`.trim()
+      : "";
+  const documento = [notaDocu, documentNumber].filter(Boolean).join(" ").trim();
+
+  const rawFecha = normalizeText(
+    item?.notaFecha ?? item?.NotaFecha ?? item?.fecha,
+    "",
+  );
+  const rawCliente = normalizeText(
+    item?.clienteRazon ?? item?.ClienteRazon ?? item?.cliente,
+    "",
+  );
+  const rawFormaPago = normalizeText(
+    item?.notaFormaPago ?? item?.NotaFormaPago ?? item?.formaPago,
+    "",
+  );
+  const rawTotal = normalizeText(item?.notaTotal ?? item?.NotaTotal ?? item?.total, "");
+  const rawAcuenta = normalizeText(
+    item?.notaAcuenta ?? item?.NotaAcuenta ?? item?.acuenta,
+    "0.00",
+  );
+  const rawSaldo = normalizeText(
+    item?.notaSaldo ?? item?.NotaSaldo ?? item?.saldo,
+    "0.00",
+  );
+  const rawUsuario = normalizeText(
+    item?.notaUsuario ?? item?.NotaUsuario ?? item?.usuario,
+    "",
+  );
+  const rawEstado = normalizeText(
+    item?.notaEstado ?? item?.NotaEstado ?? item?.estado,
+    "",
+  );
+  const clienteFallbackId = normalizeText(item?.clienteId ?? item?.ClienteId, "");
+
+  // Compatibilidad: algunos backends aún mapean con offsets antiguos y la fila llega corrida.
+  const isShiftedResponse =
+    isNumberLike(rawFecha) &&
+    isDateLike(rawCliente) &&
+    !isNumberLike(rawTotal) &&
+    rawTotal.length > 0;
+
+  const fecha = isShiftedResponse ? rawCliente : rawFecha || "-";
+  const cliente = isShiftedResponse
+    ? rawFecha
+      ? `Cliente #${rawFecha}`
+      : "-"
+    : rawCliente || (clienteFallbackId ? `Cliente #${clienteFallbackId}` : "-");
+  const formaPago = isShiftedResponse ? rawTotal || "-" : rawFormaPago || "-";
+  const total = isShiftedResponse
+    ? normalizeText(item?.notaTotal ?? item?.NotaTotal, "0.00")
+    : rawTotal || "0.00";
+  const usuario = isShiftedResponse ? rawFormaPago || "-" : rawUsuario || "-";
+  const estado = isShiftedResponse
+    ? rawUsuario || rawEstado || "PENDIENTE"
+    : rawEstado || "PENDIENTE";
+
   const parsedId = Number(notaId);
 
   return {
     id: Number.isFinite(parsedId) && parsedId > 0 ? parsedId : index + 1,
     notaId,
-    documento: normalizeText(item?.documento),
-    fecha: normalizeText(item?.fecha),
-    cliente: normalizeText(item?.cliente),
-    formaPago: normalizeText(item?.formaPago),
-    total: normalizeText(item?.total, "0.00"),
-    acuenta: normalizeText(item?.acuenta, "0.00"),
-    saldo: normalizeText(item?.saldo, "0.00"),
-    usuario: normalizeText(item?.usuario),
-    estado: normalizeText(item?.estado, "PENDIENTE"),
+    documento: documento || normalizeText(item?.documento),
+    fecha,
+    cliente,
+    formaPago,
+    total,
+    acuenta: rawAcuenta || "0.00",
+    saldo: rawSaldo || "0.00",
+    usuario,
+    estado,
+  };
+};
+
+const parseDelimitedOrderNotes = (rawValue: string): OrderNote[] => {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw || raw === "~" || raw.toUpperCase() === "FORMATO_INVALIDO") {
+    return [];
+  }
+
+  return raw
+    .split("¬")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk, index) => {
+      const parts = chunk.split("|");
+      const at = (idx: number) => String(parts[idx] ?? "").trim();
+
+      const notaId = at(0) || String(index + 1);
+      const notaDocu = at(1);
+      const clienteId = at(2);
+      const clienteRazon = at(3);
+      const notaFecha = at(13);
+      const notaUsuario = at(14);
+      const notaFormaPago = at(15);
+      const notaTotal = at(23);
+      const notaAcuenta = at(24);
+      const notaSaldo = at(25);
+      const notaEstado = at(29);
+      const notaSerie = at(35);
+      const notaNumero = at(36);
+
+      const parsedId = Number(notaId);
+      const documentNumber =
+        notaSerie || notaNumero
+          ? `${notaSerie}${notaSerie && notaNumero ? "-" : ""}${notaNumero}`.trim()
+          : "";
+      const documento = [notaDocu, documentNumber].filter(Boolean).join(" ").trim();
+      const cliente =
+        clienteRazon || (clienteId ? `Cliente #${clienteId}` : "-");
+
+      return {
+        id: Number.isFinite(parsedId) && parsedId > 0 ? parsedId : index + 1,
+        notaId,
+        documento: documento || "-",
+        fecha: formatDateForList(notaFecha),
+        cliente,
+        formaPago: notaFormaPago || "-",
+        total: notaTotal || "0.00",
+        acuenta: notaAcuenta || "0.00",
+        saldo: notaSaldo || "0.00",
+        usuario: notaUsuario || "-",
+        estado: notaEstado || "PENDIENTE",
+      } satisfies OrderNote;
+    });
+};
+
+const parseOrderNotesResponse = (payload: unknown): OrderNote[] => {
+  if (Array.isArray(payload)) {
+    return payload.map((item, index) =>
+      mapApiToOrderNote(item as OrderNoteApiItem, index)
+    );
+  }
+
+  if (typeof payload === "string") {
+    return parseDelimitedOrderNotes(payload);
+  }
+
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const stringCandidate =
+      (typeof record.resultado === "string" && record.resultado) ||
+      (typeof record.Resultado === "string" && record.Resultado) ||
+      Object.values(record).find((value) => typeof value === "string");
+
+    if (typeof stringCandidate === "string") {
+      const parsedFromString = parseDelimitedOrderNotes(stringCandidate);
+      if (parsedFromString.length > 0) return parsedFromString;
+    }
+
+    const arrayCandidate = Object.values(record).find(Array.isArray);
+    if (Array.isArray(arrayCandidate)) {
+      return arrayCandidate.map((item, index) =>
+        mapApiToOrderNote(item as OrderNoteApiItem, index)
+      );
+    }
+  }
+
+  return [];
+};
+
+const shouldHydrateFromDetail = (row: OrderNote) => {
+  const rawFecha = String(row.fecha ?? "").trim();
+  const rawCliente = String(row.cliente ?? "").trim();
+  const rawTotal = String(row.total ?? "").trim();
+  const rawFormaPago = String(row.formaPago ?? "").trim();
+  const rawUsuario = String(row.usuario ?? "").trim();
+
+  const clienteLooksLikeName = /[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(rawCliente);
+  const fechaLooksLikeClientId = /^\d{1,8}$/.test(rawFecha);
+  const totalDigits = rawTotal.replace(/[^\d]/g, "");
+  const totalLooksLikeDoc = /^\d{8,11}$/.test(totalDigits);
+  const formaPagoMissing = !rawFormaPago || rawFormaPago === "-";
+  const usuarioLooksLikeAddress =
+    /\b(calle|av\.?|avenida|jr\.?|jiron|mz|lote|urb)\b/i.test(rawUsuario);
+
+  return (
+    (fechaLooksLikeClientId && clienteLooksLikeName) ||
+    (totalLooksLikeDoc && formaPagoMissing) ||
+    usuarioLooksLikeAddress
+  );
+};
+
+const parseOrderNoteFromDetailResult = (
+  resultString: string,
+  fallback: OrderNote
+): OrderNote | null => {
+  const raw = String(resultString ?? "").trim();
+  if (!raw || raw === "~" || raw === "FORMATO_INVALIDO") return null;
+
+  const separatorIndex = raw.indexOf("[");
+  const headerRaw = separatorIndex >= 0 ? raw.slice(0, separatorIndex) : raw;
+  const headerParts = headerRaw.split("|");
+  const at = (idx: number) => String(headerParts[idx] ?? "").trim();
+
+  const notaId = at(0) || fallback.notaId;
+  const notaDocu = at(1);
+  const notaFecha = at(3);
+  const notaUsuario = at(4);
+  const notaFormaPago = at(5);
+  const notaTotal = at(13);
+  const notaAcuenta = at(14);
+  const notaSaldo = at(15);
+  const notaEstado = at(19);
+  const notaSerie = at(25);
+  const notaNumero = at(26);
+  const clienteRazon = at(33);
+
+  const parsedId = Number(notaId);
+  const documentNumber =
+    notaSerie || notaNumero
+      ? `${notaSerie}${notaSerie && notaNumero ? "-" : ""}${notaNumero}`.trim()
+      : "";
+  const documento = [notaDocu, documentNumber].filter(Boolean).join(" ").trim();
+
+  return {
+    id: Number.isFinite(parsedId) && parsedId > 0 ? parsedId : fallback.id,
+    notaId,
+    documento: documento || fallback.documento,
+    fecha: formatDateForList(notaFecha) || fallback.fecha,
+    cliente: clienteRazon || fallback.cliente,
+    formaPago: notaFormaPago || fallback.formaPago,
+    total: notaTotal || fallback.total,
+    acuenta: notaAcuenta || fallback.acuenta,
+    saldo: notaSaldo || fallback.saldo,
+    usuario: notaUsuario || fallback.usuario,
+    estado: notaEstado || fallback.estado,
   };
 };
 
@@ -203,20 +446,58 @@ export const useOrderNoteStore = create<OrderNoteState>((set, get) => ({
     const currentState = get();
     const nextPage = toPositiveInt(params?.page, currentState.page);
     const nextPageSize = toPositiveInt(params?.pageSize, currentState.pageSize);
+    const fechaInicio = String(params?.fechaInicio ?? "").trim();
+    const fechaFin = String(params?.fechaFin ?? "").trim();
+    const hasDateRange = Boolean(fechaInicio || fechaFin);
+
+    const query = new URLSearchParams();
+    if (fechaInicio) query.set("fechaInicio", fechaInicio);
+    if (fechaFin) query.set("fechaFin", fechaFin);
+    if (!hasDateRange) {
+      query.set("page", String(nextPage));
+      query.set("pageSize", String(nextPageSize));
+    }
 
     set({ loading: true });
     try {
       const response = await apiRequest<unknown>({
-        url: `${API_BASE_URL}/Nota/list?page=${nextPage}&pageSize=${nextPageSize}`,
+        url: `${API_BASE_URL}/Nota/list?${query.toString()}`,
         method: "GET",
         fallback: [],
       });
 
-      const rows = Array.isArray(response) ? response : [];
+      const rows = parseOrderNotesResponse(response);
+      const needsHydration = rows.some(shouldHydrateFromDetail);
+      const hydratedRows = needsHydration
+        ? await Promise.all(
+            rows.map(async (row) => {
+              if (!shouldHydrateFromDetail(row)) return row;
+              const parsedId = Number(row.notaId);
+              if (!Number.isFinite(parsedId) || parsedId <= 0) return row;
+
+              try {
+                const detailResponse = await apiRequest<unknown>({
+                  url: `${API_BASE_URL}/Nota/sp/${parsedId}`,
+                  method: "GET",
+                  fallback: null,
+                });
+                const resultString =
+                  typeof detailResponse === "string"
+                    ? detailResponse
+                    : (detailResponse as { resultado?: unknown } | null)
+                        ?.resultado;
+
+                if (typeof resultString !== "string") return row;
+                return parseOrderNoteFromDetailResult(resultString, row) ?? row;
+              } catch {
+                return row;
+              }
+            }),
+          )
+        : rows;
+
       set({
-        notes: rows.map((item, index) =>
-          mapApiToOrderNote(item as OrderNoteApiItem, index)
-        ),
+        notes: hydratedRows,
         loading: false,
         page: nextPage,
         pageSize: nextPageSize,

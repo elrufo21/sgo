@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
 import ProductFormBase from "@/components/ProductFormBase";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 export default function ProductEdit() {

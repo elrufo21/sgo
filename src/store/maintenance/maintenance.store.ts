@@ -9,7 +9,7 @@ import type {
   BankEntity,
 } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { queryClient } from "@/shared/queryClient";
 import {
   categoriesQueryKey,

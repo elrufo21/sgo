@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { API_BASE_URL } from "@/config";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import type { User } from "../employees/employees.store";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 export type { User } from "../employees/employees.store";
 
 interface UsersState {

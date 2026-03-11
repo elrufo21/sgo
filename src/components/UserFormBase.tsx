@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Save, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { useEmployeesStore } from "@/store/employees/employees.store";
 import type { User } from "@/store/users/users.store";
 import { HookForm } from "@/components/forms/HookForm";

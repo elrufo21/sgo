@@ -46,21 +46,103 @@ interface ProductsState {
   deleteProduct: (id: number) => Promise<boolean>;
 }
 
+const toNumberValue = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeEstado = (value: unknown): Product["estado"] => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "inactivo") return "inactivo";
+  if (normalized === "archivado") return "archivado";
+  return "activo";
+};
+
+const parseDelimitedProducts = (rawValue: string): ApiProduct[] => {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw || raw === "~" || raw.toUpperCase() === "FORMATO_INVALIDO") {
+    return [];
+  }
+
+  return raw
+    .split("¬")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk): ApiProduct | null => {
+      const parts = chunk.split("|");
+      const at = (index: number) => String(parts[index] ?? "").trim();
+
+      const idProducto = toNumberValue(at(0), 0);
+      if (!idProducto) return null;
+
+      const idSubLineaRaw = at(1);
+      return {
+        idProducto,
+        idSubLinea:
+          idSubLineaRaw === "" ? null : toNumberValue(idSubLineaRaw, 0),
+        productoCodigo: at(2),
+        productoNombre: at(3),
+        productoUM: at(4),
+        productoCosto: toNumberValue(at(5), 0),
+        productoVenta: toNumberValue(at(6), 0),
+        productoVentaB: toNumberValue(at(7), 0),
+        productoCantidad: toNumberValue(at(8), 0),
+        productoEstado: at(9),
+        productoUsuario: at(10),
+        productoFecha: at(11),
+        productoImagen: at(12),
+        valorCritico: toNumberValue(at(13), 0),
+        aplicaINV: at(14),
+      };
+    })
+    .filter((item): item is ApiProduct => Boolean(item));
+};
+
+const parseProductsResponse = (payload: unknown): ApiProduct[] => {
+  if (Array.isArray(payload)) {
+    return payload as ApiProduct[];
+  }
+
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const arrayCandidate = Object.values(record).find(Array.isArray);
+    if (Array.isArray(arrayCandidate)) {
+      return arrayCandidate as ApiProduct[];
+    }
+
+    const stringCandidate = Object.values(record).find(
+      (value) => typeof value === "string",
+    );
+    if (typeof stringCandidate === "string") {
+      return parseDelimitedProducts(stringCandidate);
+    }
+
+    return [];
+  }
+
+  if (typeof payload === "string") {
+    return parseDelimitedProducts(payload);
+  }
+
+  return [];
+};
+
 const mapApiToProduct = (item: ApiProduct): Product => ({
   id: item.idProducto ?? 0,
   codigo: item.productoCodigo ?? "",
   nombre: item.productoNombre ?? "",
   unidadMedida: item.productoUM ?? "",
-  valorCritico: Number(item.valorCritico ?? 0),
-  preCosto: Number(item.productoCosto ?? 0),
-  preVenta: Number(item.productoVenta ?? 0),
+  valorCritico: toNumberValue(item.valorCritico, 0),
+  preCosto: toNumberValue(item.productoCosto, 0),
+  preVenta: toNumberValue(item.productoVenta, 0),
   aplicaINV:
     String(item.aplicaINV ?? "").toUpperCase() === "N" ? "N" : "S",
-  cantidad: Number(item.productoCantidad ?? 0),
+  cantidad: toNumberValue(item.productoCantidad, 0),
   usuario: item.productoUsuario ?? "",
-  estado:
-    (item.productoEstado as Product["estado"]) ??
-    ("activo" as Product["estado"]),
+  estado: normalizeEstado(item.productoEstado),
   images: item.productoImagen ? [item.productoImagen] : [],
   idSubLinea: item.idSubLinea,
   preVentaB: item.productoVentaB,
@@ -142,12 +224,12 @@ export const useProductsStore = create<ProductsState>((set, get) => ({
         estado && estado.trim() !== ""
           ? `?estado=${encodeURIComponent(estado)}`
           : "";
-      const response = await apiRequest<ApiProduct[]>({
+      const response = await apiRequest<unknown>({
         url: `${baseUrl}/list${query}`,
         method: "GET",
         fallback: [],
       });
-      const data = Array.isArray(response) ? response : [];
+      const data = parseProductsResponse(response);
       set({ products: data.map(mapApiToProduct), loading: false });
     } catch (error) {
       console.error("Error loading products", error);

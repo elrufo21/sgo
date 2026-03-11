@@ -19,7 +19,7 @@ import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { useDialogStore } from "@/store/app/dialog.store";
 import type { Product } from "@/types/product";
 import type { PosCartItem } from "@/types/pos";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 const columnHelper = createColumnHelper<Product>();
 const PAGE_SIZE = 24;
@@ -132,7 +132,7 @@ const POSPage = () => {
     return products.filter(
       (p) =>
         p.codigo?.toLowerCase().includes(term) ||
-        p.nombre?.toLowerCase().includes(term)
+        p.nombre?.toLowerCase().includes(term),
     );
   }, [products, searchTerm]);
 
@@ -160,7 +160,7 @@ const POSPage = () => {
           setPage((prev) => prev + 1);
         }
       },
-      { root: null, rootMargin: "200px 0px 200px 0px", threshold: 0.1 }
+      { root: null, rootMargin: "200px 0px 200px 0px", threshold: 0.1 },
     );
 
     observer.observe(node);
@@ -203,7 +203,7 @@ const POSPage = () => {
       const next: Record<number, string> = {};
       items.forEach((item) => {
         next[item.productId] =
-          prev[item.productId] ?? (item.precio?.toString() ?? "");
+          prev[item.productId] ?? item.precio?.toString() ?? "";
       });
       return next;
     });
@@ -359,7 +359,8 @@ const POSPage = () => {
                     {visibleProducts.map((product) => {
                       const image = product.images?.[0];
                       const stockValue = Number(product.cantidad ?? 0);
-                      const isOutOfStock = !Number.isFinite(stockValue) || stockValue <= 0;
+                      const isOutOfStock =
+                        !Number.isFinite(stockValue) || stockValue <= 0;
                       const cardHighlight = isOutOfStock
                         ? "border-red-200 bg-red-50"
                         : "border-slate-200 bg-gray-50";
@@ -393,7 +394,9 @@ const POSPage = () => {
                             <div className="flex items-center justify-between text-sm text-gray-600">
                               <span
                                 className={
-                                  isOutOfStock ? "text-red-600 font-semibold" : ""
+                                  isOutOfStock
+                                    ? "text-red-600 font-semibold"
+                                    : ""
                                 }
                               >
                                 Stock: {stockValue}
@@ -417,10 +420,13 @@ const POSPage = () => {
                   </div>
                 ) : (
                   <DataTable
-                    data={filteredProducts}
+                    data={products}
                     columns={productColumns}
                     filterKeys={["codigo", "nombre"]}
                     onRowClick={handleAddProduct}
+                    searchPlaceholder="Buscar por código o nombre"
+                    globalFilterValue={searchTerm}
+                    onGlobalFilterValueChange={setSearchTerm}
                   />
                 )}
                 {hasMoreProducts && (
@@ -473,101 +479,106 @@ const POSPage = () => {
                     : "border-slate-200 bg-gray-50";
 
                 return (
-                <article
-                  key={item.productId}
-                  className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
-                >
-                  <div className="flex justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-800">
-                        {item.nombre}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {item.codigo} · {item.unidadMedida ?? "UND"}
-                      </p>
-                      {item.stock !== undefined && (
+                  <article
+                    key={item.productId}
+                    className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
+                  >
+                    <div className="flex justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {item.nombre}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          Stock:{" "}
-                          <span
-                            className={
-                              isStockNegative ? "text-red-600 font-semibold" : ""
-                            }
-                          >
-                            {item.stock}
-                          </span>
+                          {item.codigo} · {item.unidadMedida ?? "UND"}
                         </p>
-                      )}
-                    </div>
+                        {item.stock !== undefined && (
+                          <p className="text-xs text-gray-500">
+                            Stock:{" "}
+                            <span
+                              className={
+                                isStockNegative
+                                  ? "text-red-600 font-semibold"
+                                  : ""
+                              }
+                            >
+                              {item.stock}
+                            </span>
+                          </p>
+                        )}
+                      </div>
 
-                    <div className="text-right w-32">
-                      <label className="text-xs text-gray-500 block text-left">
-                        P. Unitario
-                      </label>
-                      <div className="mt-1 flex items-center gap-1">
-                        <span className="text-sm text-gray-500">S/</span>
-                        <NavigableNumberInput
-                          min={0}
-                          step="0.01"
-                          value={priceDrafts[item.productId] ?? item.precio}
-                          onChange={(value) => handlePriceChange(item, value)}
-                          navGroup="pos-price-input"
-                          className="w-full text-right border rounded-md px-2 py-1 text-sm"
-                        />
+                      <div className="text-right w-32">
+                        <label className="text-xs text-gray-500 block text-left">
+                          P. Unitario
+                        </label>
+                        <div className="mt-1 flex items-center gap-1">
+                          <span className="text-sm text-gray-500">S/</span>
+                          <NavigableNumberInput
+                            min={0}
+                            step="0.01"
+                            value={priceDrafts[item.productId] ?? item.precio}
+                            onChange={(value) => handlePriceChange(item, value)}
+                            navGroup="pos-price-input"
+                            className="w-full text-right border rounded-md px-2 py-1 text-sm"
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <button
-                        className="p-1 rounded bg-white border hover:bg-slate-50"
-                        onClick={() => handleQuantityChange(item, -1)}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <NavigableNumberInput
-                        value={item.cantidad === 0 ? "" : item.cantidad}
-                        onChange={(value) =>
-                          handleManualQuantity(item, value)
-                        }
-                        navGroup="pos-quantity-input"
-                        className="w-16 text-center border rounded-md py-1"
-                      />
-                      <button
-                        className="p-1 rounded bg-white border hover:bg-slate-50"
-                        onClick={() => handleQuantityChange(item, 1)}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Subtotal</p>
-                        <p
-                          className={`text-base font-semibold ${
-                            isZeroOrNegative ? "text-red-600" : "text-slate-800"
-                          }`}
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="p-1 rounded bg-white border hover:bg-slate-50"
+                          onClick={() => handleQuantityChange(item, -1)}
                         >
-                          S/ {(item.precio * item.cantidad).toFixed(2)}
-                        </p>
+                          <Minus className="w-4 h-4" />
+                        </button>
+                        <NavigableNumberInput
+                          value={item.cantidad === 0 ? "" : item.cantidad}
+                          onChange={(value) =>
+                            handleManualQuantity(item, value)
+                          }
+                          navGroup="pos-quantity-input"
+                          className="w-16 text-center border rounded-md py-1"
+                        />
+                        <button
+                          className="p-1 rounded bg-white border hover:bg-slate-50"
+                          onClick={() => handleQuantityChange(item, 1)}
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button
-                        className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                        onClick={() => removeItem(item.productId)}
-                        title="Quitar"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">Subtotal</p>
+                          <p
+                            className={`text-base font-semibold ${
+                              isZeroOrNegative
+                                ? "text-red-600"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            S/ {(item.precio * item.cantidad).toFixed(2)}
+                          </p>
+                        </div>
+                        <button
+                          className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
+                          onClick={() => removeItem(item.productId)}
+                          title="Quitar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </article>
-              )})}
+                  </article>
+                );
+              })}
             </div>
 
             <div className="mt-4 border-t pt-3 space-y-2">
               <div className="flex justify-between text-sm text-gray-700">
-                <span>Subtotal</span>
+                <span>Importe</span>
                 <span className="font-semibold">
                   S/ {totals.subTotal.toFixed(2)}
                 </span>

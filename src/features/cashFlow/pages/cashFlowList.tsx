@@ -5,7 +5,7 @@ import { createColumnHelper } from "@tanstack/react-table";
 import { Pencil, PlusIcon, Trash2 } from "lucide-react";
 import { useEffect } from "react";
 import { Link, useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { formatDate } from "@/shared/helpers/formatDate";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 

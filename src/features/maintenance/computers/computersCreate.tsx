@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer } from "@/types/maintenance";

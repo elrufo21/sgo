@@ -2,7 +2,7 @@ import { type ReactNode, useEffect } from "react";
 import { Link, useNavigate } from "react-router";
 import DataTable from "@/components/DataTable";
 import { Pencil, PlusIcon, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { createColumnHelper } from "@tanstack/react-table";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
@@ -61,7 +61,22 @@ export function CrudList<T>(props: CrudListProps<T>) {
   const openDialog = useDialogStore((s) => s.openDialog);
   const navigate = useNavigate();
   const columnHelper = createColumnHelper<T>();
-  const isCategoriesList = basePath === "/maintenance/categories";
+  const isMaintenanceList = basePath.startsWith("/maintenance/");
+  const maintenanceSegment = basePath.split("/").filter(Boolean)[1] ?? "";
+  const maintenanceTitleBySegment: Record<string, string> = {
+    categories: "Categorías",
+    areas: "Áreas",
+    providers: "Proveedores",
+    holidays: "Feriados",
+    computers: "Computadoras",
+    employees: "Empleados",
+    users: "Usuarios",
+  };
+  const maintenanceTitle =
+    maintenanceTitleBySegment[maintenanceSegment] ?? "Mantenimiento";
+  const maintenanceFallbackTo = basePath.startsWith("/maintenance")
+    ? "/maintenance"
+    : undefined;
 
   useEffect(() => {
     fetchData();
@@ -150,17 +165,20 @@ export function CrudList<T>(props: CrudListProps<T>) {
 
   return (
     <div>
-      {isCategoriesList ? (
+      {isMaintenanceList ? (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
           <div className="flex items-center gap-3">
-            <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
+            <BackArrowButton
+              fallbackTo={maintenanceFallbackTo}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
+            />
             <div className="leading-tight">
               <p className="text-xs font-semibold tracking-wide uppercase text-[#B23636]">
                 Mantenimiento
               </p>
               <div className="flex items-end gap-2">
                 <h1 className="text-2xl sm:text-4xl font-semibold text-[#0f2748]">
-                  Categorías
+                  {maintenanceTitle}
                 </h1>
               </div>
             </div>
@@ -175,8 +193,11 @@ export function CrudList<T>(props: CrudListProps<T>) {
         columns={tableColumns}
         filterKeys={filterKeys}
         toolbarLeading={
-          !isCategoriesList ? (
-            <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
+          !isMaintenanceList ? (
+            <BackArrowButton
+              fallbackTo={maintenanceFallbackTo}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
+            />
           ) : undefined
         }
         renderFilters={renderFilters}

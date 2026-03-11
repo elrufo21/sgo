@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import HolidayForm from "@/components/maintenance/HolidayForm";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Holiday } from "@/types/maintenance";

@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import ProductFormBase from "@/components/ProductFormBase";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";

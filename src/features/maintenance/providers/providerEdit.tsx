@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import ProviderForm from "@/components/maintenance/ProviderForm";
 import type { Provider, ProviderBankAccount } from "@/types/maintenance";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";

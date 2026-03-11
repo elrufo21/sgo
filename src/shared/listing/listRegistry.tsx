@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import { useEmployeesStore } from "@/store/employees/employees.store";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import { useDialogStore } from "@/store/app/dialog.store";

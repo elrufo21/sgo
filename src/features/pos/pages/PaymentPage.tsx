@@ -7,24 +7,25 @@ import {
   Printer,
   Receipt,
   MessageCircle,
-  Minus,
-  Plus,
+  UserPlus,
   Trash2,
 } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import TicketDocument from "@/components/Ticket";
-import { useDialogStore } from "@/store/app/dialog.store";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
+import CustomerFormBase from "@/components/CustomerFormBase";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useProductsStore } from "@/store/products/products.store";
+import { useDialogStore } from "@/store/app/dialog.store";
 import type { PosCartItem } from "@/types/pos";
+import type { Client } from "@/types/customer";
 
 type NotaDetallePayload = {
   detalleId?: number;
@@ -58,7 +59,7 @@ const PaymentPage = () => {
   const clearEditingNota = usePosStore((s) => s.clearEditingNota);
   const clearCart = usePosStore((s) => s.clearCart);
   const openDialog = useDialogStore((s) => s.openDialog);
-  const { clients, fetchClients } = useClientsStore();
+  const { clients, fetchClients, addClient } = useClientsStore();
   const { fetchProducts: refetchProducts } = useProductsStore();
   const safeTrim = (value: unknown) => String(value ?? "").trim();
   const routeNotaId = useMemo(() => {
@@ -112,7 +113,6 @@ const PaymentPage = () => {
   );
   const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
-  const whatsappNumberInputRef = useRef<HTMLInputElement | null>(null);
 
   const docTypeConfig: Record<
     "03" | "01" | "101",
@@ -766,6 +766,101 @@ const PaymentPage = () => {
     [setValue],
   );
 
+  const handleOpenCreateClientModal = useCallback(() => {
+    if (formLocked) return;
+
+    openDialog({
+      title: "Registrar cliente",
+      maxWidth: "lg",
+      fullWidth: true,
+      confirmText: "Guardar",
+      cancelText: "Cancelar",
+      content: (
+        <CustomerFormBase
+          mode="create"
+          variant="modal"
+          onSave={async () => false}
+          onNew={() => {}}
+        />
+      ),
+      onConfirm: async (rawData) => {
+        const data = (rawData ?? {}) as Partial<Client>;
+        const payload: Omit<Client, "id"> = {
+          nombreRazon: safeTrim(data.nombreRazon).toUpperCase(),
+          ruc: safeTrim(data.ruc),
+          dni: safeTrim(data.dni),
+          direccionFiscal: safeTrim(data.direccionFiscal),
+          direccionDespacho: safeTrim(data.direccionDespacho),
+          telefonoMovil: safeTrim(data.telefonoMovil),
+          email: safeTrim(data.email),
+          registradoPor: safeTrim(data.registradoPor) || resolvedNotaUsuario,
+          estado: safeTrim(data.estado) || "ACTIVO",
+          fecha: data.fecha ?? null,
+        };
+
+        if (!payload.nombreRazon) {
+          toast.error("El nombre o razon social es obligatorio.");
+          return false;
+        }
+
+        const result = await addClient(payload);
+        if (!result.ok) {
+          toast.error(result.error ?? "No se pudo crear el cliente.");
+          return false;
+        }
+
+        await fetchClients();
+        const refreshedClients = useClientsStore.getState().clients;
+        const normalizedName = safeTrim(payload.nombreRazon).toLowerCase();
+        const normalizedRuc = safeTrim(payload.ruc);
+        const normalizedDni = safeTrim(payload.dni);
+
+        const createdClient =
+          refreshedClients.find((client) => {
+            const clientRuc = safeTrim(client.ruc);
+            const clientDni = safeTrim(client.dni);
+            const clientName = safeTrim(client.nombreRazon).toLowerCase();
+            return (
+              (normalizedRuc && clientRuc === normalizedRuc) ||
+              (normalizedDni && clientDni === normalizedDni) ||
+              (!!normalizedName && clientName === normalizedName)
+            );
+          }) ?? null;
+
+        const selectedName =
+          safeTrim(createdClient?.nombreRazon) || payload.nombreRazon;
+        const selectedDoc =
+          docTypeCode === "01"
+            ? safeTrim(createdClient?.ruc) ||
+              safeTrim(createdClient?.dni) ||
+              payload.ruc ||
+              payload.dni
+            : safeTrim(createdClient?.dni) ||
+              safeTrim(createdClient?.ruc) ||
+              payload.dni ||
+              payload.ruc;
+
+        setValue("customerName", selectedName, { shouldDirty: true });
+        setValue("customerId", selectedDoc, { shouldDirty: true });
+        setClienteIdFromOption({
+          id: createdClient?.id ?? null,
+          clienteId: createdClient?.id ?? null,
+        });
+        toast.success("Cliente creado correctamente.");
+        return true;
+      },
+    });
+  }, [
+    addClient,
+    docTypeCode,
+    fetchClients,
+    formLocked,
+    openDialog,
+    resolvedNotaUsuario,
+    setClienteIdFromOption,
+    setValue,
+  ]);
+
   const uniqueClients = useMemo(() => {
     const seen = new Set<string>();
     const result: typeof clients = [];
@@ -904,19 +999,19 @@ const PaymentPage = () => {
         if (!isMatchingName) {
           setValue("clienteId", null, { shouldDirty: false });
         } else {
-        const docFromId =
-          docTypeCode === "01"
-            ? safeTrim((clientById as any).ruc ?? "")
-            : safeTrim((clientById as any).dni ?? "");
+          const docFromId =
+            docTypeCode === "01"
+              ? safeTrim((clientById as any).ruc ?? "")
+              : safeTrim((clientById as any).dni ?? "");
 
-        if (nameFromId && safeTrim(customerName) !== nameFromId) {
-          setValue("customerName", nameFromId, { shouldDirty: false });
-        }
+          if (nameFromId && safeTrim(customerName) !== nameFromId) {
+            setValue("customerName", nameFromId, { shouldDirty: false });
+          }
 
-        if (safeTrim(customerId) !== docFromId) {
-          setValue("customerId", docFromId, { shouldDirty: false });
-        }
-        return;
+          if (safeTrim(customerId) !== docFromId) {
+            setValue("customerId", docFromId, { shouldDirty: false });
+          }
+          return;
         }
       }
     }
@@ -1549,112 +1644,53 @@ const PaymentPage = () => {
     window.setTimeout(() => URL.revokeObjectURL(url), 1500);
   }, []);
 
-  const openWhatsApp = useCallback((phone: string, message: string) => {
-    const encodedMessage = encodeURIComponent(message);
-    const url = phone
-      ? `https://wa.me/${phone}?text=${encodedMessage}`
-      : `https://wa.me/?text=${encodedMessage}`;
-    window.open(url, "_blank", "noopener,noreferrer");
-  }, []);
+  const shareByWhatsApp = useCallback(async () => {
+    const safeDocNumber = safeTrim(documentNumber) || "SIN-NUMERO";
+    const message = [
+      `Comprobante: ${safeDocNumber}`,
+      `Cliente: ${safeTrim(customerName) || "PUBLICO GENERAL"}`,
+      `Total: S/ ${totalAPagar.toFixed(2)}`,
+    ].join("\n");
 
-  const shareByWhatsApp = useCallback(
-    async (rawPhone?: string) => {
-      const normalizedPhone = String(rawPhone ?? "").replace(/\D/g, "");
-      if (
-        normalizedPhone &&
-        (normalizedPhone.length < 8 || normalizedPhone.length > 15)
-      ) {
-        toast.error("Ingresa un numero valido (8 a 15 digitos).");
-        return;
-      }
+    const blob = await createComprobanteBlob();
+    const fileName = getComprobanteFileName();
+    const file = new File([blob], fileName, { type: "application/pdf" });
 
-      const blob = await createComprobanteBlob();
-      const fileName = getComprobanteFileName();
-      const file = new File([blob], fileName, { type: "application/pdf" });
+    if (typeof navigator.share === "function") {
+      try {
+        const canShareFile =
+          typeof navigator.canShare === "function"
+            ? navigator.canShare({ files: [file] })
+            : true;
 
-      const safeDocNumber = safeTrim(documentNumber) || "SIN-NUMERO";
-      const message = [
-        `Comprobante: ${safeDocNumber}`,
-        `Cliente: ${safeTrim(customerName) || "PUBLICO GENERAL"}`,
-        `Total: S/ ${totalAPagar.toFixed(2)}`,
-      ].join("\n");
-
-      if (!normalizedPhone && typeof navigator.share === "function") {
-        try {
-          const canShareFile =
-            typeof navigator.canShare === "function"
-              ? navigator.canShare({ files: [file] })
-              : false;
-
-          if (canShareFile) {
-            await navigator.share({
-              title: "Comprobante de pago",
-              text: message,
-              files: [file],
-            });
-            toast.success("Comprobante listo para enviar por WhatsApp.");
-            return;
-          }
-        } catch (error) {
-          if (error instanceof DOMException && error.name === "AbortError") {
-            return;
-          }
+        if (canShareFile) {
+          await navigator.share({
+            title: "Comprobante de pago",
+            text: message,
+            files: [file],
+          });
+          toast.success("Panel de compartir abierto.");
+          return;
+        }
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
         }
       }
+    }
 
-      downloadComprobante(blob, fileName);
-      openWhatsApp(normalizedPhone, message);
-
-      if (normalizedPhone) {
-        toast.success("WhatsApp abierto. Adjunta el PDF descargado.");
-        return;
-      }
-
-      toast.info(
-        "WhatsApp abierto. Selecciona el contacto y adjunta el comprobante descargado.",
-      );
-    },
-    [
-      createComprobanteBlob,
-      customerName,
-      documentNumber,
-      downloadComprobante,
-      getComprobanteFileName,
-      openWhatsApp,
-      totalAPagar,
-    ],
-  );
-
-  const handleOpenWhatsAppModal = useCallback(() => {
-    openDialog({
-      title: "Enviar por WhatsApp",
-      confirmText: "Enviar",
-      cancelText: "Cancelar",
-      maxWidth: "xs",
-      fullWidth: true,
-      content: (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600">
-            Ingresa el numero para abrir el chat directo. Si lo dejas vacio,
-            podras elegir el contacto en WhatsApp.
-          </p>
-          <input
-            ref={(node) => {
-              whatsappNumberInputRef.current = node;
-            }}
-            type="tel"
-            inputMode="numeric"
-            placeholder="Ej: 51987654321 (opcional)"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200"
-          />
-        </div>
-      ),
-      onConfirm: async () => {
-        const phoneValue = whatsappNumberInputRef.current?.value ?? "";
-        await shareByWhatsApp(phoneValue);
-      },
-    });
-  }, [openDialog, shareByWhatsApp]);
+    downloadComprobante(blob, fileName);
+    toast.info(
+      "No se pudo abrir el panel de compartir. Se descargo el PDF para enviarlo manualmente.",
+    );
+  }, [
+    createComprobanteBlob,
+    customerName,
+    documentNumber,
+    downloadComprobante,
+    getComprobanteFileName,
+    totalAPagar,
+  ]);
 
   const handlePrint = async () => {
     try {
@@ -1702,122 +1738,124 @@ const PaymentPage = () => {
   }
 
   const ItemsList = (
-    <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-      {itemsToRender.map((item) => {
-        const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
-        const isStockNegative = Number(item.stock ?? 0) < 0;
-        const highlightClass =
-          isZeroOrNegative || isStockNegative
-            ? "border-red-200 bg-red-50"
-            : "border-slate-200 bg-gray-50";
+    <div className="max-h-[60vh] overflow-auto rounded-xl border border-slate-200 bg-white">
+      <div className="min-w-[640px]">
+        <div className="sticky top-0 z-10 grid grid-cols-[96px_minmax(0,1fr)_120px_130px] border-b-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold tracking-wide text-slate-800">
+          <div className="text-center">Cantidad</div>
+          <div>Descripción</div>
+          <div className="text-right">P.Uni</div>
+          <div className="text-right">Importe</div>
+        </div>
 
-        return (
-          <div
-            key={item.productId}
-            className={`border rounded-lg p-3 flex justify-between gap-3 ${highlightClass}`}
-          >
-            <div>
-              <p className="text-sm font-semibold text-slate-800">
-                {item.nombre}
-              </p>
-              <p className="text-xs text-gray-500">
-                {item.codigo} · {item.unidadMedida ?? "UND"}
-              </p>
-              {item.stock !== undefined && (
-                <p className="text-xs text-gray-500">
-                  Stock:{" "}
-                  <span
-                    className={
-                      isStockNegative ? "text-red-600 font-semibold" : ""
-                    }
-                  >
-                    {item.stock}
-                  </span>
-                </p>
-              )}
-              <p className="text-xs text-gray-500">CANTIDAD: {item.cantidad}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">P. Unitario</p>
-              <div className="mt-1 flex items-center gap-1">
-                <span className="text-xs text-gray-500">S/</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  inputMode="decimal"
-                  className="w-20 text-right border rounded-md px-2 py-1 text-sm appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  value={item.precio === 0 ? "" : item.precio}
-                  onChange={(e) => {
-                    handlePriceChange(item, e.target.value);
-                  }}
-                  onFocus={(e) => e.target.select()}
-                  disabled={!canEditItems}
-                  style={{ MozAppearance: "textfield" }}
-                />
-              </div>
-              <p className="text-xs text-gray-500">Subtotal</p>
-              <p
-                className={`text-base font-semibold ${
-                  isZeroOrNegative ? "text-red-600" : "text-slate-800"
+        <div className="divide-y divide-slate-200">
+          {itemsToRender.map((item) => {
+            const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+            const isStockNegative = Number(item.stock ?? 0) < 0;
+
+            return (
+              <div
+                key={item.productId}
+                className={`grid grid-cols-[96px_minmax(0,1fr)_120px_130px] items-start px-3 py-3 ${
+                  isZeroOrNegative || isStockNegative
+                    ? "bg-red-50/70"
+                    : "bg-white"
                 }`}
               >
-                S/ {(item.precio * item.cantidad).toFixed(2)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  className="p-1 rounded bg-white border hover:bg-slate-50 disabled:opacity-50"
-                  onClick={() => handleQuantityChange(item, -1)}
-                  disabled={!canEditItems}
-                >
-                  <Minus className="w-4 h-4" />
-                </button>
-                <input
-                  type="number"
-                  min={0}
-                  step="1"
-                  inputMode="numeric"
-                  className="w-16 text-center border rounded-md py-1 text-sm appearance-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  value={item.cantidad === 0 ? "" : item.cantidad}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === "") {
-                      handleQuantityChange(item, -item.cantidad);
-                      return;
-                    }
-                    const parsed = Number(value);
-                    if (Number.isNaN(parsed)) return;
-                    const desired = Math.max(0, parsed);
-                    handleQuantityChange(item, desired - (item.cantidad ?? 0));
-                  }}
-                  onFocus={(e) => e.target.select()}
-                  disabled={!canEditItems}
-                  style={{ MozAppearance: "textfield" }}
-                />
-                <button
-                  type="button"
-                  className="p-1 rounded bg-white border hover:bg-slate-50 disabled:opacity-50"
-                  onClick={() => handleQuantityChange(item, 1)}
-                  disabled={!canEditItems}
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+                <div className="flex items-start justify-center pt-1">
+                  {canEditItems ? (
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      inputMode="numeric"
+                      className="h-9 w-16 rounded-md border border-slate-300 py-1 text-center text-sm outline-none appearance-none [appearance:textfield] focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      value={item.cantidad === 0 ? "" : item.cantidad}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === "") {
+                          handleQuantityChange(item, -item.cantidad);
+                          return;
+                        }
+                        const parsed = Number(value);
+                        if (Number.isNaN(parsed)) return;
+                        const desired = Math.max(0, parsed);
+                        handleQuantityChange(
+                          item,
+                          desired - (item.cantidad ?? 0),
+                        );
+                      }}
+                      onFocus={(e) => e.target.select()}
+                      disabled={!canEditItems}
+                      style={{ MozAppearance: "textfield" }}
+                    />
+                  ) : (
+                    <span className="inline-flex h-9 min-w-10 items-center justify-center text-lg">
+                      {item.cantidad}
+                    </span>
+                  )}
+                </div>
+
+                <div className="min-w-0 pr-3">
+                  <p className="break-words text-base leading-snug text-slate-900">
+                    {item.nombre}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.codigo ? `Cod: ${item.codigo} · ` : ""}
+                    {item.unidadMedida || "UND"}
+                    {item.stock !== undefined ? ` · Stock: ${item.stock}` : ""}
+                  </p>
+                </div>
+
+                <div className="pt-1 text-right">
+                  {canEditItems ? (
+                    <div className="inline-flex h-9 items-center justify-end gap-1 rounded-md border border-slate-300 bg-white px-2">
+                      <span className="text-xs text-slate-500">S/</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        inputMode="decimal"
+                        className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        value={item.precio === 0 ? "" : item.precio}
+                        onChange={(e) => {
+                          handlePriceChange(item, e.target.value);
+                        }}
+                        onFocus={(e) => e.target.select()}
+                        disabled={!canEditItems}
+                        style={{ MozAppearance: "textfield" }}
+                      />
+                    </div>
+                  ) : (
+                    <span className="inline-block pt-1 text-xl leading-none text-slate-900">
+                      {item.precio.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="pt-1">
+                  <div className="flex items-start justify-end gap-2">
+                    <p
+                      className={`pt-1 text-right text-xl leading-none ${
+                        isZeroOrNegative ? "text-red-600" : "text-slate-900"
+                      }`}
+                    >
+                      {(item.precio * item.cantidad).toFixed(2)}
+                    </p>
+                    <button
+                      type="button"
+                      className="h-6 w-6 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={() => handleRemoveItem(item.productId)}
+                      disabled={!canEditItems}
+                      title="Quitar"
+                    >
+                      <Trash2 className="mx-auto h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button
-                type="button"
-                className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-50"
-                onClick={() => handleRemoveItem(item.productId)}
-                disabled={!canEditItems}
-                title="Quitar"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 
@@ -1940,6 +1978,16 @@ const PaymentPage = () => {
             }}
           />
         )}
+        {!formLocked && (
+          <button
+            type="button"
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            onClick={handleOpenCreateClientModal}
+          >
+            <UserPlus className="h-4 w-4" />
+            Agregar cliente
+          </button>
+        )}
         {paymentMethod !== "EFECTIVO" && (
           <HookFormSelect
             name="bankEntity"
@@ -1982,9 +2030,7 @@ const PaymentPage = () => {
                 ) {
                   return true;
                 }
-                return safeTrim(value)
-                  ? true
-                  : "N° de operación obligatorio";
+                return safeTrim(value) ? true : "N° de operación obligatorio";
               },
             }}
           />
@@ -2064,7 +2110,9 @@ const PaymentPage = () => {
       {isConfirmed && (
         <button
           className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 transition-colors"
-          onClick={handleOpenWhatsAppModal}
+          onClick={() => {
+            void shareByWhatsApp();
+          }}
         >
           <MessageCircle className="w-5 h-5" />
           Enviar por WhatsApp

@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 type SmallCashForm = {
   fecha: string;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import PurchaseFormBase from "@/components/PurchaseFormBase";
 import { usePurchasesStore } from "@/store/purchanses/purchase.store";
 import { useDialogStore } from "@/store/app/dialog.store";

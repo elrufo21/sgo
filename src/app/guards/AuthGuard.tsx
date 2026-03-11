@@ -37,7 +37,6 @@ export function RequireAuth({ children }: GuardProps) {
 }
 
 export function RedirectIfAuthenticated({ children }: GuardProps) {
-  const location = useLocation();
   const hydrate = useAuthStore((state) => state.hydrate);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hydrated = useAuthStore((state) => state.hydrated);
@@ -53,8 +52,7 @@ export function RedirectIfAuthenticated({ children }: GuardProps) {
   }
 
   if (isAuthenticated) {
-    const state = location.state as { from?: string } | null;
-    const redirectTo = state?.from ?? "/";
+    const redirectTo = "/sales/pos";
     return <Navigate to={redirectTo} replace />;
   }
 

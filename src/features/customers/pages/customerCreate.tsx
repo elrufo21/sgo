@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import CustomerFormBase from "@/components/CustomerFormBase";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 
 const CustomerCreate = () => {
   const { addClient } = useClientsStore();

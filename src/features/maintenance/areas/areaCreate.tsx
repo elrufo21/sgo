@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import AreaForm from "@/components/maintenance/AreaForm";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 

@@ -1,27 +1,65 @@
 import {
+  type Cell,
+  type ColumnDef,
+  type RowData,
   useReactTable,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
   getCoreRowModel,
-  getSortedRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Search } from "lucide-react";
+import {
+  ChevronFirst,
+  ChevronLast,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  X,
+} from "lucide-react";
 import { useDialogStore } from "@/store/app/dialog.store";
 
-interface DataTableProps<T> {
-  columns: any[];
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    tdClassName?: string | ((row: TData) => string | undefined);
+    thClassName?: string;
+    align?: "left" | "center" | "right";
+  }
+}
+
+interface DataTableProps<T extends RowData> {
+  columns: ColumnDef<T, unknown>[];
   data: T[];
   onRowClick?: (row: T) => void;
   filterKeys?: (keyof T & string)[];
-  tdClassName?: string | ((cell: any) => string | undefined);
+  tdClassName?: string | ((cell: Cell<T, unknown>) => string | undefined);
   toolbarLeading?: ReactNode;
   renderFilters?: ReactNode;
   toolbarAction?: ReactNode;
+  isLoading?: boolean;
+  emptyMessage?: string;
+  searchPlaceholder?: string;
+  initialPageSize?: number;
+  pageSizeOptions?: number[];
+  stickyHeader?: boolean;
+  tableMaxHeight?: string;
+  globalFilterValue?: string;
+  onGlobalFilterValueChange?: (value: string) => void;
 }
 
-export default function DataTable<T>({
+const alignmentClass: Record<"left" | "center" | "right", string> = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+};
+
+const resolveAlignmentClass = (align?: "left" | "center" | "right") =>
+  alignmentClass[align ?? "left"];
+
+export default function DataTable<T extends RowData>({
   columns,
   data,
   onRowClick,
@@ -30,13 +68,43 @@ export default function DataTable<T>({
   toolbarLeading,
   renderFilters,
   toolbarAction,
+  isLoading = false,
+  emptyMessage = "No hay datos para mostrar.",
+  searchPlaceholder = "Buscar en la tabla...",
+  initialPageSize = 10,
+  pageSizeOptions = [10, 20, 50, 100],
+  stickyHeader = true,
+  tableMaxHeight = "65vh",
+  globalFilterValue,
+  onGlobalFilterValueChange,
 }: DataTableProps<T>) {
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [sorting, setSorting] = useState([]);
+  const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const previousDataLength = useRef(data?.length ?? 0);
   const dialogOpen = useDialogStore((s) => s.open);
   const previousDialogOpen = useRef(dialogOpen);
+  const isGlobalFilterControlled = globalFilterValue !== undefined;
+  const globalFilter = isGlobalFilterControlled
+    ? String(globalFilterValue ?? "")
+    : internalGlobalFilter;
+
+  const handleGlobalFilterChange = (value: string) => {
+    if (!isGlobalFilterControlled) {
+      setInternalGlobalFilter(value);
+    }
+    onGlobalFilterValueChange?.(value);
+  };
+
+  const normalizedPageSizeOptions = Array.from(
+    new Set(
+      pageSizeOptions
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    ),
+  ).sort((a, b) => a - b);
+
+  const safePageSize =
+    normalizedPageSizeOptions[0] ?? Math.max(1, Math.floor(initialPageSize));
 
   const focusSearch = () => {
     const input = searchRef.current;
@@ -74,183 +142,270 @@ export default function DataTable<T>({
     columns,
     state: {
       globalFilter,
-      sorting,
     },
-    onGlobalFilterChange: setGlobalFilter,
-    onSortingChange: setSorting,
+    onGlobalFilterChange: (updater) => {
+      const nextValue =
+        typeof updater === "function" ? updater(globalFilter) : updater;
+      handleGlobalFilterChange(String(nextValue ?? ""));
+    },
     globalFilterFn: (row, _columnId, filterValue) => {
       const term = String(filterValue ?? "")
         .toLowerCase()
         .trim();
       if (!term) return true;
+
+      const original = row.original as Record<string, unknown>;
       const keysToSearch =
         filterKeys && filterKeys.length > 0
           ? filterKeys
-          : (Object.keys(row.original) as (keyof T & string)[]);
+          : (Object.keys(original) as (keyof T & string)[]);
+
       return keysToSearch.some((key) => {
-        const value = (row.original as Record<string, unknown>)[key];
+        const value = original[key];
         if (value === null || value === undefined) return false;
         return String(value).toLowerCase().includes(term);
       });
     },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
+        pageSize: safePageSize,
       },
     },
   });
 
   const filteredRows = table.getFilteredRowModel().rows;
   const totalCount = filteredRows.length;
+  const visibleRows = table.getRowModel().rows;
   const currentPage = table.getState().pagination.pageIndex + 1;
+  const totalPages = Math.max(table.getPageCount(), 1);
   const pageSize = table.getState().pagination.pageSize;
   const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const end = Math.min(currentPage * pageSize, totalCount);
 
-  const goNext = () => {
-    if (table.getCanNextPage()) {
-      table.nextPage();
-    } else {
-      table.setPageIndex(0); // volver al inicio cuando no hay más páginas
-    }
-  };
-
-  const goPrev = () => {
-    if (table.getCanPreviousPage()) {
-      table.previousPage();
-    } else {
-      const lastPage = Math.max(Math.ceil(totalCount / pageSize) - 1, 0);
-      table.setPageIndex(lastPage);
-    }
-  };
-
   return (
-    <div className="w-full border border-slate-900 rounded-2xl bg-white p-4">
-      {/* Filtros y buscador */}
-      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-4">
-        {toolbarLeading && <div className="flex-shrink-0">{toolbarLeading}</div>}
-        <div className="relative w-full sm:w-[520px] sm:min-w-[520px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-          <input
-            ref={searchRef}
-            placeholder="Buscar en toda la tabla..."
-            className="h-11 w-full border border-slate-300 px-3 py-2 pl-10 rounded-xl bg-white focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 outline-none transition-colors"
-            value={globalFilter ?? ""}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-          />
+    <section className="w-full rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)]">
+      <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            {toolbarLeading ? (
+              <div className="shrink-0">{toolbarLeading}</div>
+            ) : null}
+            <div className="relative w-full lg:w-[34rem]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                ref={searchRef}
+                placeholder={searchPlaceholder}
+                className="h-11 w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-9 text-sm text-slate-800 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
+                value={globalFilter}
+                onChange={(e) => handleGlobalFilterChange(e.target.value)}
+              />
+              {globalFilter ? (
+                <button
+                  type="button"
+                  onClick={() => handleGlobalFilterChange("")}
+                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                  aria-label="Limpiar búsqueda"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {renderFilters ? (
+              <div className="min-w-[12rem]">{renderFilters}</div>
+            ) : null}
+            {toolbarAction ? <div>{toolbarAction}</div> : null}
+          </div>
         </div>
-        {toolbarAction && (
-          <div className="flex-shrink-0">
-            {toolbarAction}
-          </div>
-        )}
-        {renderFilters && (
-          <div className="flex-shrink-0 sm:ml-auto sm:w-auto w-full sm:max-w-[240px]">
-            {renderFilters}
-          </div>
-        )}
+
+        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-600">
+          <span className=""></span>
+          {globalFilter ? (
+            <span>
+              Filtro activo:{" "}
+              <strong className="font-semibold text-slate-700">
+                {globalFilter}
+              </strong>
+            </span>
+          ) : (
+            <></>
+          )}
+        </div>
       </div>
 
-      {/* Tabla */}
-      <table className="w-full border-collapse">
-        <thead className="bg-slate-100 text-slate-800">
-          {table.getHeaderGroups().map((hg) => (
-            <tr key={hg.id}>
-              {hg.headers.map((header) => (
-                <th
-                  key={header.id}
-                  className="p-3 text-left select-none cursor-pointer"
-                  onClick={header.column.getToggleSortingHandler()}
-                >
-                  <div className="flex items-center gap-1">
-                    {flexRender(
-                      header.column.columnDef.header,
-                      header.getContext()
-                    )}
-                    {header.column.getIsSorted() === "asc" && "▲"}
-                    {header.column.getIsSorted() === "desc" && "▼"}
-                  </div>
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
+      <div className="overflow-auto" style={{ maxHeight: tableMaxHeight }}>
+        <table className="w-full min-w-[44rem] border-collapse">
+          <thead
+            className={`bg-slate-50 text-xs uppercase tracking-wide text-slate-600 ${
+              stickyHeader ? "sticky top-0 z-10" : ""
+            }`}
+          >
+            {table.getHeaderGroups().map((hg) => (
+              <tr key={hg.id} className="border-b border-slate-200">
+                {hg.headers.map((header) => {
+                  const align = header.column.columnDef.meta?.align;
+                  const thClass =
+                    header.column.columnDef.meta?.thClassName ?? "";
 
-        <tbody>
-          {table.getRowModel().rows.length ? (
-            table.getRowModel().rows.map((row) => (
-              <tr
-                key={row.id}
-                className={`border-b border-slate-300 hover:bg-slate-50 ${
-                  onRowClick ? "cursor-pointer" : ""
-                }`}
-                onClick={() => onRowClick?.(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const metaClass = cell.column.columnDef.meta?.tdClassName;
-                  const colClass =
-                    typeof metaClass === "function"
-                      ? metaClass(row.original)
-                      : metaClass ?? "";
-                  const extraClass =
-                    typeof tdClassName === "function"
-                      ? tdClassName(cell) ?? ""
-                      : tdClassName ?? "";
                   return (
-                    <td
-                      key={cell.id}
-                      className={`p-3 ${colClass} ${extraClass}`}
+                    <th
+                      key={header.id}
+                      className={`px-4 py-3 font-semibold ${resolveAlignmentClass(align)} ${thClass}`}
+                      scope="col"
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                    </th>
                   );
                 })}
               </tr>
-            ))
-          ) : (
-            <tr>
-              <td
-                colSpan={columns.length}
-                className="p-4 text-center text-gray-500"
-              >
-                No hay datos
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            ))}
+          </thead>
 
-      {/* Footer */}
-      <div className="flex justify-between items-center mt-4 text-sm text-gray-600">
-        <button
-          className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
-          onClick={goPrev}
-          disabled={totalCount === 0}
-        >
-          Anterior
-        </button>
+          <tbody>
+            {isLoading ? (
+              <tr>
+                <td
+                  colSpan={Math.max(table.getAllLeafColumns().length, 1)}
+                  className="px-4 py-8 text-center text-sm text-slate-500"
+                >
+                  Cargando registros...
+                </td>
+              </tr>
+            ) : visibleRows.length ? (
+              visibleRows.map((row, rowIndex) => (
+                <tr
+                  key={row.id}
+                  className={`border-b border-slate-200 transition ${
+                    rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/45"
+                  } ${onRowClick ? "cursor-pointer hover:bg-rose-50/45" : ""}`}
+                  onClick={() => onRowClick?.(row.original)}
+                  onKeyDown={(event) => {
+                    if (!onRowClick) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onRowClick(row.original);
+                    }
+                  }}
+                  tabIndex={onRowClick ? 0 : -1}
+                >
+                  {row.getVisibleCells().map((cell) => {
+                    const metaClass = cell.column.columnDef.meta?.tdClassName;
+                    const colClass =
+                      typeof metaClass === "function"
+                        ? metaClass(row.original)
+                        : (metaClass ?? "");
+                    const extraClass =
+                      typeof tdClassName === "function"
+                        ? (tdClassName(cell) ?? "")
+                        : (tdClassName ?? "");
+                    const align = cell.column.columnDef.meta?.align;
 
-        <span className="text-center flex-1">
-          <strong>
-            {end}/{totalCount}
-          </strong>
-        </span>
-
-        <button
-          className="px-3 py-1 bg-gray-200 rounded disabled:opacity-50"
-          onClick={goNext}
-          disabled={totalCount === 0}
-        >
-          Siguiente
-        </button>
+                    return (
+                      <td
+                        key={cell.id}
+                        className={`px-4 py-3 text-sm text-slate-700 ${resolveAlignmentClass(
+                          align,
+                        )} ${colClass} ${extraClass}`}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={Math.max(columns.length, 1)}
+                  className="px-4 py-10 text-center text-sm text-slate-500"
+                >
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
-    </div>
+
+      <footer className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex items-center gap-2">
+          <span>Filas por página:</span>
+          <select
+            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
+            value={pageSize}
+            onChange={(e) => table.setPageSize(Number(e.target.value))}
+          >
+            {normalizedPageSizeOptions.map((size) => (
+              <option key={size} value={size}>
+                {size}
+              </option>
+            ))}
+          </select>
+          <span className="text-slate-500">
+            {start}-{end} de {totalCount}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="min-w-[7.5rem] text-center text-slate-700">
+            Página {currentPage} de {totalPages}
+          </span>
+
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() => table.setPageIndex(0)}
+            disabled={!table.getCanPreviousPage()}
+            aria-label="Primera página"
+          >
+            <ChevronFirst className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            aria-label="Página anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            aria-label="Siguiente página"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+            onClick={() =>
+              table.setPageIndex(Math.max(table.getPageCount() - 1, 0))
+            }
+            disabled={!table.getCanNextPage()}
+            aria-label="Última página"
+          >
+            <ChevronLast className="h-4 w-4" />
+          </button>
+        </div>
+      </footer>
+    </section>
   );
 }

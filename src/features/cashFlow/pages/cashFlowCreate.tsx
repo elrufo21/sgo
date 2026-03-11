@@ -2,7 +2,7 @@ import React from "react";
 import CashFlowForm from "@/components/CashFlowForm";
 import { useCashFlowStore } from "@/store/cashFlow/cashFlow.store";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import type { CashFlow } from "@/types/cashFlow";
 
 const CashFlowCreate = () => {

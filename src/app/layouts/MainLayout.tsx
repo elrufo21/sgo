@@ -12,7 +12,7 @@ import {
   CopySlashIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toast } from "@/shared/ui/toast";
 import UserFormBase from "@/components/UserFormBase";
 import { PASSWORD_EXPIRATION_LOCK_ENABLED } from "@/config";
 import { useDialogStore } from "@/store/app/dialog.store";

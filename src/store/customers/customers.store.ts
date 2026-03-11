@@ -17,19 +17,33 @@ interface ClientsState {
   deleteClient: (id: number) => Promise<boolean>;
 }
 
-const mapApiToClient = (item: any): Client => ({
-  id: item?.clienteId ?? item?.ClienteId ?? item?.id ?? 0,
-  nombreRazon: item?.clienteRazon ?? item?.ClienteRazon ?? "",
-  ruc: item?.clienteRuc ?? item?.ClienteRuc ?? "",
-  dni: item?.clienteDni ?? item?.ClienteDni ?? "",
-  direccionFiscal: item?.clienteDireccion ?? item?.ClienteDireccion ?? "",
-  direccionDespacho: item?.clienteDespacho ?? item?.ClienteDespacho ?? "",
-  telefonoMovil: item?.clienteTelefono ?? item?.ClienteTelefono ?? "",
-  email: item?.clienteCorreo ?? item?.ClienteCorreo ?? "",
-  registradoPor: item?.clienteUsuario ?? item?.ClienteUsuario ?? "",
-  estado: item?.clienteEstado ?? item?.ClienteEstado ?? "activo",
-  fecha: item?.clienteFecha ?? item?.ClienteFecha ?? null,
-});
+const mapApiToClient = (item: unknown): Client => {
+  const payload = (item ?? {}) as Record<string, unknown>;
+  return {
+    id: Number(payload.clienteId ?? payload.ClienteId ?? payload.id ?? 0),
+    nombreRazon: String(payload.clienteRazon ?? payload.ClienteRazon ?? ""),
+    ruc: String(payload.clienteRuc ?? payload.ClienteRuc ?? ""),
+    dni: String(payload.clienteDni ?? payload.ClienteDni ?? ""),
+    direccionFiscal: String(
+      payload.clienteDireccion ?? payload.ClienteDireccion ?? ""
+    ),
+    direccionDespacho: String(
+      payload.clienteDespacho ?? payload.ClienteDespacho ?? ""
+    ),
+    telefonoMovil: String(
+      payload.clienteTelefono ?? payload.ClienteTelefono ?? ""
+    ),
+    email: String(payload.clienteCorreo ?? payload.ClienteCorreo ?? ""),
+    registradoPor: String(
+      payload.clienteUsuario ?? payload.ClienteUsuario ?? ""
+    ),
+    estado: String(payload.clienteEstado ?? payload.ClienteEstado ?? "activo"),
+    fecha:
+      payload.clienteFecha === null || payload.ClienteFecha === null
+        ? null
+        : String(payload.clienteFecha ?? payload.ClienteFecha ?? ""),
+  };
+};
 
 const mapClientToApi = (client: Partial<Client>): ApiClient => ({
   clienteId: client.id ?? 0,
@@ -39,13 +53,87 @@ const mapClientToApi = (client: Partial<Client>): ApiClient => ({
   clienteDireccion: client.direccionFiscal ?? "",
   clienteTelefono: client.telefonoMovil ?? "",
   clienteCorreo: client.email ?? "",
-  clienteEstado: client.estado ?? "activo",
+  clienteEstado: client.estado ?? "ACTIVO",
   clienteDespacho: client.direccionDespacho ?? "",
   clienteUsuario: client.registradoPor ?? "",
   clienteFecha: client.fecha ?? null,
 });
 
-const parseExistsMessage = (payload: any): string | null => {
+const parseClientRegisterResponse = (
+  result: unknown,
+  fallback: ApiClient
+): ApiClient => {
+  if (result && typeof result === "object") {
+    const payload = result as Record<string, unknown>;
+    const parsedId =
+      Number(payload.clienteId ?? payload.ClienteId ?? payload.id) ||
+      fallback.clienteId;
+    const parsedFechaRaw = payload.clienteFecha ?? payload.ClienteFecha;
+
+    return {
+      clienteId: parsedId,
+      clienteRazon: String(
+        payload.clienteRazon ??
+          payload.ClienteRazon ??
+          payload.nombreRazon ??
+          payload.nombre ??
+          fallback.clienteRazon
+      ),
+      clienteRuc: String(
+        payload.clienteRuc ?? payload.ClienteRuc ?? fallback.clienteRuc
+      ),
+      clienteDni: String(
+        payload.clienteDni ?? payload.ClienteDni ?? fallback.clienteDni
+      ),
+      clienteDireccion: String(
+        payload.clienteDireccion ??
+          payload.ClienteDireccion ??
+          fallback.clienteDireccion
+      ),
+      clienteTelefono: String(
+        payload.clienteTelefono ?? payload.ClienteTelefono ?? fallback.clienteTelefono
+      ),
+      clienteCorreo: String(
+        payload.clienteCorreo ?? payload.ClienteCorreo ?? fallback.clienteCorreo
+      ),
+      clienteEstado: String(
+        payload.clienteEstado ?? payload.ClienteEstado ?? fallback.clienteEstado
+      ),
+      clienteDespacho: String(
+        payload.clienteDespacho ??
+          payload.ClienteDespacho ??
+          fallback.clienteDespacho
+      ),
+      clienteUsuario: String(
+        payload.clienteUsuario ?? payload.ClienteUsuario ?? fallback.clienteUsuario
+      ),
+      clienteFecha:
+        parsedFechaRaw === null || parsedFechaRaw === undefined
+          ? fallback.clienteFecha
+          : String(parsedFechaRaw),
+    };
+  }
+
+  if (typeof result === "string") {
+    const normalized = result.trim();
+    if (!normalized || normalized.toLowerCase().includes("existe")) {
+      return fallback;
+    }
+
+    const [idRaw = "", razonRaw = ""] = normalized.split("|");
+    const parsedId = Number(idRaw.trim());
+    return {
+      ...fallback,
+      clienteId:
+        Number.isFinite(parsedId) && parsedId > 0 ? parsedId : fallback.clienteId,
+      clienteRazon: razonRaw.trim() || fallback.clienteRazon,
+    };
+  }
+
+  return fallback;
+};
+
+const parseExistsMessage = (payload: unknown): string | null => {
   if (typeof payload !== "string") return null;
   const lower = payload.toLowerCase();
   if (lower.includes("dni")) return "Ese DNI ya existe.";
@@ -82,7 +170,7 @@ export const useClientsStore = create<ClientsState>((set) => ({
     try {
       set({ loading: true });
       const payload = mapClientToApi(client);
-      const created = await apiRequest<ApiClient>({
+      const created = await apiRequest<unknown>({
         url: `${API_BASE_URL}/Cliente/register`,
         method: "POST",
         data: payload,
@@ -102,11 +190,9 @@ export const useClientsStore = create<ClientsState>((set) => ({
         return { ok: false, error: parseExistsMessage(created) ?? undefined };
       }
 
+      const parsedClient = parseClientRegisterResponse(created, payload);
       set((state) => ({
-        clients: [
-          ...state.clients,
-          mapApiToClient(created ?? { ...payload, clienteId: Date.now() }),
-        ],
+        clients: [...state.clients, mapApiToClient(parsedClient)],
       }));
       return { ok: true };
     } catch (error) {
@@ -121,7 +207,7 @@ export const useClientsStore = create<ClientsState>((set) => ({
     try {
       set({ loading: true });
       const payload = mapClientToApi({ ...data, id });
-      const updated = await apiRequest<ApiClient>({
+      const updated = await apiRequest<unknown>({
         url: `${API_BASE_URL}/Cliente/register`,
         method: "POST",
         data: payload,
@@ -141,9 +227,10 @@ export const useClientsStore = create<ClientsState>((set) => ({
         return { ok: false, error: parseExistsMessage(updated) ?? undefined };
       }
 
+      const parsedClient = parseClientRegisterResponse(updated, payload);
       set((state) => ({
         clients: state.clients.map((c) =>
-          c.id === id ? mapApiToClient(updated ?? payload) : c
+          c.id === id ? mapApiToClient(parsedClient) : c
         ),
       }));
       return { ok: true };
