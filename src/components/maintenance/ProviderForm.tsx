@@ -16,7 +16,7 @@ interface ProviderFormProps {
   initialAccounts?: ProviderBankAccount[];
   mode: "create" | "edit";
   onSave: (
-    data: Provider & { cuentasBancarias?: ProviderBankAccount[] }
+    data: Provider & { cuentasBancarias?: ProviderBankAccount[] },
   ) => void | Promise<void>;
   onNew?: () => void;
   onDelete?: () => void;
@@ -24,7 +24,7 @@ interface ProviderFormProps {
 }
 
 type ProviderFormValues = Provider & {
-  numeroDocumento?: string;
+  numeroDocumentoConsulta?: string;
 };
 
 export default function ProviderForm({
@@ -55,7 +55,7 @@ export default function ProviderForm({
       estado: initialData?.estado ?? "ACTIVO",
       numeroDocumento: initialData?.ruc ?? "",
     }),
-    [initialData]
+    [initialData],
   );
 
   const formMethods = useForm<ProviderFormValues>({
@@ -80,7 +80,7 @@ export default function ProviderForm({
       (initialData as any)?.cuentasBancarias ??
       (initialData as any)?.cuentas ??
       []
-    )?.map((c: ProviderBankAccount) => ({ ...c, action: undefined })) ?? []
+    )?.map((c: ProviderBankAccount) => ({ ...c, action: undefined })) ?? [],
   );
 
   useEffect(() => {
@@ -91,7 +91,7 @@ export default function ProviderForm({
         (initialData as any)?.cuentasBancarias ??
         (initialData as any)?.cuentas ??
         []
-      ).map((c: ProviderBankAccount) => ({ ...c, action: undefined }))
+      ).map((c: ProviderBankAccount) => ({ ...c, action: undefined })),
     );
   }, [defaults, reset, initialData, initialAccounts]);
 
@@ -171,10 +171,12 @@ export default function ProviderForm({
   };
 
   const handleConsultarDocumento = async () => {
-    const numeroDocumento = String(getValues("numeroDocumento") ?? "").trim();
+    const numeroDocumento = String(
+      getValues("numeroDocumentoConsulta") ?? "",
+    ).trim();
 
     if (!numeroDocumento) {
-      setError("numeroDocumento", {
+      setError("numeroDocumentoConsulta", {
         type: "manual",
         message: "Ingrese un numero de documento",
       });
@@ -182,7 +184,7 @@ export default function ProviderForm({
     }
 
     if (!/^\d+$/.test(numeroDocumento)) {
-      setError("numeroDocumento", {
+      setError("numeroDocumentoConsulta", {
         type: "manual",
         message: "Solo se permiten numeros",
       });
@@ -190,14 +192,14 @@ export default function ProviderForm({
     }
 
     if (numeroDocumento.length !== 11) {
-      setError("numeroDocumento", {
+      setError("numeroDocumentoConsulta", {
         type: "manual",
         message: "Ingrese correctamente los 11 numeros del RUC",
       });
       return;
     }
 
-    clearErrors("numeroDocumento");
+    clearErrors("numeroDocumentoConsulta");
 
     const token = import.meta.env.VITE_API_DOCUMENTO;
     if (!token) {
@@ -264,7 +266,7 @@ export default function ProviderForm({
   const updateCuentaField = (
     index: number,
     field: keyof ProviderBankAccount,
-    value: string
+    value: string,
   ) => {
     setCuentasBancarias((prev) => {
       if (!prev[index] || prev[index].action === "d") return prev;
@@ -280,15 +282,15 @@ export default function ProviderForm({
 
   const findCuentaIndex = (
     list: ProviderBankAccount[],
-    account: ProviderBankAccount
+    account: ProviderBankAccount,
   ) => {
     if (account.cuentaId) {
       return list.findIndex(
-        (c) => c.cuentaId && Number(c.cuentaId) === Number(account.cuentaId)
+        (c) => c.cuentaId && Number(c.cuentaId) === Number(account.cuentaId),
       );
     }
     return list.findIndex(
-      (c) => !c.cuentaId && c.nroCuenta === account.nroCuenta
+      (c) => !c.cuentaId && c.nroCuenta === account.nroCuenta,
     );
   };
 
@@ -334,14 +336,10 @@ export default function ProviderForm({
   return (
     <div
       ref={containerRef}
-      className={
-        isModal
-          ? "h-auto"
-          : "h-auto py-8 px-4 sm:px-6 lg:px-8"
-      }
+      className={isModal ? "h-auto" : "h-auto py-8 px-4 sm:px-6 lg:px-8"}
     >
       <div
-        className={`w-full mx-auto bg-white overflow-hidden ${
+        className={`w-full mx-auto bg-white max-h-[1050px] overflow-x-hidden overflow-y-auto ${
           isModal ? "" : "rounded-2xl shadow-xl"
         }`}
       >
@@ -391,8 +389,8 @@ export default function ProviderForm({
           )}
 
           <div className="p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row gap-6">
-              <div className="w-full md:w-[40%] space-y-4">
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="w-full lg:w-[35%] space-y-4">
                 <HookFormInput<ProviderFormValues>
                   name="razon"
                   label="Nombre / Razon Social"
@@ -447,11 +445,11 @@ export default function ProviderForm({
                 />
               </div>
 
-              <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                <div className="space-y-4 w-[50%]">
+              <div className="w-full lg:w-[65%] mt-6 lg:mt-0">
+                <div className="space-y-4 w-full lg:w-[70%]">
                   <div className="flex flex-col gap-2">
                     <HookFormInput<ProviderFormValues>
-                      name="numeroDocumento"
+                      name="numeroDocumentoConsulta"
                       label="Numero de documento"
                       type="number"
                       inputMode="numeric"
@@ -510,7 +508,7 @@ export default function ProviderForm({
                                     updateCuentaField(
                                       idx,
                                       "entidad",
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   disabled={isDeleted}
@@ -531,7 +529,7 @@ export default function ProviderForm({
                                     updateCuentaField(
                                       idx,
                                       "tipoCuenta",
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   disabled={isDeleted}
@@ -549,7 +547,7 @@ export default function ProviderForm({
                                     updateCuentaField(
                                       idx,
                                       "moneda",
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   disabled={isDeleted}
@@ -568,7 +566,7 @@ export default function ProviderForm({
                                     updateCuentaField(
                                       idx,
                                       "nroCuenta",
-                                      e.target.value
+                                      e.target.value,
                                     )
                                   }
                                   disabled={isDeleted}
@@ -581,9 +579,20 @@ export default function ProviderForm({
                                   <button
                                     type="button"
                                     onClick={() => eliminarCuenta(cuenta)}
-                                    className="px-2 py-1 text-red-600 hover:underline text-sm"
+                                    className={`inline-flex h-8 min-w-8 items-center justify-center rounded-md px-2 transition-colors ${
+                                      isDeleted
+                                        ? "text-slate-600 hover:bg-slate-100"
+                                        : "text-red-600 hover:bg-red-50"
+                                    }`}
+                                    title={isDeleted ? "Revertir" : "Eliminar"}
                                   >
-                                    {isDeleted ? "Revertir" : "Eliminar"}
+                                    {isDeleted ? (
+                                      <span className="text-xs font-medium">
+                                        Revertir
+                                      </span>
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
                                   </button>
                                 </div>
                               </td>

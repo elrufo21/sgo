@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   TableProperties,
   Trash2,
+  X,
 } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import NavigableNumberInput from "@/components/inputs/NavigableNumberInput";
@@ -31,7 +32,9 @@ const POSPage = () => {
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { products, fetchProducts, loading } = useProductsStore();
   const items = usePosStore((state) => state.items);
   const totals = usePosStore(selectTotals);
@@ -40,8 +43,10 @@ const POSPage = () => {
   const updatePrice = usePosStore((state) => state.updatePrice);
   const removeItem = usePosStore((state) => state.removeItem);
   const clearCart = usePosStore((state) => state.clearCart);
+  const clearEditingNota = usePosStore((state) => state.clearEditingNota);
   const openDialog = useDialogStore((state) => state.openDialog);
   const isCardsView = viewMode === "cards";
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
 
@@ -50,6 +55,16 @@ const POSPage = () => {
       fetchProducts();
     }
   }, [fetchProducts, products.length]);
+
+  useEffect(() => {
+    const routeState =
+      (location.state as { preserveCart?: boolean } | null) ?? null;
+    const preserveCart = routeState?.preserveCart === true;
+    if (preserveCart) return;
+
+    clearCart();
+    clearEditingNota();
+  }, [clearCart, clearEditingNota, location.state]);
 
   const getOutOfStockItems = () =>
     items.filter((item) => {
@@ -167,6 +182,17 @@ const POSPage = () => {
     return () => observer.disconnect();
   }, [hasMoreProducts, isCardsView]);
 
+  useEffect(() => {
+    if (!isCardsView) return;
+
+    const input = searchInputRef.current;
+    if (!input) return;
+
+    input.focus({ preventScroll: true });
+    const length = input.value.length;
+    input.setSelectionRange(length, length);
+  }, [isCardsView]);
+
   const handleQuantityChange = (item: PosCartItem, delta: number) => {
     const desired = Math.max(1, (item.cantidad ?? 0) + delta);
     updateQuantity(item.productId, desired);
@@ -277,14 +303,167 @@ const POSPage = () => {
     }),
   ];
 
+  const renderCartPanel = ({ mobile = false }: { mobile?: boolean } = {}) => (
+    <div
+      className={`bg-white rounded-xl shadow p-4 ${mobile ? "h-full flex flex-col" : ""}`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-800">Carrito</h3>
+          <p className="text-xs text-gray-500">Actualización en tiempo real</p>
+        </div>
+        <button
+          className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
+          onClick={confirmClear}
+          disabled={!items.length}
+        >
+          <RotateCcw className="w-4 h-4" />
+          Vaciar
+        </button>
+      </div>
+
+      <div
+        className={`space-y-3 overflow-y-auto pr-1 ${
+          mobile
+            ? "flex-1 min-h-0 max-h-none"
+            : "max-h-[min(56vh,520px)] md:max-h-[58vh]"
+        }`}
+      >
+        {items.length === 0 && (
+          <div className="text-center text-sm text-gray-500 py-6">
+            No hay productos en el carrito.
+          </div>
+        )}
+
+        {items.map((item) => {
+          const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+          const isStockNegative = Number(item.stock ?? 0) < 0;
+          const highlightClass =
+            isZeroOrNegative || isStockNegative
+              ? "border-red-200 bg-red-50"
+              : "border-slate-200 bg-gray-50";
+
+          return (
+            <article
+              key={item.productId}
+              className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
+            >
+              <div className="flex justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    {item.nombre}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {item.unidadMedida ?? "UND"}
+                  </p>
+                  {item.stock !== undefined && (
+                    <p className="text-xs text-gray-500">
+                      Stock:{" "}
+                      <span
+                        className={
+                          isStockNegative ? "text-red-600 font-semibold" : ""
+                        }
+                      >
+                        {item.stock}
+                      </span>
+                    </p>
+                  )}
+                </div>
+
+                <div className="text-right w-32">
+                  <label className="text-xs text-gray-500 block text-left">
+                    P. Unitario
+                  </label>
+                  <div className="mt-1 flex items-center gap-1">
+                    <span className="text-sm text-gray-500">S/</span>
+                    <NavigableNumberInput
+                      min={0}
+                      step="0.01"
+                      value={priceDrafts[item.productId] ?? item.precio}
+                      onChange={(value) => handlePriceChange(item, value)}
+                      navGroup="pos-price-input"
+                      className="w-full text-right border rounded-md px-2 py-1 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <button
+                    className="p-1 rounded bg-white border hover:bg-slate-50"
+                    onClick={() => handleQuantityChange(item, -1)}
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <NavigableNumberInput
+                    value={item.cantidad === 0 ? "" : item.cantidad}
+                    onChange={(value) => handleManualQuantity(item, value)}
+                    navGroup="pos-quantity-input"
+                    className="w-16 text-center border rounded-md py-1"
+                  />
+                  <button
+                    className="p-1 rounded bg-white border hover:bg-slate-50"
+                    onClick={() => handleQuantityChange(item, 1)}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500">Subtotal</p>
+                    <p
+                      className={`text-base font-semibold ${
+                        isZeroOrNegative ? "text-red-600" : "text-slate-800"
+                      }`}
+                    >
+                      S/ {(item.precio * item.cantidad).toFixed(2)}
+                    </p>
+                  </div>
+                  <button
+                    className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
+                    onClick={() => removeItem(item.productId)}
+                    title="Quitar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 border-t pt-3 space-y-2">
+        <div className="flex justify-between text-sm text-gray-700">
+          <span>Importe</span>
+          <span className="font-semibold">S/ {totals.subTotal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-base text-slate-800 font-bold">
+          <span>Total</span>
+          <span>S/ {totals.total.toFixed(2)}</span>
+        </div>
+        <button
+          className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+          disabled={!items.length}
+          onClick={goToPayment}
+        >
+          <CheckCircle2 className="w-5 h-5" />
+          Procesar venta
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div></div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <section className="lg:col-span-2 space-y-4">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <section className="space-y-4 xl:col-span-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="flex rounded-lg border bg-gray-50 overflow-hidden">
@@ -326,12 +505,14 @@ const POSPage = () => {
 
           <div
             className={`bg-white rounded-xl shadow p-3 space-y-3 flex flex-col ${
-              isCardsView ? "h-[74vh] min-h-[400px]" : ""
+              isCardsView ? "md:h-[min(74vh,720px)] md:min-h-[420px]" : ""
             }`}
           >
             {isCardsView && (
               <div className="flex items-center justify-between gap-3">
                 <input
+                  ref={searchInputRef}
+                  autoFocus
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Buscar por código o nombre"
@@ -355,7 +536,7 @@ const POSPage = () => {
                 }`}
               >
                 {isCardsView ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
                     {visibleProducts.map((product) => {
                       const image = product.images?.[0];
                       const stockValue = Number(product.cantidad ?? 0);
@@ -442,163 +623,49 @@ const POSPage = () => {
           </div>
         </section>
 
-        <section className="space-y-3">
-          <div className="bg-white rounded-xl shadow p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  Carrito
-                </h3>
-                <p className="text-xs text-gray-500">
-                  Actualización en tiempo real
-                </p>
-              </div>
-              <button
-                className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
-                onClick={confirmClear}
-                disabled={!items.length}
-              >
-                <RotateCcw className="w-4 h-4" />
-                Vaciar
-              </button>
-            </div>
-
-            <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
-              {items.length === 0 && (
-                <div className="text-center text-sm text-gray-500 py-6">
-                  No hay productos en el carrito.
-                </div>
-              )}
-
-              {items.map((item) => {
-                const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
-                const isStockNegative = Number(item.stock ?? 0) < 0;
-                const highlightClass =
-                  isZeroOrNegative || isStockNegative
-                    ? "border-red-200 bg-red-50"
-                    : "border-slate-200 bg-gray-50";
-
-                return (
-                  <article
-                    key={item.productId}
-                    className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
-                  >
-                    <div className="flex justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-800">
-                          {item.nombre}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {item.codigo} · {item.unidadMedida ?? "UND"}
-                        </p>
-                        {item.stock !== undefined && (
-                          <p className="text-xs text-gray-500">
-                            Stock:{" "}
-                            <span
-                              className={
-                                isStockNegative
-                                  ? "text-red-600 font-semibold"
-                                  : ""
-                              }
-                            >
-                              {item.stock}
-                            </span>
-                          </p>
-                        )}
-                      </div>
-
-                      <div className="text-right w-32">
-                        <label className="text-xs text-gray-500 block text-left">
-                          P. Unitario
-                        </label>
-                        <div className="mt-1 flex items-center gap-1">
-                          <span className="text-sm text-gray-500">S/</span>
-                          <NavigableNumberInput
-                            min={0}
-                            step="0.01"
-                            value={priceDrafts[item.productId] ?? item.precio}
-                            onChange={(value) => handlePriceChange(item, value)}
-                            navGroup="pos-price-input"
-                            className="w-full text-right border rounded-md px-2 py-1 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="p-1 rounded bg-white border hover:bg-slate-50"
-                          onClick={() => handleQuantityChange(item, -1)}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </button>
-                        <NavigableNumberInput
-                          value={item.cantidad === 0 ? "" : item.cantidad}
-                          onChange={(value) =>
-                            handleManualQuantity(item, value)
-                          }
-                          navGroup="pos-quantity-input"
-                          className="w-16 text-center border rounded-md py-1"
-                        />
-                        <button
-                          className="p-1 rounded bg-white border hover:bg-slate-50"
-                          onClick={() => handleQuantityChange(item, 1)}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="text-right">
-                          <p className="text-xs text-gray-500">Subtotal</p>
-                          <p
-                            className={`text-base font-semibold ${
-                              isZeroOrNegative
-                                ? "text-red-600"
-                                : "text-slate-800"
-                            }`}
-                          >
-                            S/ {(item.precio * item.cantidad).toFixed(2)}
-                          </p>
-                        </div>
-                        <button
-                          className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                          onClick={() => removeItem(item.productId)}
-                          title="Quitar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-
-            <div className="mt-4 border-t pt-3 space-y-2">
-              <div className="flex justify-between text-sm text-gray-700">
-                <span>Importe</span>
-                <span className="font-semibold">
-                  S/ {totals.subTotal.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-base text-slate-800 font-bold">
-                <span>Total</span>
-                <span>S/ {totals.total.toFixed(2)}</span>
-              </div>
-              <button
-                className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
-                disabled={!items.length}
-                onClick={goToPayment}
-              >
-                <CheckCircle2 className="w-5 h-5" />
-                Procesar venta
-              </button>
-            </div>
-          </div>
+        <section className="hidden xl:block space-y-3 xl:sticky xl:top-0 xl:self-start">
+          {renderCartPanel()}
         </section>
       </div>
+
+      <button
+        type="button"
+        className="xl:hidden fixed bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-slate-900"
+        onClick={() => setMobileCartOpen(true)}
+      >
+        <ShoppingCart className="h-4 w-4" />
+        <span>Carrito ({totals.itemCount})</span>
+      </button>
+
+      {mobileCartOpen && (
+        <div className="xl:hidden fixed inset-0 z-40">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/45"
+            aria-label="Cerrar carrito"
+            onClick={() => setMobileCartOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 h-[min(84vh,720px)] rounded-t-2xl bg-slate-100 p-3 shadow-2xl">
+            <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-slate-300" />
+            <div className="mb-2 flex items-center justify-between px-1">
+              <p className="text-sm font-semibold text-slate-700">
+                Resumen de carrito
+              </p>
+              <button
+                type="button"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-200"
+                onClick={() => setMobileCartOpen(false)}
+                aria-label="Cerrar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="h-[calc(100%-2.75rem)]">
+              {renderCartPanel({ mobile: true })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

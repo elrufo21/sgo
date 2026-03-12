@@ -5,6 +5,7 @@ import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 import type { Holiday } from "@/types/maintenance";
 import { useDialogStore } from "@/store/app/dialog.store";
 
@@ -18,7 +19,7 @@ interface HolidayFormProps {
 }
 
 const buildDefaults = (data?: Partial<Holiday>): Holiday => {
-  const today = new Date().toISOString().split("T")[0];
+  const today = getLocalDateISO();
 
   return {
     id: data?.id ?? 0,
@@ -41,7 +42,7 @@ export default function HolidayForm({
 
   const defaults = useMemo(
     () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
-    [initialData, mode]
+    [initialData, mode],
   );
 
   const formMethods = useForm<Holiday>({
@@ -51,6 +52,7 @@ export default function HolidayForm({
   const {
     reset,
     handleSubmit,
+    setFocus,
     watch,
     formState: { isSubmitting },
   } = formMethods;
@@ -92,11 +94,7 @@ export default function HolidayForm({
   return (
     <div
       ref={containerRef}
-      className={
-        isModal
-          ? "h-auto"
-          : "h-auto py-8 px-4 sm:px-6 lg:px-8"
-      }
+      className={isModal ? "h-auto" : "h-auto py-8 px-4 sm:px-6 lg:px-8"}
     >
       <div
         className={`w-full mx-auto bg-white overflow-hidden ${
@@ -149,21 +147,29 @@ export default function HolidayForm({
           )}
 
           <div className="p-6 sm:p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-3">
+              {" "}
               <HookFormInput<Holiday>
                 name="fecha"
                 label="Fecha"
                 type="date"
+                autoComplete="off"
+                onChange={() => {
+                  window.setTimeout(() => {
+                    setFocus("motivo");
+                  }, 0);
+                }}
                 rules={{ required: "La fecha es obligatoria" }}
               />
-              <HookFormInput<Holiday>
-                data-focus-first
-                name="motivo"
-                label="Motivo"
-                placeholder="Motivo del feriado"
-                rules={{ required: "El motivo es obligatorio" }}
-              />
             </div>
+            <HookFormInput<Holiday>
+              data-focus-first
+              name="motivo"
+              label="Motivo"
+              autoComplete="one-time-code"
+              placeholder="Motivo del feriado"
+              rules={{ required: "El motivo es obligatorio" }}
+            />
           </div>
         </HookForm>
       </div>

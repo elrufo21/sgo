@@ -1,1 +1,49 @@
 @import "tailwindcss";
+
+:root {
+  --app-shell-header-h: 4rem;
+  --app-shell-main-px: 1.5rem;
+  --app-shell-main-py: 1.25rem;
+  --app-shell-sidebar-open: 15rem;
+  --app-shell-sidebar-collapsed: 4.5rem;
+}
+
+@media (max-width: 1536px) {
+  :root {
+    --app-shell-main-px: 1.25rem;
+    --app-shell-main-py: 1rem;
+  }
+}
+
+/* Prioridad 1366x768 */
+@media (max-width: 1366px) and (min-width: 1024px) {
+  :root {
+    --app-shell-header-h: 3.5rem;
+    --app-shell-main-px: 1rem;
+    --app-shell-main-py: 0.875rem;
+    --app-shell-sidebar-open: 13.75rem;
+    --app-shell-sidebar-collapsed: 4rem;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-shell-header-h: 3.25rem;
+    --app-shell-main-px: 0.75rem;
+    --app-shell-main-py: 0.75rem;
+  }
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: #f1f5f9;
+}
+
+.app-main-scroll {
+  scrollbar-gutter: stable;
+}

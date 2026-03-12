@@ -21,6 +21,7 @@ import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormAutocomplete } from "./forms/HookFormAutocomplete";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 import CategoriaForm from "./maintenance/CategoriaForm";
 import type { Category } from "@/types/maintenance";
 
@@ -37,7 +38,7 @@ interface ProductFormBaseProps {
 
 const unidadesMedida = ["Unidad", "Kg", "Litro", "Caja", "Docena"];
 
-const buildUserDate = () => `user-${new Date().toISOString().slice(0, 10)}`;
+const buildUserDate = () => `user-${getLocalDateISO()}`;
 
 type ProductFormValues = Omit<Product, "id"> & {
   images?: string[];

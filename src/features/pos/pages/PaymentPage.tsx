@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router";
 import {
   CheckCircle2,
@@ -14,6 +14,7 @@ import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "@/shared/ui/toast";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 import TicketDocument from "@/components/Ticket";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { HookForm } from "@/components/forms/HookForm";
@@ -188,6 +189,62 @@ const PaymentPage = () => {
   const itemsToRender = hasLiveItems ? items : purchasedItems;
   const totalsToRender = hasLiveItems ? totals : paidTotals;
   const canEditItems = !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
+
+  const focusVerticalInput = useCallback(
+    (
+      sourceElement: HTMLElement,
+      column: "quantity" | "price",
+      currentRowIndex: number,
+      direction: "up" | "down",
+    ) => {
+      const nextRowIndex =
+        direction === "up" ? currentRowIndex - 1 : currentRowIndex + 1;
+
+      if (nextRowIndex < 0 || nextRowIndex >= itemsToRender.length) {
+        return false;
+      }
+
+      const scope = sourceElement.closest('[data-payment-items-list="true"]');
+      const queryRoot = scope ?? document;
+      const target = queryRoot.querySelector<HTMLInputElement>(
+        `[data-payment-column="${column}"][data-payment-row-index="${nextRowIndex}"]`,
+      );
+
+      if (!target || target.disabled) {
+        return false;
+      }
+
+      target.focus({ preventScroll: true });
+      target.select?.();
+      return true;
+    },
+    [itemsToRender.length],
+  );
+
+  const handleColumnArrowNavigation = useCallback(
+    (
+      event: KeyboardEvent<HTMLInputElement>,
+      column: "quantity" | "price",
+      rowIndex: number,
+    ) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+        return;
+      }
+
+      event.preventDefault();
+      const direction = event.key === "ArrowUp" ? "up" : "down";
+      const moved = focusVerticalInput(
+        event.currentTarget,
+        column,
+        rowIndex,
+        direction,
+      );
+      if (!moved) {
+        event.currentTarget.select?.();
+      }
+    },
+    [focusVerticalInput],
+  );
 
   const adjustLocalItems = (
     updater: (prev: PosCartItem[]) => PosCartItem[],
@@ -1199,7 +1256,7 @@ const PaymentPage = () => {
 
   const notaPayload = useMemo(() => {
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
+    const today = getLocalDateISO(now);
     const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
     const base = gravada;
     const clienteIdNumber = Number(clienteId ?? 1) || 1;
@@ -1590,14 +1647,14 @@ const PaymentPage = () => {
       setPaidTotals(computeTotalsFromItems(itemsForReturn));
       setEditingNotaInStore(notaId);
       setServerItemsInStore(serverItems.length ? serverItems : itemsForReturn);
-      navigate(backRoute);
+      navigate(backRoute, { state: { preserveCart: true } });
       return;
     }
 
     clearEditingNota();
     // Si aún no se ha confirmado/guardado la nota inicial, conservar el carrito
     if (!notaId && !isConfirmed) {
-      navigate(backRoute);
+      navigate(backRoute, { state: { preserveCart: true } });
       return;
     }
 
@@ -1738,8 +1795,11 @@ const PaymentPage = () => {
   }
 
   const ItemsList = (
-    <div className="max-h-[60vh] overflow-auto rounded-xl border border-slate-200 bg-white">
-      <div className="min-w-[640px]">
+    <div
+      data-payment-items-list="true"
+      className="max-h-[min(58vh,620px)] md:max-h-[60vh] overflow-auto rounded-xl border border-slate-200 bg-white"
+    >
+      <div className="min-w-[520px] sm:min-w-[640px]">
         <div className="sticky top-0 z-10 grid grid-cols-[96px_minmax(0,1fr)_120px_130px] border-b-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold tracking-wide text-slate-800">
           <div className="text-center">Cantidad</div>
           <div>Descripción</div>
@@ -1748,7 +1808,7 @@ const PaymentPage = () => {
         </div>
 
         <div className="divide-y divide-slate-200">
-          {itemsToRender.map((item) => {
+          {itemsToRender.map((item, rowIndex) => {
             const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
             const isStockNegative = Number(item.stock ?? 0) < 0;
 
@@ -1768,6 +1828,8 @@ const PaymentPage = () => {
                       min={0}
                       step="1"
                       inputMode="numeric"
+                      data-payment-column="quantity"
+                      data-payment-row-index={rowIndex}
                       className="h-9 w-16 rounded-md border border-slate-300 py-1 text-center text-sm outline-none appearance-none [appearance:textfield] focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       value={item.cantidad === 0 ? "" : item.cantidad}
                       onChange={(e) => {
@@ -1784,6 +1846,9 @@ const PaymentPage = () => {
                           desired - (item.cantidad ?? 0),
                         );
                       }}
+                      onKeyDown={(event) =>
+                        handleColumnArrowNavigation(event, "quantity", rowIndex)
+                      }
                       onFocus={(e) => e.target.select()}
                       disabled={!canEditItems}
                       style={{ MozAppearance: "textfield" }}
@@ -1800,7 +1865,6 @@ const PaymentPage = () => {
                     {item.nombre}
                   </p>
                   <p className="mt-1 text-xs text-slate-500">
-                    {item.codigo ? `Cod: ${item.codigo} · ` : ""}
                     {item.unidadMedida || "UND"}
                     {item.stock !== undefined ? ` · Stock: ${item.stock}` : ""}
                   </p>
@@ -1814,11 +1878,16 @@ const PaymentPage = () => {
                         type="number"
                         step="0.01"
                         inputMode="decimal"
+                        data-payment-column="price"
+                        data-payment-row-index={rowIndex}
                         className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         value={item.precio === 0 ? "" : item.precio}
                         onChange={(e) => {
                           handlePriceChange(item, e.target.value);
                         }}
+                        onKeyDown={(event) =>
+                          handleColumnArrowNavigation(event, "price", rowIndex)
+                        }
                         onFocus={(e) => e.target.select()}
                         disabled={!canEditItems}
                         style={{ MozAppearance: "textfield" }}
@@ -2198,12 +2267,6 @@ const PaymentPage = () => {
         {/* Comprobante PDF */}
         <section className="space-y-4">
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
-            <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              <Receipt className="w-5 h-5 text-slate-700" />
-              <h2 className="text-lg font-bold text-slate-800">
-                Vista previa del comprobante
-              </h2>
-            </div>
             {PdfViewerCard}
           </div>
         </section>

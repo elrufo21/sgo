@@ -14,6 +14,11 @@ import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import ProviderForm from "@/components/maintenance/ProviderForm";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import {
+  addDaysToLocalDateISO,
+  diffDaysBetweenLocalDates,
+  getLocalDateISO,
+} from "@/shared/helpers/localDate";
 import type { ShoppingFormData, ShoppingItem } from "@/types/shopping";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
@@ -89,7 +94,7 @@ export default function ShoppingFormBase({
       descripcion: initialData?.descripcion ?? "",
       ruc: initialData?.ruc ?? "",
       fechaEmision:
-        initialData?.fechaEmision ?? new Date().toISOString().slice(0, 10),
+        initialData?.fechaEmision ?? getLocalDateISO(),
       documento: initialData?.documento ?? "",
       serie: initialData?.serie ?? "",
       numero: initialData?.numero ?? "",
@@ -256,7 +261,7 @@ export default function ShoppingFormBase({
 
   useEffect(() => {
     if (!isCredito) {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateISO();
       setValue("diasPlazo", "", { shouldDirty: true });
       setValue("fechaPago", today, { shouldDirty: true });
     }
@@ -305,12 +310,11 @@ export default function ShoppingFormBase({
       isSyncingRef.current = false;
       return;
     }
-    const baseDate = new Date(fechaEmision);
-    if (Number.isNaN(baseDate.getTime())) return;
     const days = Number(diasPlazo ?? 0);
-    const target = new Date(baseDate);
-    target.setDate(baseDate.getDate() + (Number.isFinite(days) ? days : 0));
-    const formatted = target.toISOString().slice(0, 10);
+    const formatted =
+      addDaysToLocalDateISO(fechaEmision, Number.isFinite(days) ? days : 0) ??
+      "";
+    if (!formatted) return;
     const lastChanged = lastChangedRef.current;
     const shouldSync =
       lastChanged === "diasPlazo" ||
@@ -328,16 +332,8 @@ export default function ShoppingFormBase({
       isSyncingRef.current = false;
       return;
     }
-    const start = new Date(fechaEmision);
-    const end = new Date(fechaPago);
-    if (
-      Number.isNaN(start.getTime()) ||
-      Number.isNaN(end.getTime()) ||
-      end < start
-    )
-      return;
-    const diffMs = end.getTime() - start.getTime();
-    const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    const days = diffDaysBetweenLocalDates(fechaEmision, fechaPago);
+    if (days === null || days < 0) return;
     const lastChanged = lastChangedRef.current;
     if (
       lastChanged === "fechaPago" &&
@@ -678,7 +674,7 @@ export default function ShoppingFormBase({
         proveedor: "",
         descripcion: "",
         ruc: "",
-        fechaEmision: new Date().toISOString().slice(0, 10),
+        fechaEmision: getLocalDateISO(),
         documento: "",
         serie: "",
         numero: "",
@@ -716,7 +712,7 @@ export default function ShoppingFormBase({
       proveedor: "",
       descripcion: "",
       ruc: "",
-      fechaEmision: new Date().toISOString().slice(0, 10),
+      fechaEmision: getLocalDateISO(),
       documento: "",
       serie: "",
       numero: "",

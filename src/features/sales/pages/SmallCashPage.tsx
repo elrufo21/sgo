@@ -1,5 +1,6 @@
 import { useForm } from "react-hook-form";
 import { toast } from "@/shared/ui/toast";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 
 type SmallCashForm = {
   fecha: string;
@@ -8,7 +9,7 @@ type SmallCashForm = {
   descripcion: string;
 };
 
-const today = new Date().toISOString().split("T")[0];
+const today = getLocalDateISO();
 
 export default function SmallCashPage() {
   const { register, handleSubmit, reset } = useForm<SmallCashForm>({

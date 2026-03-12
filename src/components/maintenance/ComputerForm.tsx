@@ -8,15 +8,12 @@ import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Computer } from "@/types/maintenance";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { getLocalDateISO, toLocalDateInputValue } from "@/shared/helpers/localDate";
 
 type ComputerFormValues = Omit<Computer, "id">;
 
 const formatDateInput = (value?: string, fallback?: string) => {
-  if (!value) return fallback ?? new Date().toISOString().slice(0, 10);
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? fallback ?? new Date().toISOString().slice(0, 10)
-    : parsed.toISOString().slice(0, 10);
+  return toLocalDateInputValue(value, fallback ?? getLocalDateISO());
 };
 
 const normalizeSerie = (
@@ -50,7 +47,7 @@ export default function ComputerForm({
 }: ComputerFormProps) {
   const { fetchAreas, computers, fetchComputers } = useMaintenanceStore();
   const containerRef = useRef<HTMLDivElement>(null);
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => getLocalDateISO(), []);
 
   useEffect(() => {
     fetchAreas();

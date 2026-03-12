@@ -142,7 +142,9 @@ export default function CustomerFormBase({
 
   const handleConsultarDocumento = async () => {
     const tipoDocumento = getValues("tipoDocumento");
-    const numeroDocumento = String(getValues("numeroDocumento") ?? "").trim();
+    const numeroDocumento = String(getValues("numeroDocumento") ?? "")
+      .replace(/\D/g, "")
+      .trim();
 
     if (!numeroDocumento) {
       setError("numeroDocumento", {
@@ -174,16 +176,17 @@ export default function CustomerFormBase({
 
     clearErrors("numeroDocumento");
 
-    const token = import.meta.env.VITE_API_DOCUMENTO;
+    const token = String(import.meta.env.VITE_API_DOCUMENTO ?? "").trim();
     if (!token) {
       console.error("Falta VITE_API_DOCUMENTO en .env");
+      toast.error("Falta configurar el token de consulta en .env");
       return;
     }
 
     const endpoint = tipoDocumento === "dni" ? "dni" : "ruc";
     const url = `https://dniruc.apisperu.com/api/v1/${endpoint}/${numeroDocumento}?token=${token}`;
 
-    const response = await apiRequest({
+    const response = await apiRequest<unknown>({
       url,
       method: "GET",
       fallback: null,
@@ -193,14 +196,35 @@ export default function CustomerFormBase({
 
     if (!response || typeof response !== "object") {
       console.warn("Respuesta invalida del servicio de consulta");
+      toast.error("No se pudo consultar el documento");
       return;
     }
 
-    const data = response as Record<string, unknown>;
+    const responseRecord = response as Record<string, unknown>;
+    const responseDataCandidate = responseRecord.response as
+      | Record<string, unknown>
+      | undefined;
+    const nestedData = responseDataCandidate?.data;
+    const data =
+      nestedData && typeof nestedData === "object"
+        ? (nestedData as Record<string, unknown>)
+        : responseRecord;
 
     const asText = (value: unknown) => String(value ?? "").trim();
     const pickFirst = (...values: unknown[]) =>
       values.map(asText).find((v) => v.length > 0) ?? "";
+
+    const apiMessage = pickFirst(
+      data.message,
+      data.error,
+      (data as { errors?: unknown }).errors,
+    );
+    const successFlag = data.success;
+
+    if (successFlag === false) {
+      toast.error(apiMessage || "No se encontraron datos del documento");
+      return;
+    }
 
     if (tipoDocumento === "dni") {
       const nombreCompleto = [
@@ -213,6 +237,11 @@ export default function CustomerFormBase({
         .trim();
 
       const dni = pickFirst(data.dni, numeroDocumento);
+
+      if (!nombreCompleto && !dni) {
+        toast.error(apiMessage || "No se encontraron datos para ese DNI");
+        return;
+      }
 
       if (nombreCompleto) {
         setValue("nombreRazon", nombreCompleto, { shouldDirty: true });
@@ -238,6 +267,11 @@ export default function CustomerFormBase({
       data.domicilioFiscal
     );
     const ruc = pickFirst(data.ruc, numeroDocumento);
+
+    if (!razonSocial && !ruc) {
+      toast.error(apiMessage || "No se encontraron datos para ese RUC");
+      return;
+    }
 
     if (razonSocial) {
       setValue("nombreRazon", razonSocial, { shouldDirty: true });
@@ -450,9 +484,14 @@ export default function CustomerFormBase({
 
                     <div className="flex flex-col gap-2">
                       <HookFormInput<CustomerFormValues>
-                        type="number"
+                        type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
+                        maxLength={11}
+                        onInput={(event) => {
+                          const input = event.currentTarget;
+                          input.value = input.value.replace(/\D/g, "").slice(0, 11);
+                        }}
                         name="numeroDocumento"
                         label="Numero de documento"
                         placeholder="Ingrese numero"

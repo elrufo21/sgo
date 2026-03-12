@@ -11,6 +11,7 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLocation } from "react-router";
 import {
   ChevronFirst,
   ChevronLast,
@@ -59,6 +60,12 @@ const alignmentClass: Record<"left" | "center" | "right", string> = {
 const resolveAlignmentClass = (align?: "left" | "center" | "right") =>
   alignmentClass[align ?? "left"];
 
+const resolveHeaderLabel = (header: unknown, fallback: string) => {
+  if (typeof header === "string") return header;
+  if (typeof header === "number") return String(header);
+  return fallback;
+};
+
 export default function DataTable<T extends RowData>({
   columns,
   data,
@@ -80,6 +87,7 @@ export default function DataTable<T extends RowData>({
 }: DataTableProps<T>) {
   const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const location = useLocation();
   const previousDataLength = useRef(data?.length ?? 0);
   const dialogOpen = useDialogStore((s) => s.open);
   const previousDialogOpen = useRef(dialogOpen);
@@ -121,6 +129,10 @@ export default function DataTable<T extends RowData>({
   useEffect(() => {
     focusSearch();
   }, []);
+
+  useEffect(() => {
+    focusSearch();
+  }, [location.pathname]);
 
   const dataLength = data?.length ?? 0;
   useEffect(() => {
@@ -190,15 +202,16 @@ export default function DataTable<T extends RowData>({
   return (
     <section className="w-full rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)]">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             {toolbarLeading ? (
               <div className="shrink-0">{toolbarLeading}</div>
             ) : null}
-            <div className="relative w-full lg:w-[34rem]">
+            <div className="relative w-full xl:w-[34rem]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 ref={searchRef}
+                autoFocus
                 placeholder={searchPlaceholder}
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-9 text-sm text-slate-800 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
                 value={globalFilter}
@@ -215,13 +228,13 @@ export default function DataTable<T extends RowData>({
                 </button>
               ) : null}
             </div>
+            {toolbarAction ? (
+              <div className="shrink-0">{toolbarAction}</div>
+            ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            {renderFilters ? (
-              <div className="min-w-[12rem]">{renderFilters}</div>
-            ) : null}
-            {toolbarAction ? <div>{toolbarAction}</div> : null}
+          <div className="flex flex-wrap items-center justify-end gap-2 xl:justify-end">
+            {renderFilters ? <div className="">{renderFilters}</div> : null}
           </div>
         </div>
 
@@ -240,7 +253,80 @@ export default function DataTable<T extends RowData>({
         </div>
       </div>
 
-      <div className="overflow-auto" style={{ maxHeight: tableMaxHeight }}>
+      <div className="space-y-3 px-3 py-3 md:hidden">
+        {isLoading ? (
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
+            Cargando registros...
+          </div>
+        ) : visibleRows.length ? (
+          visibleRows.map((row, rowIndex) => (
+            <article
+              key={row.id}
+              className={`rounded-xl border border-slate-200 p-3 shadow-sm transition ${
+                rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/55"
+              } ${onRowClick ? "cursor-pointer active:bg-rose-50/45" : ""}`}
+              onClick={() => onRowClick?.(row.original)}
+              onKeyDown={(event) => {
+                if (!onRowClick) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onRowClick(row.original);
+                }
+              }}
+              tabIndex={onRowClick ? 0 : -1}
+            >
+              <div className="space-y-2.5">
+                {row.getVisibleCells().map((cell) => {
+                  const metaClass = cell.column.columnDef.meta?.tdClassName;
+                  const colClass =
+                    typeof metaClass === "function"
+                      ? metaClass(row.original)
+                      : (metaClass ?? "");
+                  const extraClass =
+                    typeof tdClassName === "function"
+                      ? (tdClassName(cell) ?? "")
+                      : (tdClassName ?? "");
+                  const align = cell.column.columnDef.meta?.align;
+                  const label = resolveHeaderLabel(
+                    cell.column.columnDef.header,
+                    String(cell.column.id ?? "Campo"),
+                  );
+
+                  return (
+                    <div
+                      key={cell.id}
+                      className="grid grid-cols-[minmax(6.5rem,38%)_1fr] items-start gap-2"
+                    >
+                      <span className="pt-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {label}
+                      </span>
+                      <div
+                        className={`text-sm text-slate-700 ${resolveAlignmentClass(
+                          align,
+                        )} ${colClass} ${extraClass}`}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+            {emptyMessage}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="hidden overflow-auto md:block"
+        style={{ maxHeight: tableMaxHeight }}
+      >
         <table className="w-full min-w-[44rem] border-collapse">
           <thead
             className={`bg-slate-50 text-xs uppercase tracking-wide text-slate-600 ${
@@ -343,7 +429,7 @@ export default function DataTable<T extends RowData>({
       </div>
 
       <footer className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span>Filas por página:</span>
           <select
             className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
@@ -361,7 +447,7 @@ export default function DataTable<T extends RowData>({
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
           <span className="min-w-[7.5rem] text-center text-slate-700">
             Página {currentPage} de {totalPages}
           </span>

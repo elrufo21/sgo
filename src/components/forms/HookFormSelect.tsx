@@ -46,7 +46,7 @@ export function HookFormSelect<T extends FieldValues>({
   const resolvedAutoComplete = "off";
 
   return (
-    <div className="mt-3">
+    <div className="mt-1">
       <Controller
         control={control}
         name={name}
@@ -90,8 +90,9 @@ export function HookFormSelect<T extends FieldValues>({
               event.preventDefault();
               const moved = focusNextInput(source);
               if (!moved) {
-                const target =
-                  event.currentTarget as HTMLInputElement | HTMLTextAreaElement;
+                const target = event.currentTarget as
+                  | HTMLInputElement
+                  | HTMLTextAreaElement;
                 target.form?.requestSubmit();
               }
             }

@@ -124,12 +124,12 @@ const numberToWords = (amount: number, currencyLabel = "SOLES") => {
   const parts: string[] = [];
   if (millions > 0) {
     parts.push(
-      millions === 1 ? "UN MILLON" : `${threeDigitsToWords(millions)} MILLONES`
+      millions === 1 ? "UN MILLON" : `${threeDigitsToWords(millions)} MILLONES`,
     );
   }
   if (thousands > 0) {
     parts.push(
-      thousands === 1 ? "MIL" : `${threeDigitsToWords(thousands)} MIL`
+      thousands === 1 ? "MIL" : `${threeDigitsToWords(thousands)} MIL`,
     );
   }
   if (hundreds > 0) {
@@ -333,7 +333,7 @@ const TicketDocument = ({
     const amountInWords = numberToWords(totalValue, "SOLES");
 
     return {
-      logo: "/logo.jpg",
+      logo: "/LogoManuel.png",
       qrData: "https://tu-url.com/boleta?id=396548",
       companyName: "CONSORCIO FERRETERO ROSITA E.I.R.L.",
       ruc: "20601070155",
@@ -344,8 +344,8 @@ const TicketDocument = ({
         docType === "factura"
           ? "FACTURA ELECTRONICA"
           : docType === "proforma"
-          ? "PROFORMA DE VENTA"
-          : "BOLETA DE VENTA ELECTRONICA",
+            ? "PROFORMA DE VENTA"
+            : "BOLETA DE VENTA ELECTRONICA",
       documentNumber: documentNumber || "",
       emissionDate: new Date().toLocaleDateString("es-PE"),
       currency: "SOLES",
@@ -409,7 +409,6 @@ const TicketDocument = ({
           {ticketData.logo && (
             <Image src={ticketData.logo} style={styles.logo} />
           )}
-          <Text style={styles.subtitle}>sss</Text>
         </View>
 
         <View style={styles.companyBox}>

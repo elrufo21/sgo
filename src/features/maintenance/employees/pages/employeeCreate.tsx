@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "@/shared/ui/toast";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 
 import EmployeeFormBase from "@/components/EmployeeFormBase";
 import { useEmployeesStore } from "@/store/employees/employees.store";
 import type { Personal } from "@/types/employees";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => getLocalDateISO();
 
 const EmployeeCreate = () => {
   const { addEmployee } = useEmployeesStore();

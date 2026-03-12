@@ -89,9 +89,28 @@ export default function UserFormBase({
   const {
     reset,
     watch,
-    setFocus,
     formState: { isSubmitting },
   } = formMethods;
+
+  const focusInitialField = () => {
+    const scope = containerRef.current;
+    if (!scope) return;
+
+    window.requestAnimationFrame(() => {
+      const firstField = scope.querySelector<HTMLElement>(
+        '[data-auto-next="true"]',
+      );
+      if (!firstField) return;
+
+      firstField.focus({ preventScroll: true });
+      if (
+        firstField instanceof HTMLInputElement ||
+        firstField instanceof HTMLTextAreaElement
+      ) {
+        firstField.select?.();
+      }
+    });
+  };
 
   useEffect(() => {
     if (!employees.length) {
@@ -104,8 +123,8 @@ export default function UserFormBase({
   }, [defaults, reset]);
 
   useEffect(() => {
-    focusFirstInput(containerRef.current);
-  }, [mode, initialData]);
+    focusInitialField();
+  }, [mode, initialData, fieldsMode, employees.length]);
 
   useEffect(() => {
     if (!isModal) return;
@@ -241,11 +260,6 @@ export default function UserFormBase({
                       value: p.personalId,
                       data: p,
                     }))}
-                    onOptionSelected={(option) => {
-                      if (option) {
-                        setFocus("UsuarioAlias");
-                      }
-                    }}
                     rules={{
                       required: "Seleccione personal",
                       validate: (value) =>

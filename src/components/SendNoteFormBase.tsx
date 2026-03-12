@@ -28,6 +28,7 @@ import type { Client } from "@/types/customer";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { useAuthStore } from "@/store/auth/auth.store";
 import { toast } from "@/shared/ui/toast";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 
 const entidadOptions = [
   { value: "Banco 1", label: "Banco 1" },
@@ -89,7 +90,7 @@ export default function SendNoteFormBase({
     authUser?.displayName ??
     authUser?.username ??
     "";
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => getLocalDateISO(), []);
 
   const defaults = useMemo<SendNoteFormValues>(
     () => ({
@@ -739,7 +740,7 @@ export default function SendNoteFormBase({
           <fieldset disabled={readOnly || !isEditable}>
             <div className="p-6 sm:p-7">
               <div className="grid grid-cols-1 xl:grid-cols-6 gap-4 lg:gap-6 ">
-                <div className="space-y-4 col-span-2 h-[720px] overflow-auto">
+                <div className="space-y-4 xl:col-span-2 xl:max-h-[min(72vh,720px)] xl:overflow-auto">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <HookFormSelect
                       name="formaPago"
@@ -865,7 +866,7 @@ export default function SendNoteFormBase({
                   </div>
                 </div>
 
-                <div className="space-y-3 col-span-4">
+                <div className="space-y-3 xl:col-span-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <InfoBadge label="Estado" value={estadoLabel} />
@@ -879,7 +880,7 @@ export default function SendNoteFormBase({
                         Buscar codigo
                       </label>
                       <div className="flex gap-2 items-start flex-wrap md:flex-nowrap">
-                        <div className="flex-1 min-w-[220px]">
+                        <div className="flex-1 min-w-0 md:min-w-[220px]">
                           <div className="relative">
                             <Search
                               className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"

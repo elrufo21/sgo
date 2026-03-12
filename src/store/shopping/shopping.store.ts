@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Shopping, ShoppingFormData, ShoppingItem } from "@/types/shopping";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { addDaysToLocalDateISO, getLocalDateISO } from "@/shared/helpers/localDate";
 import { API_BASE_URL } from "@/config";
 
 interface ShoppingState {
@@ -119,7 +120,7 @@ const buildCompraPayload = (
   const docCode = (safeTrim(data.documento) as DocTypeCode) || "03";
   const docConfig = docTypeConfig[docCode] ?? docTypeConfig["03"];
   const now = new Date();
-  const today = safeTrim(data.fechaEmision) || now.toISOString().slice(0, 10);
+  const today = safeTrim(data.fechaEmision) || getLocalDateISO(now);
   const condicion = safeTrim(data.condicion).toUpperCase();
   const isCredito = condicion === "CREDITO";
   const serieNumero = safeTrim(data.numero);
@@ -190,9 +191,8 @@ const buildCompraPayload = (
       compraDias: Number(data.diasPlazo ?? 0) || 0,
       compraFechaPago:
         safeTrim(data.fechaPago) ||
-        new Date(now.getTime() + 24 * 60 * 60 * 1000)
-          .toISOString()
-          .slice(0, 10),
+        addDaysToLocalDateISO(today, 1) ||
+        today,
       compraUsuario: username,
       compraTipoIgv: tipoIgv,
       compraValorVenta: Number(total.toFixed(2)),

@@ -5,6 +5,7 @@ import type {
   KeyboardEvent,
   ReactNode,
 } from "react";
+import { useRef } from "react";
 import type { FieldValues, Path, RegisterOptions } from "react-hook-form";
 import { Controller, useFormContext } from "react-hook-form";
 import TextField from "@mui/material/TextField";
@@ -37,6 +38,7 @@ export function HookFormInput<T extends FieldValues>({
   endAdornment,
   ...inputProps
 }: HookFormInputProps<T>) {
+  const isComposingRef = useRef(false);
   const {
     control,
     formState: { isSubmitting },
@@ -56,11 +58,32 @@ export function HookFormInput<T extends FieldValues>({
     normalizedType === "datetime-local" ||
     normalizedType === "month" ||
     normalizedType === "week";
+  const explicitAutoComplete =
+    typeof inputProps.autoComplete === "string"
+      ? inputProps.autoComplete
+      : undefined;
+  const isAuthAutoCompleteField =
+    explicitAutoComplete === "username" ||
+    explicitAutoComplete === "current-password";
+  const maskedNameRef = useRef(
+    `sgo_${Math.random().toString(36).slice(2, 10)}_${String(name).replace(
+      /[^\w]/g,
+      "_",
+    )}`,
+  );
+  const resolvedDomName = isAuthAutoCompleteField
+    ? String(name)
+    : maskedNameRef.current;
   const resolvedAutoComplete =
-    normalizedType === "password" ? "new-password" : isTextLike ? "off" : undefined;
+    explicitAutoComplete ??
+    (normalizedType === "password"
+      ? "new-password"
+      : isTextLike
+        ? "new-password"
+        : undefined);
 
   return (
-    <div className="mt-3">
+    <div className="mt-1">
       {" "}
       <Controller
         control={control}
@@ -79,6 +102,10 @@ export function HookFormInput<T extends FieldValues>({
           };
 
           const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
+            const currentValue = event.currentTarget.value;
+            if (currentValue !== (field.value ?? "")) {
+              field.onChange(currentValue);
+            }
             field.onBlur();
             onBlur?.(event);
           };
@@ -86,6 +113,13 @@ export function HookFormInput<T extends FieldValues>({
           const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
             onKeyDown?.(event);
             if (event.defaultPrevented) return;
+            if (
+              isComposingRef.current ||
+              event.nativeEvent.isComposing ||
+              event.key === "Process"
+            ) {
+              return;
+            }
             const source = event.target as HTMLElement;
             const input = event.target as HTMLInputElement;
 
@@ -140,13 +174,25 @@ export function HookFormInput<T extends FieldValues>({
               size="small"
               variant="outlined"
               label={label}
-              InputLabelProps={requiresShrinkLabel ? { shrink: true } : undefined}
+              InputLabelProps={
+                requiresShrinkLabel ? { shrink: true } : undefined
+              }
               type={type}
               value={displayValue}
               onChange={handleChange}
               onBlur={handleBlur}
+              onCompositionStart={() => {
+                isComposingRef.current = true;
+              }}
+              onCompositionEnd={(event) => {
+                isComposingRef.current = false;
+                const currentValue = event.currentTarget.value;
+                if (currentValue !== (field.value ?? "")) {
+                  field.onChange(currentValue);
+                }
+              }}
               onKeyDown={handleKeyDown}
-              name={field.name}
+              name={resolvedDomName}
               inputRef={field.ref}
               disabled={disabled || isSubmitting}
               placeholder={placeholder}
@@ -198,9 +244,11 @@ export function HookFormInput<T extends FieldValues>({
                 ...inputProps,
                 className,
                 "data-auto-next": "true",
+                name: resolvedDomName,
                 autoComplete: resolvedAutoComplete,
                 ...(isTextLike
                   ? {
+                      "aria-autocomplete": "none",
                       autoCorrect: "off",
                       autoCapitalize: "off",
                       spellCheck: false,

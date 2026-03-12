@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { API_BASE_URL } from "@/config";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 import type { OrderNote, OrderNoteApiItem } from "@/types/orderNote";
 import type { SendNote, SendNoteItem } from "@/types/sendNote";
 
@@ -534,7 +535,7 @@ export const useOrderNoteStore = create<OrderNoteState>((set, get) => ({
     const safeNoteId = toPositiveInt(noteId, 0);
     if (!safeNoteId) return false;
 
-    const nowDate = new Date().toISOString().slice(0, 10);
+    const nowDate = getLocalDateISO();
     const clienteId = toPositiveInt(
       formData.clienteId ?? current.clienteId ?? 0,
       0

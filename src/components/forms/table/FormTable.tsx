@@ -55,7 +55,7 @@ const EditableDataTable = ({
       skipPropSyncRef.current = false;
       return;
     }
-    setData((prev) => {
+    setData(() => {
       const base =
         initialData && initialData.length ? initialData : [createEmptyRow()];
       return ensureTrailingEmptyRow(base);
@@ -159,9 +159,9 @@ const EditableDataTable = ({
   };
 
   return (
-    <div className="w-full space-y-4 px-2 sm:px-0">
+    <div className="w-full space-y-4">
       {/* Barra de herramientas */}
-      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+      <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         {enableFiltering && (
           <div className="relative flex-1 max-w-full sm:max-w-sm">
             <Search
@@ -180,8 +180,8 @@ const EditableDataTable = ({
 
       {/* Tabla */}
       <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-        <div className="overflow-x-auto overflow-y-auto max-h-[400px] sm:max-h-[540px]">
-          <table className="w-full min-w-[640px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[min(58vh,540px)]">
+          <table className="w-full min-w-[520px] sm:min-w-[640px]">
             <thead className="bg-gray-50 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
@@ -245,8 +245,8 @@ const EditableDataTable = ({
 
       {/* Paginación */}
       {enablePagination && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="text-sm text-gray-600 text-center sm:text-left">
+        <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <div className="text-center text-sm text-gray-600 sm:text-left">
             Mostrando {table.getRowModel().rows.length} de {data.length} filas
           </div>
           <div className="flex gap-2">

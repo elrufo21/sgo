@@ -5,10 +5,14 @@ import {
   DialogActions,
   Button,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 export function GlobalDialog() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const {
     open,
     title,
@@ -67,6 +71,7 @@ export function GlobalDialog() {
       open={open}
       onClose={handleClose}
       fullWidth={fullWidth}
+      fullScreen={isMobile}
       maxWidth={maxWidth}
       disableEscapeKeyDown={disableClose || disableBackdropClose}
     >

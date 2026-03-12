@@ -73,7 +73,6 @@ export default function PurchaseFormBase({
   const {
     control,
     reset,
-    handleSubmit,
     setValue,
     getValues,
     watch,
@@ -162,20 +161,20 @@ export default function PurchaseFormBase({
   const cuentasBancarias = watch("cuentasBancarias");
 
   return (
-    <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div ref={containerRef} className="h-auto px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
+            <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3 min-w-0">
                 <BackArrowButton />
-                <h1 className="text-base font-semibold">
+                <h1 className="text-base font-semibold truncate">
                   {mode === "create"
                     ? "Crear Proveedor / Cliente"
                     : "Editar Proveedor / Cliente"}
                 </h1>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -210,9 +209,9 @@ export default function PurchaseFormBase({
               </div>
             </div>
 
-            <div className="p-6 sm:p-8">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="w-full md:w-[40%] space-y-4">
+            <div className="p-4 sm:p-6 lg:p-8">
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+                <div className="w-full space-y-4 xl:col-span-2">
                   <HookFormInput<PurchaseFormValues>
                     data-focus-first
                     name="nombreRazon"
@@ -265,8 +264,8 @@ export default function PurchaseFormBase({
                   />
                 </div>
 
-                <div className="w-full md:w-[60%] mt-6 md:mt-0">
-                  <div className="flex flex-col md:flex-row gap-4 mb-4">
+                <div className="w-full xl:col-span-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
                     <HookFormSelect<PurchaseFormValues>
                       name="cuentaTemp.entidadBancaria"
                       label="Entidad Bancaria"
@@ -291,7 +290,7 @@ export default function PurchaseFormBase({
                     />
                   </div>
 
-                  <div className="flex flex-col md:flex-row gap-4 mb-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-4">
                     <HookFormSelect<PurchaseFormValues>
                       name="cuentaTemp.tipoCuenta"
                       label="Tipo de Cuenta"
@@ -314,7 +313,7 @@ export default function PurchaseFormBase({
                   <button
                     type="button"
                     onClick={handleAddCuenta}
-                    className="mb-4 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
+                    className="mb-4 w-full sm:w-auto px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all"
                   >
                     Agregar / Actualizar Cuenta
                   </button>
@@ -323,10 +322,7 @@ export default function PurchaseFormBase({
                     columns={columns}
                     data={cuentasBancarias}
                     onRowClick={(row) => {
-                      // omit react-hook-form field array id
-                      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                      const { id: _id, ...rest } = row as any;
-                      setValue("cuentaTemp", rest);
+                      setValue("cuentaTemp", row);
                     }}
                   />
                 </div>

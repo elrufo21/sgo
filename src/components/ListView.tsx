@@ -94,9 +94,11 @@ export function CrudList<T>(props: CrudListProps<T>) {
       }
 
       if (col.key) {
-        return columnHelper.accessor(col.key as any, {
+        const accessorKey = col.key;
+        return columnHelper.accessor((row) => row[accessorKey], {
+          id: col.id ?? String(accessorKey),
           header: col.header,
-          cell: (info) => info.getValue(),
+          cell: (info) => info.getValue() as ReactNode,
           meta: { tdClassName: col.tdClassName },
         });
       }
@@ -166,8 +168,8 @@ export function CrudList<T>(props: CrudListProps<T>) {
   return (
     <div>
       {isMaintenanceList ? (
-        <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-          <div className="flex items-center gap-3">
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:px-4 sm:py-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
             <BackArrowButton
               fallbackTo={maintenanceFallbackTo}
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors"
@@ -177,7 +179,7 @@ export function CrudList<T>(props: CrudListProps<T>) {
                 Mantenimiento
               </p>
               <div className="flex items-end gap-2">
-                <h1 className="text-2xl sm:text-4xl font-semibold text-[#0f2748]">
+                <h1 className="text-xl font-semibold text-[#0f2748] sm:text-3xl lg:text-4xl">
                   {maintenanceTitle}
                 </h1>
               </div>
@@ -208,9 +210,10 @@ export function CrudList<T>(props: CrudListProps<T>) {
               onCreate ? onCreate() : navigate(`${basePath}/create`)
             }
             title={createLabel}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#B23636] text-white hover:bg-[#96312a] transition-colors shadow-sm"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-[#B23636] px-3 text-white transition-colors shadow-sm hover:bg-[#96312a] sm:w-11 sm:px-0"
           >
             <PlusIcon className="h-5 w-5" />
+            <span className="text-sm font-semibold sm:hidden">Nuevo</span>
           </button>
         }
       />

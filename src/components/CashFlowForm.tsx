@@ -485,7 +485,7 @@ export default function CashFlowForm({
                   </button>
                 </div>
 
-                <div className="border border-gray-200 rounded overflow-hidden h-[265px] overflow-y-auto mb-2">
+                <div className="border border-gray-200 rounded overflow-hidden h-[min(40vh,265px)] min-h-[180px] overflow-y-auto mb-2">
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs min-w-[280px]">
                       <thead className="sticky top-0 bg-slate-800 text-white">

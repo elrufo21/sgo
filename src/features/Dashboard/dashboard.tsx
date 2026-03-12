@@ -16,22 +16,25 @@ const Dashboard = () => {
     }
   };
   return (
-    <>
-      <div className="flex justify-center align-middle h-screen">
-        <button
-          className="btn bg-green-500 text-white rounded-2xl p-4 m-4 hover:bg-green-700 w-[120px] h-[50px] flex items-center justify-center"
-          onClick={handlePrint}
-        >
-          IMPRIMIR
-        </button>
-        <div className="h-full w-full ">
-          <PDFViewer height="full" className="border h-full w-full">
-            <TicketDocument />
-          </PDFViewer>
+    <div className="space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-lg font-semibold text-slate-800">Dashboard</h1>
+          <button
+            className="inline-flex h-10 items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+            onClick={handlePrint}
+          >
+            Imprimir
+          </button>
         </div>
-        f
       </div>
-    </>
+
+      <div className="h-[min(72vh,760px)] min-h-[420px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <PDFViewer style={{ width: "100%", height: "100%" }}>
+          <TicketDocument />
+        </PDFViewer>
+      </div>
+    </div>
   );
 };
 export default Dashboard;

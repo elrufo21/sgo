@@ -373,12 +373,13 @@ export default function MainLayout() {
   ]);
 
   const navItems = [
-    { label: "Dashboard", to: "/", icon: <Home size={18} /> },
     {
       label: "Ventas",
       to: "/sales",
       icon: <DollarSign size={18} />,
     },
+    { label: "Dashboard", to: "/", icon: <Home size={18} /> },
+
     { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
     { label: "Clientes", to: "/customers", icon: <UserCheck size={18} /> },
@@ -395,7 +396,7 @@ export default function MainLayout() {
   ];
 
   const filteredItems = navItems.filter((item) =>
-    item.label.toLowerCase().includes(search.toLowerCase()),
+    item.label.toUpperCase().includes(search.toUpperCase()),
   );
 
   // Render de items del menú
@@ -409,36 +410,36 @@ export default function MainLayout() {
       <Link
         key={item.to}
         to={item.to}
-        className={`
-          flex items-center gap-3 p-3 rounded-lg transition-all duration-200
-          justify-center text-white ${
-            !open && !alwaysShowLabel ? "" : "justify-start"
-          }
-          ${
-            active
-              ? "bg-slate-600 text-white shadow"
-              : "text-gray-700 hover:bg-gray-600"
-          }
-        `}
+        className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+          !open && !alwaysShowLabel ? "justify-center" : "justify-start"
+        } ${
+          active
+            ? "bg-slate-700 text-white shadow-sm"
+            : "text-slate-200 hover:bg-slate-700/70 hover:text-white"
+        }`}
         title={!open && !alwaysShowLabel ? item.label : undefined}
+        onClick={() => setMobileOpen(false)}
       >
         {item.icon}
         {(open || alwaysShowLabel) && (
-          <span className="text-sm font-medium">{item.label}</span>
+          <span className="truncate">{item.label}</span>
         )}
       </Link>
     );
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-slate-100">
       <aside
-        className={`hidden md:flex flex-col bg-[#222d32]  shadow-xl transition-all duration-300
-          ${open ? "w-60" : "w-16"}`}
+        className={`hidden md:flex shrink-0 flex-col bg-[#1f2b30] shadow-xl transition-all duration-300 ${
+          open
+            ? "w-[var(--app-shell-sidebar-open)]"
+            : "w-[var(--app-shell-sidebar-collapsed)]"
+        }`}
       >
-        <div className="relative bg-[#222d32] flex items-center justify-around p-4 border-b">
+        <div className="relative flex items-center border-b border-slate-700/70 px-3 py-3">
           <h1
-            className={`text-lg font-semibold text-white transition-opacity duration-300 ${
+            className={`truncate text-base font-semibold text-white transition-opacity duration-300 ${
               open ? "opacity-100" : "opacity-0"
             }`}
           >
@@ -447,33 +448,34 @@ export default function MainLayout() {
 
           <button
             onClick={() => setOpen(!open)}
-            className={`p-2 rounded hover:bg-gray-800 text-white transition-colors 
-            ${!open ? "absolute right-2 top-1/2 -translate-y-1/2" : ""}`}
+            className={`ml-auto rounded-md p-2 text-white transition-colors hover:bg-slate-700 ${
+              !open ? "absolute right-2 top-1/2 -translate-y-1/2" : ""
+            }`}
           >
             <Menu size={20} />
           </button>
         </div>
 
         {open && (
-          <div className="px-3 mt-4 ">
+          <div className="mt-3 px-3">
             <input
               type="text"
               placeholder="Buscar módulo..."
-              className="w-full px-3 py-2 text-sm border text-white rounded-md focus:outline-none focus:ring focus:ring-slate-300"
+              className="h-10 w-full rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/50"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => setSearch(e.target.value.toUpperCase())}
             />
           </div>
         )}
 
         {/* Navegación */}
-        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1 text-white bg-[#222d32]">
+        <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-3">
           {(search ? filteredItems : navItems).map((item) =>
             renderNavItem(item),
           )}
         </nav>
 
-        <div className="p-4 border-t text-center text-gray-400 text-xs">
+        <div className="border-t border-slate-700/70 px-3 py-3 text-center text-xs text-slate-400">
           {open && "© 2025 Mi Empresa"}
         </div>
       </aside>
@@ -486,32 +488,31 @@ export default function MainLayout() {
       )}
 
       <aside
-        className={`fixed z-50 top-0 left-0 h-full bg-[#222d32] shadow-xl text-white transition-transform duration-300 md:hidden
-          ${
-            mobileOpen ? "translate-x-0" : "-translate-x-full"
-          } w-64 flex flex-col`}
+        className={`fixed left-0 top-0 z-50 flex h-full w-[min(84vw,18rem)] flex-col bg-[#1f2b30] text-white shadow-xl transition-transform duration-300 md:hidden ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
-        <div className="flex items-center justify-between p-4 border-b ">
-          <h1 className="text-lg font-semibold text-white">Mi Sistema</h1>
+        <div className="flex items-center justify-between border-b border-slate-700/70 px-4 py-3">
+          <h1 className="text-base font-semibold text-white">SGO VENTAS</h1>
           <button
             onClick={() => setMobileOpen(false)}
-            className="p-2 rounded hover:bg-gray-100 transition-colors"
+            className="rounded-md p-2 transition-colors hover:bg-slate-700"
           >
             <X size={20} />
           </button>
         </div>
 
-        <div className="px-3 mt-4">
+        <div className="mt-3 px-3">
           <input
             type="text"
             placeholder="Buscar módulo..."
-            className="w-full px-3 py-2 text-sm border rounded-md focus:outline-none focus:ring focus:ring-slate-300"
+            className="h-10 w-full rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/50"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => setSearch(e.target.value.toUpperCase())}
           />
         </div>
 
-        <nav className="mt-4 flex flex-col gap-1 px-2 flex-1">
+        <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4">
           {(search ? filteredItems : navItems).map((item) =>
             renderNavItem(item, true),
           )}
@@ -519,55 +520,61 @@ export default function MainLayout() {
       </aside>
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <header className="h-16 bg-[#96312a] shadow px-6 flex items-center justify-between text-white">
-          <div className="flex items-center gap-3">
-            <button
-              className="md:hidden p-2 rounded hover:bg-slate-500 transition-colors"
-              onClick={() => setMobileOpen(true)}
-            >
-              <Menu size={20} />
-            </button>
-            <h2 className="text-xl font-semibold">Panel de Control</h2>
-          </div>
+        <header className="h-[var(--app-shell-header-h)] bg-[#96312a] px-3 text-white shadow sm:px-4 lg:px-5 xl:px-6">
+          <div className="mx-auto flex h-full w-full max-w-[1760px] items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                className="rounded-md p-2 transition-colors hover:bg-slate-500 md:hidden"
+                onClick={() => setMobileOpen(true)}
+              >
+                <Menu size={20} />
+              </button>
+              <h2 className="text-base font-semibold sm:text-lg lg:text-xl">
+                Panel de Control
+              </h2>
+            </div>
 
-          <div className="relative">
-            <button
-              onClick={() => setUserMenuOpen((prev) => !prev)}
-              className="flex items-center gap-3 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm border border-white/20 shadow-sm hover:bg-white/20 transition-colors"
-            >
-              <div className="w-9 h-9 rounded-full bg-slate-100 text-slate-900 flex items-center justify-center font-semibold">
-                {userInitial}
-              </div>
-              <div className="hidden sm:flex flex-col text-left leading-tight text-white">
-                <span className="text-sm font-semibold">
-                  {user?.displayName ?? user?.username ?? "Usuario"}
-                </span>
-                <span className="text-[11px] text-slate-200">
-                  {user?.role ?? "Sesión activa"}
-                </span>
-              </div>
-              <ChevronDown size={16} className="text-white/80" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setUserMenuOpen((prev) => !prev)}
+                className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-2 py-1.5 shadow-sm backdrop-blur-sm transition-colors hover:bg-white/20 sm:gap-3 sm:px-3 sm:py-2"
+              >
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-900 sm:h-9 sm:w-9">
+                  {userInitial}
+                </div>
+                <div className="hidden sm:flex flex-col text-left leading-tight text-white">
+                  <span className="text-sm font-semibold">
+                    {user?.displayName ?? user?.username ?? "Usuario"}
+                  </span>
+                  <span className="text-[11px] text-slate-200">
+                    {user?.role ?? "Sesión activa"}
+                  </span>
+                </div>
+                <ChevronDown size={16} className="text-white/80" />
+              </button>
 
-            {userMenuOpen && (
-              <div className="absolute right-0 mt-2 w-44 rounded-lg bg-white text-slate-800 shadow-lg border border-slate-100 z-50">
-                <button
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                  onClick={() => {
-                    setUserMenuOpen(false);
-                    logout();
-                    navigate("/login", { replace: true });
-                  }}
-                >
-                  Cerrar sesión
-                </button>
-              </div>
-            )}
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-44 rounded-lg bg-white text-slate-800 shadow-lg border border-slate-100 z-50">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                    onClick={() => {
+                      setUserMenuOpen(false);
+                      logout();
+                      navigate("/login", { replace: true });
+                    }}
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 bg-gray-100">
-          <Outlet />
+        <main className="app-main-scroll flex-1 overflow-y-auto bg-slate-100 px-[var(--app-shell-main-px)] py-[var(--app-shell-main-py)]">
+          <div className="mx-auto w-full max-w-[1760px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

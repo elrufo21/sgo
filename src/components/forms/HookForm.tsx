@@ -47,8 +47,27 @@ export function HookForm<T extends FieldValues>({
         onKeyDownCapture={handleKeyDownCapture}
         autoComplete="off"
         data-lpignore="true"
+        data-1p-ignore="true"
+        data-bwignore="true"
+        data-form-type="other"
         noValidate
       >
+        <input
+          type="text"
+          name="__sgo_autofill_username"
+          autoComplete="username"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+        />
+        <input
+          type="password"
+          name="__sgo_autofill_password"
+          autoComplete="new-password"
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+        />
         {children}
       </form>
     </FormProvider>

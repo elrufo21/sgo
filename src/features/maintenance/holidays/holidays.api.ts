@@ -6,6 +6,7 @@ export const holidaysQueryKey = ["holidays"] as const;
 
 type HolidayApiResponse = {
   idFeriado?: number;
+  feriadoID?: number;
   feriadoId?: number;
   id?: number;
   fecha?: string;
@@ -30,9 +31,9 @@ const mapHoliday = (item: HolidayApiResponse): Holiday => {
   const id =
     Number(
       item?.idFeriado ??
+        item?.feriadoID ??
         item?.feriadoId ??
         item?.id ??
-        (item as any)?.feriadoID ??
         0
     ) || 0;
 
@@ -43,23 +44,77 @@ const mapHoliday = (item: HolidayApiResponse): Holiday => {
   };
 };
 
+const parseDelimitedHolidays = (rawValue: string): Holiday[] => {
+  const raw = String(rawValue ?? "").trim();
+  if (!raw || raw === "~" || raw.toUpperCase() === "FORMATO_INVALIDO") {
+    return [];
+  }
+
+  return raw
+    .split("¬")
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk): Holiday | null => {
+      const parts = chunk.split("|");
+      const at = (index: number) => String(parts[index] ?? "").trim();
+
+      const id = Number(at(0)) || 0;
+      const fecha = formatDateOnly(at(1));
+      const motivo = at(2);
+
+      if (!id && !fecha && !motivo) return null;
+
+      return {
+        id,
+        fecha,
+        motivo,
+      };
+    })
+    .filter((item): item is Holiday => Boolean(item));
+};
+
+const parseHolidaysResponse = (payload: unknown): Holiday[] => {
+  if (Array.isArray(payload)) {
+    return payload
+      .map((item) => mapHoliday(item as HolidayApiResponse))
+      .filter((h) => Boolean(h.id) || Boolean(h.fecha) || Boolean(h.motivo));
+  }
+
+  if (payload && typeof payload === "object") {
+    const record = payload as Record<string, unknown>;
+    const arrayCandidate = Object.values(record).find(Array.isArray);
+    if (Array.isArray(arrayCandidate)) {
+      return arrayCandidate
+        .map((item) => mapHoliday(item as HolidayApiResponse))
+        .filter((h) => Boolean(h.id) || Boolean(h.fecha) || Boolean(h.motivo));
+    }
+
+    const stringCandidate = Object.values(record).find(
+      (value) => typeof value === "string",
+    );
+    if (typeof stringCandidate === "string") {
+      return parseDelimitedHolidays(stringCandidate);
+    }
+
+    const single = mapHoliday(record as HolidayApiResponse);
+    return single.id || single.fecha || single.motivo ? [single] : [];
+  }
+
+  if (typeof payload === "string") {
+    return parseDelimitedHolidays(payload);
+  }
+
+  return [];
+};
+
 export const fetchHolidaysApi = async (): Promise<Holiday[]> => {
-  const response = await apiRequest<HolidayApiResponse[]>({
+  const response = await apiRequest<unknown>({
     url: `${ENDPOINT}/list`,
     method: "GET",
     fallback: [],
   });
 
-  return (
-    response
-      ?.map(mapHoliday)
-      .filter(
-        (h) =>
-          Boolean(h.id) ||
-          Boolean(h.fecha) ||
-          Boolean(h.motivo)
-      ) ?? []
-  );
+  return parseHolidaysResponse(response);
 };
 
 export const fetchHolidayByIdApi = async (
@@ -97,7 +152,7 @@ export const saveHolidayApi = async (
         "Content-Type": "application/json",
       },
     },
-    fallback: body as any,
+    fallback: body as HolidayApiResponse,
   });
 
   if (typeof response === "string") {

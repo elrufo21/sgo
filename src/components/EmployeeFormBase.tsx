@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Camera, Plus, Save, Trash2, Upload, X } from "lucide-react";
+import { Camera, Plus, Save, Search, Trash2, Upload, X } from "lucide-react";
 
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormInput } from "@/components/forms/HookFormInput";
@@ -10,12 +10,19 @@ import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Personal } from "@/types/employees";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
+import { focusNextInput } from "@/shared/helpers/focusNextInput";
+import {
+  getLocalDateISO,
+  parseDateLikeToLocalDate,
+  toLocalDateInputValue,
+  toLocalStartOfDayISO,
+} from "@/shared/helpers/localDate";
 
 interface Props {
   initialData?: Partial<Personal>;
   mode: "create" | "edit";
   onSave: (
-    data: Personal & { imageFile?: File | null; imageRemoved?: boolean }
+    data: Personal & { imageFile?: File | null; imageRemoved?: boolean },
   ) => void;
   onNew?: () => void;
   onDelete?: () => void;
@@ -23,10 +30,7 @@ interface Props {
 
 const formatDateForInput = (value?: string | null) => {
   if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? ""
-    : parsed.toISOString().slice(0, 10);
+  return toLocalDateInputValue(value, "");
 };
 
 const normalizeDateForApi = (value?: string | null): string | null => {
@@ -36,11 +40,10 @@ const normalizeDateForApi = (value?: string | null): string | null => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return `${trimmed}T00:00:00`;
   if (/^\d{4}-\d{2}-\d{2}T/.test(trimmed)) return trimmed;
 
-  const parsed = new Date(trimmed);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+  return toLocalStartOfDayISO(trimmed);
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => getLocalDateISO();
 
 const buildDefaults = (initialData?: Partial<Personal>): Personal => ({
   personalId: initialData?.personalId ?? 0,
@@ -72,7 +75,7 @@ export default function EmployeeFormBase({
 }: Props) {
   const { areas, fetchAreas } = useMaintenanceStore();
   const [companias, setCompanias] = useState<{ id: string; nombre: string }[]>(
-    []
+    [],
   );
   const formContainerRef = useRef<HTMLDivElement>(null);
   console.log("initialData", initialData);
@@ -84,6 +87,7 @@ export default function EmployeeFormBase({
     reset,
     watch,
     setValue,
+    setFocus,
     handleSubmit,
     formState: { isSubmitting },
   } = formMethods;
@@ -94,6 +98,8 @@ export default function EmployeeFormBase({
   const [imageRemoved, setImageRemoved] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
+  const [consultaDni, setConsultaDni] = useState("");
+  const consultaDniInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchAreas();
@@ -128,7 +134,7 @@ export default function EmployeeFormBase({
         JSON.stringify({
           options,
           map: Object.fromEntries(options.map((c) => [c.id, c.nombre])),
-        })
+        }),
       );
       if (!formMethods.getValues("companiaId") && options.length > 0) {
         formMethods.setValue("companiaId", Number(options[0].id));
@@ -139,6 +145,7 @@ export default function EmployeeFormBase({
 
   useEffect(() => {
     reset(buildDefaults(initialData));
+    setConsultaDni(String(initialData?.personalDni ?? ""));
     setImageFile(null);
     setImageRemoved(false);
   }, [initialData, reset]);
@@ -218,8 +225,8 @@ export default function EmployeeFormBase({
   const calcularEdad = (fecha: string | null | undefined) => {
     if (!fecha) return "";
     const hoy = new Date();
-    const nacimiento = new Date(fecha);
-    if (Number.isNaN(nacimiento.getTime())) return "";
+    const nacimiento = parseDateLikeToLocalDate(fecha);
+    if (!nacimiento) return "";
 
     let edad = hoy.getFullYear() - nacimiento.getFullYear();
     const mes = hoy.getMonth() - nacimiento.getMonth();
@@ -243,6 +250,7 @@ export default function EmployeeFormBase({
       companiaId: companyOptions[0]?.value ?? 1,
     });
     reset(defaults);
+    setConsultaDni("");
     onNew?.();
     focusFirstInput(formContainerRef.current);
   };
@@ -258,6 +266,49 @@ export default function EmployeeFormBase({
       imageRemoved,
     });
     focusFirstInput(formContainerRef.current);
+  };
+
+  const handleConsultarDni = async () => {
+    const dni = consultaDni.replace(/\D/g, "").slice(0, 8);
+    setConsultaDni(dni);
+    if (dni.length !== 8) return;
+
+    setValue("personalDni", dni, { shouldDirty: true });
+
+    const token = import.meta.env.VITE_API_DOCUMENTO;
+    if (!token) return;
+
+    const response = await apiRequest<Record<string, unknown> | null>({
+      url: `https://dniruc.apisperu.com/api/v1/dni/${dni}?token=${token}`,
+      method: "GET",
+      fallback: null,
+    });
+
+    if (!response || typeof response !== "object") return;
+
+    const nombres = String(response.nombres ?? "").trim();
+    const apellidoPaterno = String(response.apellidoPaterno ?? "").trim();
+    const apellidoMaterno = String(response.apellidoMaterno ?? "").trim();
+    const apellidos = `${apellidoPaterno} ${apellidoMaterno}`.trim();
+    const hasValidDniData = [
+      response.dni,
+      response.nombres,
+      response.apellidoPaterno,
+      response.apellidoMaterno,
+    ].some((value) => String(value ?? "").trim().length > 0);
+
+    if (nombres) {
+      setValue("personalNombres", nombres, { shouldDirty: true });
+    }
+    if (apellidos) {
+      setValue("personalApellidos", apellidos, { shouldDirty: true });
+    }
+
+    if (hasValidDniData) {
+      window.requestAnimationFrame(() => {
+        setFocus("personalTelefono");
+      });
+    }
   };
 
   return (
@@ -311,29 +362,13 @@ export default function EmployeeFormBase({
               <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <HookFormSelect<Personal>
+                    data-focus-first="true"
                     name="companiaId"
                     label="Compania"
                     options={companyOptions}
                     rules={{ setValueAs: (val) => Number(val) || 1 }}
                   />
                 </div>
-
-                <HookFormInput<Personal>
-                  data-focus-first="true"
-                  name="personalCodigo"
-                  label="Codigo Personal"
-                  placeholder="Codigo"
-                  onKeyDown={(e) => {
-                    if (e.key === " ") e.preventDefault();
-                  }}
-                  onInput={(e) => {
-                    e.currentTarget.value = e.currentTarget.value.replace(
-                      /\s+/g,
-                      ""
-                    );
-                  }}
-                  rules={{ required: "El codigo de personal es obligatorio" }}
-                />
 
                 <HookFormSelect<Personal>
                   name="areaId"
@@ -347,7 +382,47 @@ export default function EmployeeFormBase({
                     validate: (val) =>
                       Number(val) > 0 || "El area es obligatorio",
                   }}
+                  onChange={() => {
+                    window.requestAnimationFrame(() => {
+                      consultaDniInputRef.current?.focus({ preventScroll: true });
+                      consultaDniInputRef.current?.select?.();
+                    });
+                  }}
                 />
+
+                <div className="mt-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={consultaDniInputRef}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={8}
+                      value={consultaDni}
+                      onChange={(e) =>
+                        setConsultaDni(
+                          e.target.value.replace(/\D/g, "").slice(0, 8),
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          void handleConsultarDni();
+                        }
+                      }}
+                      className="h-10 w-full rounded-[0.45rem] border border-[#e5e7eb] bg-white px-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                      data-auto-next="true"
+                      placeholder="Ingrese DNI"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleConsultarDni()}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-[0.45rem] bg-slate-700 text-white transition-colors hover:bg-slate-800"
+                      title="Consultar DNI"
+                    >
+                      <Search className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
 
                 <HookFormInput<Personal>
                   name="personalNombres"
@@ -382,8 +457,8 @@ export default function EmployeeFormBase({
                 />
 
                 <HookFormInput<Personal>
-                  name="personalDireccion"
-                  label="Direccion"
+                  name="personalTelefono"
+                  label="Telefono"
                 />
 
                 <HookFormInput<Personal>
@@ -391,23 +466,42 @@ export default function EmployeeFormBase({
                   label="Fecha nacimiento"
                   type="date"
                 />
-                <input
-                  name="edad"
-                  disabled
-                  value={calcularEdad(watchedNacimiento)}
-                  readOnly
-                  className="w-full px-3 py-8  "
-                />
+                <div className="mt-1">
+                  <input
+                    name="edad"
+                    disabled
+                    value={calcularEdad(watchedNacimiento)}
+                    readOnly
+                    className="h-10 w-full rounded-[0.45rem] border border-[#e5e7eb] bg-slate-50 px-3 text-sm text-slate-700 outline-none"
+                    data-auto-next="true"
+                  />
+                </div>
 
                 <HookFormInput<Personal>
-                  name="personalTelefono"
-                  label="Telefono"
+                  name="personalDireccion"
+                  label="Direccion"
                 />
 
                 <HookFormInput<Personal>
                   name="personalEmail"
                   label="Correo"
-                  type="email"
+                  type="text"
+                  autoComplete="off"
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    event.preventDefault();
+
+                    const target = event.target;
+                    if (target instanceof HTMLInputElement) {
+                      setValue("personalEmail", target.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      window.requestAnimationFrame(() => {
+                        focusNextInput(target);
+                      });
+                    }
+                  }}
                   rules={{
                     validate: (value) => {
                       if (!value?.trim()) return true;

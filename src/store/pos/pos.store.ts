@@ -10,6 +10,8 @@ const toNumber = (value: unknown, fallback = 0): number => {
 
 const toNonNegative = (value: unknown): number => Math.max(toNumber(value, 0), 0);
 
+const EMPTY_TOTALS: PosTotals = { subTotal: 0, total: 0, itemCount: 0 };
+
 const calculateTotals = (items: PosCartItem[]): PosTotals => {
   let subTotal = 0;
   let itemCount = 0;
@@ -48,9 +50,9 @@ interface PosState {
 
 export const usePosStore = create<PosState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       items: [],
-      totals: { subTotal: 0, total: 0, itemCount: 0 },
+      totals: EMPTY_TOTALS,
       editingNotaId: null,
       serverItemsFromNota: [],
       isEditingMode: false,
@@ -185,19 +187,34 @@ export const usePosStore = create<PosState>()(
           }
           return {
             items: [],
-            totals: { subTotal: 0, total: 0, itemCount: 0 },
+            totals: EMPTY_TOTALS,
           };
         }),
     }),
     {
       name: "pos-cart",
-      partialize: (state) => ({
-        items: state.items,
-        totals: state.totals,
-        editingNotaId: state.editingNotaId,
-        serverItemsFromNota: state.serverItemsFromNota,
-        isEditingMode: state.isEditingMode,
-      }),
+      partialize: (state) => {
+        const shouldPersistForEditFlow =
+          state.isEditingMode && Number(state.editingNotaId ?? 0) > 0;
+
+        if (!shouldPersistForEditFlow) {
+          return {
+            items: [],
+            totals: EMPTY_TOTALS,
+            editingNotaId: null,
+            serverItemsFromNota: [],
+            isEditingMode: false,
+          };
+        }
+
+        return {
+          items: state.items,
+          totals: state.totals,
+          editingNotaId: state.editingNotaId,
+          serverItemsFromNota: state.serverItemsFromNota,
+          isEditingMode: state.isEditingMode,
+        };
+      },
     }
   )
 );
