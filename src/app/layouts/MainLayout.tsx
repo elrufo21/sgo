@@ -429,7 +429,7 @@ export default function MainLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-100">
+    <div className="flex h-screen overflow-hidden bg-slate-100">
       <aside
         className={`hidden md:flex shrink-0 flex-col bg-[#1f2b30] shadow-xl transition-all duration-300 ${
           open
@@ -519,7 +519,7 @@ export default function MainLayout() {
         </nav>
       </aside>
 
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="h-[var(--app-shell-header-h)] bg-[#96312a] px-3 text-white shadow sm:px-4 lg:px-5 xl:px-6">
           <div className="mx-auto flex h-full w-full max-w-[1760px] items-center justify-between">
             <div className="flex items-center gap-3">
@@ -571,7 +571,7 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className="app-main-scroll flex-1 overflow-y-auto bg-slate-100 px-[var(--app-shell-main-px)] py-[var(--app-shell-main-py)]">
+        <main className="app-main-scroll flex-1 overflow-y-auto bg-slate-100 px-[var(--app-shell-main-px)] py-[var(--app-shell-main-py)] min-h-0">
           <div className="mx-auto w-full max-w-[1760px]">
             <Outlet />
           </div>

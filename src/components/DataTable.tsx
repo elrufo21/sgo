@@ -56,6 +56,7 @@ interface DataTableProps<T extends RowData> {
   tableMaxHeight?: string;
   globalFilterValue?: string;
   onGlobalFilterValueChange?: (value: string) => void;
+  footerContent?: ReactNode;
 }
 
 const alignmentClass: Record<"left" | "center" | "right", string> = {
@@ -123,6 +124,7 @@ export default function DataTable<T extends RowData>({
   tableMaxHeight = "65vh",
   globalFilterValue,
   onGlobalFilterValueChange,
+  footerContent,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState(() =>
     String(globalFilterValue ?? ""),
@@ -468,69 +470,75 @@ export default function DataTable<T extends RowData>({
         </table>
       </div>
 
-      <footer className="flex flex-col gap-3 border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span>Filas por página:</span>
-          <select
-            className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-            value={pageSize}
-            onChange={(e) => table.setPageSize(Number(e.target.value))}
-          >
-            {normalizedPageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-          <span className="text-slate-500">
-            {start}-{end} de {totalCount}
-          </span>
+      <footer className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:px-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <span>Filas por página:</span>
+            <select
+              className="h-9 rounded-lg border border-slate-300 bg-white px-2 text-sm outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
+              value={pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+            >
+              {normalizedPageSizeOptions.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+            <span className="text-slate-500">
+              {start}-{end} de {totalCount}
+            </span>
+          </div>
+
+          <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
+            <span className="min-w-[7.5rem] text-center text-slate-700">
+              Página {currentPage} de {totalPages}
+            </span>
+
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Primera página"
+            >
+              <ChevronFirst className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Página anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Siguiente página"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
+              onClick={() =>
+                table.setPageIndex(Math.max(table.getPageCount() - 1, 0))
+              }
+              disabled={!table.getCanNextPage()}
+              aria-label="Última página"
+            >
+              <ChevronLast className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
-          <span className="min-w-[7.5rem] text-center text-slate-700">
-            Página {currentPage} de {totalPages}
-          </span>
-
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => table.setPageIndex(0)}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Primera página"
-          >
-            <ChevronFirst className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Página anterior"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            aria-label="Siguiente página"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45"
-            onClick={() =>
-              table.setPageIndex(Math.max(table.getPageCount() - 1, 0))
-            }
-            disabled={!table.getCanNextPage()}
-            aria-label="Última página"
-          >
-            <ChevronLast className="h-4 w-4" />
-          </button>
-        </div>
+        {footerContent ? (
+          <div className="mt-3 border-t border-slate-200 pt-3">{footerContent}</div>
+        ) : null}
       </footer>
     </section>
   );

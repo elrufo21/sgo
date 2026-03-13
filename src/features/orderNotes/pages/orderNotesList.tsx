@@ -17,6 +17,38 @@ import { useNavigate } from "react-router";
 
 const columnHelper = createColumnHelper<OrderNote>();
 
+const parseAmount = (value: unknown): number => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return 0;
+
+  const normalized = raw.replace(/[^\d,.-]/g, "");
+  if (!normalized) return 0;
+
+  const hasComma = normalized.includes(",");
+  const hasDot = normalized.includes(".");
+
+  let sanitized = normalized;
+  if (hasComma && hasDot) {
+    const lastComma = normalized.lastIndexOf(",");
+    const lastDot = normalized.lastIndexOf(".");
+    sanitized =
+      lastComma > lastDot
+        ? normalized.replace(/\./g, "").replace(",", ".")
+        : normalized.replace(/,/g, "");
+  } else if (hasComma) {
+    sanitized = normalized.replace(",", ".");
+  }
+
+  const parsed = Number(sanitized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatAmount = (value: number) =>
+  value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
 const OrderNotesList = () => {
   const navigate = useNavigate();
   const { notes, fetchNotes, loading } = useOrderNoteStore();
@@ -128,6 +160,31 @@ const OrderNotesList = () => {
     anchor.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
   }, [fechaFin, fechaInicio, notes]);
+
+  const solesTotals = useMemo(() => {
+    const totals = notes.reduce(
+      (acc, note) => {
+        const amount = parseAmount(note.total);
+        const formaPago = String(note.formaPago ?? "").toUpperCase();
+        const isCash =
+          formaPago.includes("EFECT") || formaPago.includes("CONTADO");
+
+        if (isCash) {
+          acc.efectivo += amount;
+        } else {
+          acc.depTarYape += amount;
+        }
+        return acc;
+      },
+      { efectivo: 0, depTarYape: 0 },
+    );
+
+    return {
+      efectivo: totals.efectivo,
+      depTarYape: totals.depTarYape,
+      total: totals.efectivo + totals.depTarYape,
+    };
+  }, [notes]);
 
   const columns = useMemo(
     () => [
@@ -335,6 +392,38 @@ const OrderNotesList = () => {
               </div>
             </div>
           </LocalizationProvider>
+        }
+        footerContent={
+          <div className="flex justify-end">
+            <div className="grid w-full max-w-3xl grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3">
+              <div className="border-b border-slate-200 px-4 py-3 text-right sm:border-b-0 sm:border-r">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  SOLES - EFECTIVO
+                </p>
+                <p className="text-xl font-semibold text-slate-800">
+                  {formatAmount(solesTotals.efectivo)}
+                </p>
+              </div>
+
+              <div className="border-b border-slate-200 px-4 py-3 text-right sm:border-b-0 sm:border-r">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  SOLES - DEP/TAR/YAPE
+                </p>
+                <p className="text-xl font-semibold text-slate-800">
+                  {formatAmount(solesTotals.depTarYape)}
+                </p>
+              </div>
+
+              <div className="px-4 py-3 text-right">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  SOLES - TOTAL
+                </p>
+                <p className="text-xl font-semibold text-slate-900">
+                  {formatAmount(solesTotals.total)}
+                </p>
+              </div>
+            </div>
+          </div>
         }
       />
     </div>
