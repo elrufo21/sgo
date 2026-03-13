@@ -10,7 +10,14 @@ import {
   getPaginationRowModel,
   flexRender,
 } from "@tanstack/react-table";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useLocation } from "react-router";
 import {
   ChevronFirst,
@@ -66,6 +73,38 @@ const resolveHeaderLabel = (header: unknown, fallback: string) => {
   return fallback;
 };
 
+const normalizeSearchText = (value: unknown) =>
+  String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const getSearchableText = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    typeof value === "bigint"
+  ) {
+    return normalizeSearchText(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(getSearchableText).filter(Boolean).join(" ");
+  }
+  if (value instanceof Date) {
+    return normalizeSearchText(value.toISOString());
+  }
+  if (typeof value === "object") {
+    return Object.values(value as Record<string, unknown>)
+      .map(getSearchableText)
+      .filter(Boolean)
+      .join(" ");
+  }
+  return normalizeSearchText(value);
+};
+
 export default function DataTable<T extends RowData>({
   columns,
   data,
@@ -85,23 +124,49 @@ export default function DataTable<T extends RowData>({
   globalFilterValue,
   onGlobalFilterValueChange,
 }: DataTableProps<T>) {
-  const [internalGlobalFilter, setInternalGlobalFilter] = useState("");
+  const [globalFilter, setGlobalFilter] = useState(() =>
+    String(globalFilterValue ?? ""),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
   const previousDataLength = useRef(data?.length ?? 0);
   const dialogOpen = useDialogStore((s) => s.open);
   const previousDialogOpen = useRef(dialogOpen);
   const isGlobalFilterControlled = globalFilterValue !== undefined;
-  const globalFilter = isGlobalFilterControlled
-    ? String(globalFilterValue ?? "")
-    : internalGlobalFilter;
 
   const handleGlobalFilterChange = (value: string) => {
-    if (!isGlobalFilterControlled) {
-      setInternalGlobalFilter(value);
-    }
+    setGlobalFilter(value);
     onGlobalFilterValueChange?.(value);
   };
+
+  const handleSearchInput = (event: FormEvent<HTMLInputElement>) => {
+    handleGlobalFilterChange(event.currentTarget.value);
+  };
+
+  useEffect(() => {
+    if (!isGlobalFilterControlled) return;
+    const nextValue = String(globalFilterValue ?? "");
+    setGlobalFilter((previous) =>
+      previous === nextValue ? previous : nextValue,
+    );
+  }, [globalFilterValue, isGlobalFilterControlled]);
+
+  const filteredData = useMemo(() => {
+    const term = normalizeSearchText(globalFilter);
+    if (!term) return data;
+
+    return data.filter((rowItem) => {
+      const original = rowItem as Record<string, unknown>;
+      const keysToSearch =
+        filterKeys && filterKeys.length > 0
+          ? filterKeys
+          : (Object.keys(original) as (keyof T & string)[]);
+
+      return keysToSearch.some((key) =>
+        getSearchableText(original[key]).includes(term),
+      );
+    });
+  }, [data, filterKeys, globalFilter]);
 
   const normalizedPageSizeOptions = Array.from(
     new Set(
@@ -150,34 +215,8 @@ export default function DataTable<T extends RowData>({
   }, [dialogOpen]);
 
   const table = useReactTable({
-    data,
+    data: filteredData,
     columns,
-    state: {
-      globalFilter,
-    },
-    onGlobalFilterChange: (updater) => {
-      const nextValue =
-        typeof updater === "function" ? updater(globalFilter) : updater;
-      handleGlobalFilterChange(String(nextValue ?? ""));
-    },
-    globalFilterFn: (row, _columnId, filterValue) => {
-      const term = String(filterValue ?? "")
-        .toLowerCase()
-        .trim();
-      if (!term) return true;
-
-      const original = row.original as Record<string, unknown>;
-      const keysToSearch =
-        filterKeys && filterKeys.length > 0
-          ? filterKeys
-          : (Object.keys(original) as (keyof T & string)[]);
-
-      return keysToSearch.some((key) => {
-        const value = original[key];
-        if (value === null || value === undefined) return false;
-        return String(value).toLowerCase().includes(term);
-      });
-    },
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
@@ -190,8 +229,7 @@ export default function DataTable<T extends RowData>({
     },
   });
 
-  const filteredRows = table.getFilteredRowModel().rows;
-  const totalCount = filteredRows.length;
+  const totalCount = filteredData.length;
   const visibleRows = table.getRowModel().rows;
   const currentPage = table.getState().pagination.pageIndex + 1;
   const totalPages = Math.max(table.getPageCount(), 1);
@@ -213,9 +251,11 @@ export default function DataTable<T extends RowData>({
                 ref={searchRef}
                 autoFocus
                 placeholder={searchPlaceholder}
+                data-no-uppercase="true"
                 className="h-11 w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-9 text-sm text-slate-800 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
                 value={globalFilter}
                 onChange={(e) => handleGlobalFilterChange(e.target.value)}
+                onInput={handleSearchInput}
               />
               {globalFilter ? (
                 <button

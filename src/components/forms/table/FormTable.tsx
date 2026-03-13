@@ -22,6 +22,27 @@ const EditableDataTable = ({
   const [globalFilter, setGlobalFilter] = useState("");
   const skipPropSyncRef = useRef(false);
 
+  const normalizeText = useCallback((value: unknown) => {
+    return String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }, []);
+
+  const globalFilterFn = useCallback(
+    (row, _columnId, filterValue) => {
+      const term = normalizeText(filterValue);
+      if (!term) return true;
+
+      const original = row.original as Record<string, unknown>;
+      return Object.values(original).some((value) =>
+        normalizeText(value).includes(term)
+      );
+    },
+    [normalizeText]
+  );
+
   const createEmptyRow = useCallback(() => {
     return userColumns.reduce((acc, col) => {
       acc[col.accessorKey] = col.meta?.defaultValue ?? "";
@@ -146,6 +167,7 @@ const EditableDataTable = ({
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn,
     meta: {
       updateData,
       updateRow,

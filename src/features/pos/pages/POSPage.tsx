@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 import {
@@ -49,6 +49,10 @@ const POSPage = () => {
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
+
+  const handleSearchTermInput = (event: FormEvent<HTMLInputElement>) => {
+    setSearchTerm(event.currentTarget.value);
+  };
 
   useEffect(() => {
     if (!products.length) {
@@ -513,8 +517,10 @@ const POSPage = () => {
                 <input
                   ref={searchInputRef}
                   autoFocus
+                  data-no-uppercase="true"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
+                  onInput={handleSearchTermInput}
                   placeholder="Buscar por código o nombre"
                   className="w-full border px-3 py-2 rounded-lg focus:ring focus:ring-slate-200 text-sm"
                 />
