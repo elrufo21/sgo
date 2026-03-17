@@ -461,9 +461,10 @@ export default function MainLayout() {
             <input
               type="text"
               placeholder="Buscar módulo..."
+              data-no-uppercase="true"
               className="h-10 w-full rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/50"
               value={search}
-              onChange={(e) => setSearch(e.target.value.toUpperCase())}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
         )}
@@ -506,9 +507,10 @@ export default function MainLayout() {
           <input
             type="text"
             placeholder="Buscar módulo..."
+            data-no-uppercase="true"
             className="h-10 w-full rounded-md border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/50"
             value={search}
-            onChange={(e) => setSearch(e.target.value.toUpperCase())}
+            onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 

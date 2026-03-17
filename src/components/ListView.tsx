@@ -23,6 +23,8 @@ export interface CrudListConfig<T> {
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
   renderFilters?: React.ReactNode;
+  footerContent?: React.ReactNode;
+  onFilteredDataChange?: (rows: T[]) => void;
   onCreate?: () => void;
   onEdit?: (row: T, id: number) => void;
 }
@@ -38,6 +40,8 @@ interface CrudListProps<T> {
   deleteMessage?: string;
   filterKeys?: (keyof T & string)[];
   renderFilters?: React.ReactNode;
+  footerContent?: React.ReactNode;
+  onFilteredDataChange?: (rows: T[]) => void;
   onCreate?: () => void;
   onEdit?: (row: T, id: number) => void;
 }
@@ -54,6 +58,8 @@ export function CrudList<T>(props: CrudListProps<T>) {
     deleteMessage = "¿Seguro que deseas eliminar este elemento?",
     filterKeys,
     renderFilters,
+    footerContent,
+    onFilteredDataChange,
     onCreate,
     onEdit,
   } = props;
@@ -203,6 +209,8 @@ export function CrudList<T>(props: CrudListProps<T>) {
           ) : undefined
         }
         renderFilters={renderFilters}
+        footerContent={footerContent}
+        onFilteredDataChange={onFilteredDataChange}
         toolbarAction={
           <button
             type="button"

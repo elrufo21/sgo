@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { CrudList } from "@/components/ListView";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
@@ -8,6 +8,7 @@ const ProductList = () => {
   const [estadoFilter, setEstadoFilter] = useState<"ACTIVO" | "INACTIVO">(
     "ACTIVO"
   );
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
 
   const fetchFiltered = useCallback(
     () => fetchProducts(estadoFilter),
@@ -17,6 +18,69 @@ const ProductList = () => {
   useEffect(() => {
     fetchFiltered();
   }, [fetchFiltered]);
+
+  useEffect(() => {
+    setFilteredProducts(products);
+  }, [products]);
+
+  const amountFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    []
+  );
+
+  const formatAmount = (value: number) =>
+    amountFormatter.format(Number.isFinite(value) ? value : 0);
+
+  const isBienProduct = useCallback((product: Product) => {
+    const type = String(product.aplicaINV ?? "")
+      .trim()
+      .toLowerCase();
+    return type === "s" || type === "bien";
+  }, []);
+
+  const getRowProfitValues = useCallback(
+    (product: Product) => {
+      if (!isBienProduct(product)) {
+        return { inversion: 0, ventaNeta: 0, ganancia: 0 };
+      }
+
+      const costo = Number(product.preCosto ?? 0);
+      const ventaA = Number(product.preVenta ?? 0);
+      const cantidad = Number(product.cantidad ?? 0);
+
+      if (
+        !Number.isFinite(costo) ||
+        !Number.isFinite(ventaA) ||
+        !Number.isFinite(cantidad)
+      ) {
+        return { inversion: 0, ventaNeta: 0, ganancia: 0 };
+      }
+
+      const inversion = costo * cantidad;
+      const ventaNeta = ventaA * cantidad;
+      const ganancia = ventaNeta - inversion;
+      return { inversion, ventaNeta, ganancia };
+    },
+    [isBienProduct]
+  );
+
+  const profitTotals = useMemo(() => {
+    return filteredProducts
+      .reduce(
+        (acc, product) => {
+          const values = getRowProfitValues(product);
+          acc.inversion += values.inversion;
+          acc.ventaNeta += values.ventaNeta;
+          acc.ganancia += values.ganancia;
+          return acc;
+        },
+        { inversion: 0, ventaNeta: 0, ganancia: 0 }
+      );
+  }, [filteredProducts, getRowProfitValues]);
 
   const productColumns = [
     { key: "codigo", header: "Código" },
@@ -51,6 +115,24 @@ const ProductList = () => {
       render: (row: Product) => `S/ ${Number(row.preCosto).toFixed(2)}`,
       tdClassName: "text-right",
     },
+    {
+      id: "inversion",
+      header: "Inversión",
+      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).inversion)}`,
+      tdClassName: "text-right",
+    },
+    {
+      id: "ventaNeta",
+      header: "V. Neta",
+      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).ventaNeta)}`,
+      tdClassName: "text-right",
+    },
+    {
+      id: "ganancia",
+      header: "Ganancia",
+      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).ganancia)}`,
+      tdClassName: "text-right",
+    },
   ];
   console.log("products", products);
   return (
@@ -63,6 +145,7 @@ const ProductList = () => {
       basePath="/products"
       createLabel="Añadir producto"
       deleteMessage="¿Estás seguro de eliminar este producto?"
+      onFilteredDataChange={setFilteredProducts}
       renderFilters={
         <div className="flex items-center gap-2">
           <select
@@ -75,6 +158,38 @@ const ProductList = () => {
             <option value="ACTIVO">Activos</option>
             <option value="INACTIVO">Inactivos</option>
           </select>
+        </div>
+      }
+      footerContent={
+        <div className="flex justify-end">
+          <div className="grid w-full max-w-3xl grid-cols-1 overflow-hidden rounded-xl border border-slate-200 bg-white sm:grid-cols-3">
+            <div className="border-b border-slate-200 px-4 py-3 text-right sm:border-b-0 sm:border-r">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                INVERSION (BIENES)
+              </p>
+              <p className="text-xl font-semibold text-slate-800">
+                {formatAmount(profitTotals.inversion)}
+              </p>
+            </div>
+
+            <div className="border-b border-slate-200 px-4 py-3 text-right sm:border-b-0 sm:border-r">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                VENTA NETA (A)
+              </p>
+              <p className="text-xl font-semibold text-slate-800">
+                {formatAmount(profitTotals.ventaNeta)}
+              </p>
+            </div>
+
+            <div className="px-4 py-3 text-right">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                GANANCIA
+              </p>
+              <p className="text-xl font-semibold text-slate-900">
+                {formatAmount(profitTotals.ganancia)}
+              </p>
+            </div>
+          </div>
         </div>
       }
     />

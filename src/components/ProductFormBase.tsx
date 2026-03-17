@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
   Save,
   Plus,
@@ -71,10 +71,47 @@ export default function ProductFormBase({
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
 
-  const generateCode = () => {
-    const randomNumber = Math.floor(1000 + Math.random() * 9000);
-    return `PRD-${randomNumber}`;
-  };
+  const generateCode = useCallback(() => {
+    const latestProducts = useProductsStore.getState().products ?? [];
+    const codePattern = /^(PRO|PRD)([-_ ]?)(\d+)$/i;
+
+    const validCodes = latestProducts
+      .filter((product) => {
+        const normalizedStatus = String(product.estado ?? "")
+          .trim()
+          .toLowerCase();
+        return normalizedStatus === "bueno" || normalizedStatus === "activo";
+      })
+      .map((product) => {
+        const rawCode = String(product.codigo ?? "").trim().toUpperCase();
+        const match = rawCode.match(codePattern);
+        if (!match) return null;
+
+        const [, prefix, separator, numericPart] = match;
+        const numericValue = Number.parseInt(numericPart, 10);
+        if (!Number.isFinite(numericValue)) return null;
+
+        return {
+          prefix,
+          separator,
+          numericPartLength: numericPart.length,
+          numericValue,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+
+    if (!validCodes.length) {
+      return "PRO000001";
+    }
+
+    const latestCode = validCodes.reduce((maxItem, currentItem) =>
+      currentItem.numericValue > maxItem.numericValue ? currentItem : maxItem,
+    );
+
+    const nextValue = latestCode.numericValue + 1;
+    const nextLength = Math.max(6, latestCode.numericPartLength);
+    return `${latestCode.prefix}${latestCode.separator}${String(nextValue).padStart(nextLength, "0")}`;
+  }, []);
 
   const defaults = useMemo<ProductFormValues>(
     () => ({
@@ -102,7 +139,7 @@ export default function ProductFormBase({
       imageFile: null,
       imageRemoved: false,
     }),
-    [initialData, mode, fallbackUser],
+    [initialData, mode, fallbackUser, generateCode],
   );
 
   const formMethods = useForm<ProductFormValues>({
@@ -114,8 +151,10 @@ export default function ProductFormBase({
     reset,
     setValue,
     watch,
+    getValues,
     setError,
-    formState: { isSubmitting, errors },
+    clearErrors,
+    formState: { isSubmitting, errors, dirtyFields },
   } = formMethods;
   const openDialog = useDialogStore((s) => s.openDialog);
 
@@ -139,8 +178,35 @@ export default function ProductFormBase({
     }
   }, [products.length, fetchProducts]);
 
+  useEffect(() => {
+    if (mode !== "create") return;
+    if (productsLoading) return;
+    if (codeEditable) return;
+    if (dirtyFields.codigo) return;
+
+    const nextCode = generateCode();
+    const currentCode = String(getValues("codigo") ?? "").trim();
+    if (currentCode === nextCode) return;
+
+    setValue("codigo", nextCode, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [
+    mode,
+    products,
+    productsLoading,
+    codeEditable,
+    dirtyFields.codigo,
+    generateCode,
+    getValues,
+    setValue,
+  ]);
+
   const selectedSubLineaId = watch("idSubLinea");
   const unidadMedidaActual = watch("unidadMedida");
+  const aplicaINV = watch("aplicaINV");
+  const isServiceProduct = aplicaINV === "N";
   const placeholderImage =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>";
   const currentImage = (watch("images")?.[0] ?? "").trim();
@@ -173,6 +239,14 @@ export default function ProductFormBase({
     );
     setValue("categoria", selected?.nombreSublinea ?? "");
   }, [categories, selectedSubLineaId, setValue]);
+
+  useEffect(() => {
+    if (!isServiceProduct) return;
+
+    setValue("valorCritico", 0, { shouldDirty: true, shouldValidate: true });
+    setValue("cantidad", 0, { shouldDirty: true, shouldValidate: true });
+    clearErrors(["valorCritico", "cantidad"]);
+  }, [isServiceProduct, setValue, clearErrors]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
@@ -264,7 +338,6 @@ export default function ProductFormBase({
     });
     stopCamera();
   };
-
   useEffect(() => stopCamera, []);
 
   const resetForm = () => {
@@ -288,6 +361,8 @@ export default function ProductFormBase({
       ...values,
       codigo: trimmedCode,
       aplicaINV: values.aplicaINV ?? "S",
+      valorCritico: values.aplicaINV === "N" ? 0 : values.valorCritico,
+      cantidad: values.aplicaINV === "N" ? 0 : values.cantidad,
       nombre: values.nombre?.toUpperCase() ?? "",
     };
     await Promise.resolve(onSave(payload));
@@ -306,6 +381,7 @@ export default function ProductFormBase({
     resetForm();
     onNew?.();
   };
+
   return (
     <div
       ref={containerRef}
@@ -372,6 +448,30 @@ export default function ProductFormBase({
             <div className="p-6 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2 md:col-span-2">
+                    <div className="flex flex-wrap gap-4">
+                      {["S", "N"].map((v) => (
+                        <label
+                          key={v}
+                          className="flex items-center gap-3 cursor-pointer group"
+                        >
+                          <input
+                            type="radio"
+                            value={v}
+                            {...formMethods.register("aplicaINV", {
+                              required: "El tipo de producto es obligatorio",
+                            })}
+                            checked={watch("aplicaINV") === v}
+                            onChange={() => setValue("aplicaINV", v)}
+                            className="w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">
+                            {v === "S" ? "Bien" : "Servicio"}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                   <div className="flex min-w-0 items-end gap-2">
                     <HookFormAutocomplete<ProductFormValues>
                       name="idSubLinea"
@@ -537,7 +637,7 @@ export default function ProductFormBase({
                     </button>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 mt-3">
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
                         <HookFormInput<ProductFormValues>
@@ -604,42 +704,26 @@ export default function ProductFormBase({
                     className="w-full"
                   />
 
-                  <HookFormInput<ProductFormValues>
-                    name="valorCritico"
-                    label="Stock Minimo (Valor Critico)"
-                    type="number"
-                    rules={{
-                      valueAsNumber: true,
-                      required: "El stock minimo es obligatorio",
-                    }}
-                  />
-
-                  <div className="space-y-2 md:col-span-2">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">
-                      Tipo de Producto
-                    </label>
-                    <div className="flex flex-wrap gap-4">
-                      {["S", "N"].map((v) => (
-                        <label
-                          key={v}
-                          className="flex items-center gap-3 cursor-pointer group"
-                        >
-                          <input
-                            type="radio"
-                            value={v}
-                            {...formMethods.register("aplicaINV", {
-                              required: "El tipo de producto es obligatorio",
-                            })}
-                            checked={watch("aplicaINV") === v}
-                            onChange={() => setValue("aplicaINV", v)}
-                            className="w-5 h-5 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                          />
-                          <span className="text-gray-700 font-medium group-hover:text-blue-600 transition-colors">
-                            {v === "S" ? "Bien" : "Servicio"}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
+                  <div className="mt-2">
+                    {" "}
+                    <HookFormInput<ProductFormValues>
+                      name="valorCritico"
+                      label="Stock Minimo (Valor Critico)"
+                      type="number"
+                      disabled={isServiceProduct}
+                      rules={{
+                        valueAsNumber: true,
+                        validate: (v) => {
+                          if (isServiceProduct) return true;
+                          return (
+                            (v !== undefined &&
+                              v !== null &&
+                              !Number.isNaN(v as number)) ||
+                            "El stock minimo es obligatorio"
+                          );
+                        },
+                      }}
+                    />
                   </div>
 
                   <HookFormInput<ProductFormValues>
@@ -701,9 +785,18 @@ export default function ProductFormBase({
                     name="cantidad"
                     label="Cantidad en Stock"
                     type="number"
+                    disabled={isServiceProduct}
                     rules={{
                       valueAsNumber: true,
-                      required: "La cantidad es obligatoria",
+                      validate: (v) => {
+                        if (isServiceProduct) return true;
+                        return (
+                          (v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v as number)) ||
+                          "La cantidad es obligatoria"
+                        );
+                      },
                     }}
                   />
                   <HookFormSelect<ProductFormValues>

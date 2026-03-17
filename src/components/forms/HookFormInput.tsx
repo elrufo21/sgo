@@ -92,9 +92,9 @@ export function HookFormInput<T extends FieldValues>({
         render={({ field, fieldState }) => {
           const isNumberType = type === "number";
           const displayValue =
-            isNumberType && (field.value === 0 || field.value === "0")
+            field.value === null || field.value === undefined
               ? ""
-              : (field.value ?? "");
+              : field.value;
 
           const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
             field.onChange(event.target.value);
@@ -103,7 +103,11 @@ export function HookFormInput<T extends FieldValues>({
 
           const handleBlur = (event: FocusEvent<HTMLInputElement>) => {
             const currentValue = event.currentTarget.value;
-            if (currentValue !== (field.value ?? "")) {
+            const comparableFieldValue =
+              field.value === null || field.value === undefined
+                ? ""
+                : String(field.value);
+            if (currentValue !== comparableFieldValue) {
               field.onChange(currentValue);
             }
             field.onBlur();

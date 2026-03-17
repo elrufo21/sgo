@@ -57,6 +57,7 @@ interface DataTableProps<T extends RowData> {
   globalFilterValue?: string;
   onGlobalFilterValueChange?: (value: string) => void;
   footerContent?: ReactNode;
+  onFilteredDataChange?: (rows: T[]) => void;
 }
 
 const alignmentClass: Record<"left" | "center" | "right", string> = {
@@ -125,6 +126,7 @@ export default function DataTable<T extends RowData>({
   globalFilterValue,
   onGlobalFilterValueChange,
   footerContent,
+  onFilteredDataChange,
 }: DataTableProps<T>) {
   const [globalFilter, setGlobalFilter] = useState(() =>
     String(globalFilterValue ?? ""),
@@ -169,6 +171,10 @@ export default function DataTable<T extends RowData>({
       );
     });
   }, [data, filterKeys, globalFilter]);
+
+  useEffect(() => {
+    onFilteredDataChange?.(filteredData);
+  }, [filteredData, onFilteredDataChange]);
 
   const normalizedPageSizeOptions = Array.from(
     new Set(
@@ -282,16 +288,7 @@ export default function DataTable<T extends RowData>({
 
         <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-600">
           <span className=""></span>
-          {globalFilter ? (
-            <span>
-              Filtro activo:{" "}
-              <strong className="font-semibold text-slate-700">
-                {globalFilter}
-              </strong>
-            </span>
-          ) : (
-            <></>
-          )}
+          {globalFilter ? <span></span> : <></>}
         </div>
       </div>
 
@@ -537,7 +534,9 @@ export default function DataTable<T extends RowData>({
         </div>
 
         {footerContent ? (
-          <div className="mt-3 border-t border-slate-200 pt-3">{footerContent}</div>
+          <div className="mt-3 border-t border-slate-200 pt-3">
+            {footerContent}
+          </div>
         ) : null}
       </footer>
     </section>

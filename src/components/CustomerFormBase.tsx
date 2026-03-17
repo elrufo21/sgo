@@ -37,7 +37,7 @@ interface ClientFormBaseProps {
 
 const buildDefaults = (
   data?: Partial<Client>,
-  registradoPor?: string | null
+  registradoPor?: string | null,
 ): CustomerFormValues => ({
   nombreRazon: data?.nombreRazon ?? "",
   ruc: data?.ruc ?? "",
@@ -50,8 +50,8 @@ const buildDefaults = (
     data?.registradoPor ?? buildRegistradoPorDefault(registradoPor),
   estado: data?.estado ?? "ACTIVO",
   fecha: data?.fecha ?? null,
-  tipoDocumento: "ruc",
-  numeroDocumento: "",
+  tipoDocumento: data?.dni ? "dni" : "ruc",
+  numeroDocumento: data?.dni ?? data?.ruc ?? "",
 });
 
 export default function CustomerFormBase({
@@ -63,6 +63,7 @@ export default function CustomerFormBase({
   variant = "page",
 }: ClientFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const previousTipoDocumentoRef = useRef<"ruc" | "dni" | null>(null);
   const setDialogData = useDialogStore((s) => s.setData);
   const authUser = useAuthStore((s) => s.user);
   const registradoPorUser = authUser?.displayName ?? authUser?.username ?? null;
@@ -76,9 +77,9 @@ export default function CustomerFormBase({
               ...initialData,
               registradoPor: buildRegistradoPorDefault(registradoPorUser),
             },
-            registradoPorUser
+            registradoPorUser,
           ),
-    [initialData, mode, registradoPorUser]
+    [initialData, mode, registradoPorUser],
   );
 
   const formMethods = useForm<CustomerFormValues>({
@@ -92,8 +93,24 @@ export default function CustomerFormBase({
     setFocus,
     setError,
     clearErrors,
+    watch,
     formState: { isSubmitting },
   } = formMethods;
+
+  const selectedTipoDocumento = watch("tipoDocumento");
+  const documentMaxLength = selectedTipoDocumento === "dni" ? 8 : 11;
+
+  const handleTipoDocumentoChange = (tipo: "ruc" | "dni") => {
+    setValue("tipoDocumento", tipo, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("numeroDocumento", "", {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
+    clearErrors("numeroDocumento");
+  };
 
   useEffect(() => {
     focusFirstInput(containerRef.current);
@@ -102,6 +119,39 @@ export default function CustomerFormBase({
   useEffect(() => {
     reset(defaults);
   }, [defaults, reset]);
+
+  useEffect(() => {
+    const current = String(getValues("numeroDocumento") ?? "")
+      .replace(/\D/g, "")
+      .trim();
+
+    if (current.length > documentMaxLength) {
+      setValue("numeroDocumento", current.slice(0, documentMaxLength), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+
+    clearErrors("numeroDocumento");
+  }, [
+    selectedTipoDocumento,
+    documentMaxLength,
+    getValues,
+    setValue,
+    clearErrors,
+  ]);
+
+  useEffect(() => {
+    if (!selectedTipoDocumento) return;
+    if (previousTipoDocumentoRef.current === null) {
+      previousTipoDocumentoRef.current = selectedTipoDocumento;
+      return;
+    }
+    if (previousTipoDocumentoRef.current !== selectedTipoDocumento) {
+      clearErrors("numeroDocumento");
+    }
+    previousTipoDocumentoRef.current = selectedTipoDocumento;
+  }, [selectedTipoDocumento, clearErrors]);
 
   useEffect(() => {
     if (variant !== "modal") return;
@@ -141,7 +191,8 @@ export default function CustomerFormBase({
   };
 
   const handleConsultarDocumento = async () => {
-    const tipoDocumento = getValues("tipoDocumento");
+    const tipoDocumento: "ruc" | "dni" =
+      selectedTipoDocumento === "dni" ? "dni" : "ruc";
     const numeroDocumento = String(getValues("numeroDocumento") ?? "")
       .replace(/\D/g, "")
       .trim();
@@ -259,12 +310,12 @@ export default function CustomerFormBase({
       data.nombreORazonSocial,
       data.nombre_o_razon_social,
       data.nombre,
-      data.nombreRazon
+      data.nombreRazon,
     );
     const direccion = pickFirst(
       data.direccion,
       data.direccionCompleta,
-      data.domicilioFiscal
+      data.domicilioFiscal,
     );
     const ruc = pickFirst(data.ruc, numeroDocumento);
 
@@ -464,8 +515,9 @@ export default function CustomerFormBase({
                         <input
                           type="radio"
                           value="ruc"
-                          defaultChecked
                           {...formMethods.register("tipoDocumento")}
+                          checked={selectedTipoDocumento === "ruc"}
+                          onChange={() => handleTipoDocumentoChange("ruc")}
                           className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
                         />
                         <span className="text-gray-700 font-medium">RUC</span>
@@ -476,6 +528,8 @@ export default function CustomerFormBase({
                           type="radio"
                           value="dni"
                           {...formMethods.register("tipoDocumento")}
+                          checked={selectedTipoDocumento === "dni"}
+                          onChange={() => handleTipoDocumentoChange("dni")}
                           className="w-5 h-5 text-slate-600 focus:ring-2 focus:ring-slate-500"
                         />
                         <span className="text-gray-700 font-medium">DNI</span>
@@ -487,18 +541,24 @@ export default function CustomerFormBase({
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        maxLength={11}
+                        maxLength={documentMaxLength}
                         onInput={(event) => {
                           const input = event.currentTarget;
-                          input.value = input.value.replace(/\D/g, "").slice(0, 11);
+                          input.value = input.value
+                            .replace(/\D/g, "")
+                            .slice(0, documentMaxLength);
                         }}
                         name="numeroDocumento"
                         label="Numero de documento"
-                        placeholder="Ingrese numero"
+                        placeholder={
+                          selectedTipoDocumento === "dni"
+                            ? "Ingrese DNI (8 digitos)"
+                            : "Ingrese RUC (11 digitos)"
+                        }
                       />
                       <button
                         type="button"
-                        className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                        className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors cursor-pointer"
                         onClick={handleConsultarDocumento}
                       >
                         Consultar
