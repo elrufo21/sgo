@@ -197,7 +197,7 @@ export default function UserFormBase({
           <HookForm
             methods={formMethods}
             onSubmit={onSubmit}
-            preventSubmitOnEnter={isModal}
+            preventSubmitOnEnter={false}
           >
             {!isModal && (
               <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
@@ -291,6 +291,7 @@ export default function UserFormBase({
                   name="UsuarioClave"
                   label="Contrasena"
                   type={showPass ? "text" : "password"}
+                  autoComplete="one-time-code"
                   placeholder="Ingrese contrasena"
                   rules={{
                     required: "La contrasena es obligatoria",
@@ -314,6 +315,7 @@ export default function UserFormBase({
                   name="ConfirmClave"
                   label="Confirmar contrasena"
                   type={showPassConfirm ? "text" : "password"}
+                  autoComplete="one-time-code"
                   placeholder="Repita la contrasena"
                   rules={{
                     required: "La confirmacion de contrasena es obligatoria",

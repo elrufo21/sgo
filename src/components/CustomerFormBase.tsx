@@ -100,6 +100,25 @@ export default function CustomerFormBase({
   const selectedTipoDocumento = watch("tipoDocumento");
   const documentMaxLength = selectedTipoDocumento === "dni" ? 8 : 11;
 
+  const focusNombreRazon = () => {
+    window.requestAnimationFrame(() => {
+      setFocus("nombreRazon");
+
+      const nombreInput =
+        containerRef.current?.querySelector<HTMLInputElement>(
+          '[data-focus-first="true"]',
+        );
+
+      if (!nombreInput || nombreInput.disabled) {
+        focusFirstInput(containerRef.current);
+        return;
+      }
+
+      nombreInput.focus({ preventScroll: true });
+      nombreInput.select?.();
+    });
+  };
+
   const handleTipoDocumentoChange = (tipo: "ruc" | "dni") => {
     setValue("tipoDocumento", tipo, {
       shouldDirty: true,
@@ -110,6 +129,9 @@ export default function CustomerFormBase({
       shouldValidate: false,
     });
     clearErrors("numeroDocumento");
+    window.requestAnimationFrame(() => {
+      setFocus("numeroDocumento");
+    });
   };
 
   useEffect(() => {
@@ -181,7 +203,7 @@ export default function CustomerFormBase({
     const saved = await onSave(payload);
     if (saved === false) return;
     setDialogData(payload);
-    focusFirstInput(containerRef.current);
+    focusNombreRazon();
   };
 
   const handleNew = () => {
@@ -301,6 +323,7 @@ export default function CustomerFormBase({
       setValue("ruc", "", { shouldDirty: true });
       setValue("direccionFiscal", "-", { shouldDirty: true });
       setValue("direccionDespacho", "-", { shouldDirty: true });
+      setValue("numeroDocumento", "", { shouldDirty: true });
       setFocus("nombreRazon");
       return;
     }
@@ -333,6 +356,7 @@ export default function CustomerFormBase({
       setValue("direccionFiscal", direccion, { shouldDirty: true });
       setValue("direccionDespacho", direccion, { shouldDirty: true });
     }
+    setValue("numeroDocumento", "", { shouldDirty: true });
     setFocus("nombreRazon");
   };
 

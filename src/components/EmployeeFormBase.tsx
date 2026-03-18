@@ -305,6 +305,7 @@ export default function EmployeeFormBase({
     }
 
     if (hasValidDniData) {
+      setConsultaDni("");
       window.requestAnimationFrame(() => {
         setFocus("personalTelefono");
       });
@@ -384,7 +385,9 @@ export default function EmployeeFormBase({
                   }}
                   onChange={() => {
                     window.requestAnimationFrame(() => {
-                      consultaDniInputRef.current?.focus({ preventScroll: true });
+                      consultaDniInputRef.current?.focus({
+                        preventScroll: true,
+                      });
                       consultaDniInputRef.current?.select?.();
                     });
                   }}
@@ -487,6 +490,7 @@ export default function EmployeeFormBase({
                   label="Correo"
                   type="text"
                   autoComplete="off"
+                  data-no-uppercase="true"
                   onKeyDown={(event) => {
                     if (event.key !== "Enter") return;
                     event.preventDefault();

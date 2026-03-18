@@ -66,20 +66,19 @@ export function HookFormInput<T extends FieldValues>({
     explicitAutoComplete === "username" ||
     explicitAutoComplete === "current-password";
   const maskedNameRef = useRef(
-    `sgo_${Math.random().toString(36).slice(2, 10)}_${String(name).replace(
-      /[^\w]/g,
-      "_",
-    )}`,
+    `sgo_${Math.random().toString(36).slice(2, 14)}`,
   );
   const resolvedDomName = isAuthAutoCompleteField
     ? String(name)
     : maskedNameRef.current;
+  const shouldMaskPassword = normalizedType === "password";
+  const resolvedInputType = shouldMaskPassword ? "text" : type;
   const resolvedAutoComplete =
     explicitAutoComplete ??
     (normalizedType === "password"
-      ? "new-password"
+      ? "one-time-code"
       : isTextLike
-        ? "new-password"
+        ? "one-time-code"
         : undefined);
 
   return (
@@ -181,7 +180,7 @@ export function HookFormInput<T extends FieldValues>({
               InputLabelProps={
                 requiresShrinkLabel ? { shrink: true } : undefined
               }
-              type={type}
+              type={resolvedInputType}
               value={displayValue}
               onChange={handleChange}
               onBlur={handleBlur}
@@ -230,6 +229,9 @@ export function HookFormInput<T extends FieldValues>({
                 "& .MuiOutlinedInput-input": {
                   fontSize: "0.875rem",
                   py: 1,
+                  ...(shouldMaskPassword
+                    ? { WebkitTextSecurity: "disc" }
+                    : {}),
                 },
                 ...(isNumberType
                   ? {
@@ -248,6 +250,9 @@ export function HookFormInput<T extends FieldValues>({
                 ...inputProps,
                 className,
                 "data-auto-next": "true",
+                ...(normalizedType === "email"
+                  ? { "data-no-uppercase": "true" }
+                  : {}),
                 name: resolvedDomName,
                 autoComplete: resolvedAutoComplete,
                 ...(isTextLike

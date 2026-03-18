@@ -16,6 +16,7 @@ const TEXT_LIKE_INPUT_TYPES = new Set([
 ]);
 
 const USERNAME_HINTS = ["username", "usuario", "user", "login", "alias"];
+const EMAIL_HINTS = ["email", "correo", "mail"];
 const PASSWORD_HINTS = [
   "password",
   "pass",
@@ -78,6 +79,7 @@ const shouldSkipUppercase = (field: FormFieldElement) => {
 
   if (field instanceof HTMLInputElement) {
     const inputType = field.type.toLowerCase();
+    if (inputType === "email") return true;
     if (inputType === "password") return true;
   }
 
@@ -86,6 +88,7 @@ const shouldSkipUppercase = (field: FormFieldElement) => {
 
   return descriptors.some(
     (descriptor) =>
+      includesAnyHint(descriptor, EMAIL_HINTS) ||
       includesAnyHint(descriptor, USERNAME_HINTS) ||
       includesAnyHint(descriptor, PASSWORD_HINTS),
   );
@@ -140,8 +143,10 @@ const hardenField = (
   applyUppercaseBehavior(field);
 
   if (field instanceof HTMLInputElement) {
-    // Chrome/Safari ignore "off" in several cases; "new-password" is more reliable.
-    setAttr(field, "autocomplete", "new-password");
+    const inputType = field.type.toLowerCase();
+    const autoCompleteValue =
+      inputType === "password" ? "new-password" : "one-time-code";
+    setAttr(field, "autocomplete", autoCompleteValue);
   } else {
     setAttr(field, "autocomplete", "off");
   }
@@ -192,6 +197,38 @@ const hardenNodeTree = (node: ParentNode | Element) => {
   node.querySelectorAll(FIELD_SELECTOR).forEach((field) => {
     hardenField(field as FormFieldElement);
   });
+};
+
+const focusAutoNextAfterRadio = (radio: HTMLInputElement) => {
+  const scope: ParentNode | Document =
+    radio.closest("form") ?? radio.ownerDocument ?? document;
+  const candidates = Array.from(
+    scope.querySelectorAll<HTMLElement>('[data-auto-next="true"]'),
+  ).filter((candidate) => {
+    if (candidate.hasAttribute("disabled")) return false;
+    if (candidate.getAttribute("aria-disabled") === "true") return false;
+    return true;
+  });
+
+  if (!candidates.length) return;
+
+  const nextCandidate = candidates.find(
+    (candidate) =>
+      Boolean(radio.compareDocumentPosition(candidate) & Node.DOCUMENT_POSITION_FOLLOWING),
+  );
+  const target = nextCandidate ?? candidates[0];
+  if (!target) return;
+
+  target.focus({ preventScroll: true });
+
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+    const length = target.value?.length ?? 0;
+    try {
+      target.setSelectionRange(length, length);
+    } catch {
+      // ignore selection errors on unsupported input types
+    }
+  }
 };
 
 export function InputHistoryGuard() {
@@ -252,8 +289,19 @@ export function InputHistoryGuard() {
       enforceUppercaseValue(target);
     };
 
+    const onChange = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.type.toLowerCase() !== "radio") return;
+
+      window.requestAnimationFrame(() => {
+        focusAutoNextAfterRadio(target);
+      });
+    };
+
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("focusout", onFocusOut, true);
+    document.addEventListener("change", onChange, true);
     // Use window capture so uppercase mutation runs before React delegated onChange handlers.
     window.addEventListener("input", onInput, true);
 
@@ -278,6 +326,7 @@ export function InputHistoryGuard() {
       observer.disconnect();
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("focusout", onFocusOut, true);
+      document.removeEventListener("change", onChange, true);
       window.removeEventListener("input", onInput, true);
     };
   }, []);

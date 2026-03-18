@@ -279,7 +279,7 @@ const OrderNotesList = () => {
         toolbarLeading={
           <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
         }
-        toolbarAction={
+        renderFilters={
           <LocalizationProvider
             dateAdapter={AdapterDayjs}
             adapterLocale="es"
@@ -287,7 +287,7 @@ const OrderNotesList = () => {
               esES.components.MuiLocalizationProvider.defaultProps.localeText
             }
           >
-            <div className="flex flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+            <div className="flex w-full flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 xl:w-auto">
               <label className="flex min-w-[160px] flex-col gap-1 text-xs text-slate-600">
                 Fecha Inicio
                 <DatePicker

@@ -245,6 +245,7 @@ export default function ProviderForm({
     if (direccion) {
       setValue("direccion", direccion, { shouldDirty: true });
     }
+    setValue("numeroDocumentoConsulta", "", { shouldDirty: true });
     setFocus("razon");
   };
 

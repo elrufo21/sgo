@@ -114,6 +114,10 @@ const PaymentPage = () => {
   );
   const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
+  const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
+  const prevApplyDiscountRef = useRef(false);
+  const hasMountedApplyDiscountRef = useRef(false);
+  const hasInvalidCustomerSelectionRef = useRef(false);
 
   const docTypeConfig: Record<
     "03" | "01" | "101",
@@ -124,9 +128,27 @@ const PaymentPage = () => {
     "101": { docu: "PROFORMA V", serie: "0001", label: "Proforma V" },
   };
 
-  const { companyId, usernameFromSession } = useMemo(() => {
+  const {
+    companyId,
+    usernameFromSession,
+    discountMaxFromSession,
+    companyNameFromSession,
+    companyCommercialFromSession,
+    companyRucFromSession,
+    companyUbigeoNameFromSession,
+    companyAddressSunatFromSession,
+  } = useMemo(() => {
     if (typeof window === "undefined") {
-      return { companyId: 1, usernameFromSession: "USUARIO" };
+      return {
+        companyId: 1,
+        usernameFromSession: "USUARIO",
+        discountMaxFromSession: 0,
+        companyNameFromSession: "",
+        companyCommercialFromSession: "",
+        companyRucFromSession: "",
+        companyUbigeoNameFromSession: "",
+        companyAddressSunatFromSession: "",
+      };
     }
 
     let parsedSession: any = null;
@@ -149,10 +171,44 @@ const PaymentPage = () => {
       safeTrim(parsedSession?.user?.displayName) ||
       safeTrim(parsedSession?.user?.username) ||
       "";
+    const discountMaxRaw =
+      parsedSession?.user?.maxDiscount ?? parsedSession?.descuentoMax ?? 0;
+    const discountMaxNumeric = Number(discountMaxRaw);
+    const safeDiscountMax =
+      Number.isFinite(discountMaxNumeric) && discountMaxNumeric > 0
+        ? discountMaxNumeric
+        : 0;
+    const companyName = safeTrim(
+      parsedSession?.user?.companyName ?? parsedSession?.razonSocial ?? "",
+    );
+    const companyCommercial = safeTrim(
+      parsedSession?.user?.companyCommercialName ??
+        parsedSession?.companiaComercial ??
+        "",
+    );
+    const companyRuc = safeTrim(
+      parsedSession?.user?.companyRuc ?? parsedSession?.companiaRuc ?? "",
+    );
+    const companyUbigeoName = safeTrim(
+      parsedSession?.user?.companyUbigeoName ??
+        parsedSession?.companiaNomUbg ??
+        "",
+    );
+    const companySunatAddress = safeTrim(
+      parsedSession?.user?.companySunatAddress ??
+        parsedSession?.companiaDirecSunat ??
+        "",
+    );
 
     return {
       companyId: safeCompanyId,
       usernameFromSession: username || "USUARIO",
+      discountMaxFromSession: safeDiscountMax,
+      companyNameFromSession: companyName,
+      companyCommercialFromSession: companyCommercial,
+      companyRucFromSession: companyRuc,
+      companyUbigeoNameFromSession: companyUbigeoName,
+      companyAddressSunatFromSession: companySunatAddress,
     };
   }, []);
 
@@ -279,22 +335,77 @@ const PaymentPage = () => {
     adjustLocalItems((prev) => prev.filter((it) => it.productId !== productId));
   };
 
+  const applyPriceToItem = (item: PosCartItem, price: number) => {
+    if (hasLiveItems) {
+      updatePrice(item.productId, price);
+      return;
+    }
+    adjustLocalItems((prev) =>
+      prev.map((it) =>
+        it.productId === item.productId ? { ...it, precio: price } : it,
+      ),
+    );
+  };
+
   const handlePriceChange = (item: PosCartItem, value: string) => {
     if (!canEditItems) return;
-    const parsed = Number(value);
-    if (Number.isNaN(parsed)) return;
-    const nextPrice = Math.max(0, parsed);
+    if (!/^\d*\.?\d*$/.test(value)) return;
 
-    if (hasLiveItems) {
-      updatePrice(item.productId, nextPrice);
+    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+    setPriceDrafts((prev) => ({ ...prev, [item.productId]: value }));
+
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed) && parsed >= minPrice) {
+      applyPriceToItem(item, parsed);
+    }
+  };
+
+  const handlePriceBlur = (
+    item: PosCartItem,
+    value: string,
+    input?: HTMLInputElement | null,
+  ) => {
+    if (!canEditItems) return;
+    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+    const normalizedMinPrice = Number.isInteger(minPrice)
+      ? String(minPrice)
+      : minPrice.toFixed(2);
+
+    if (value.trim() === "") {
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: normalizedMinPrice,
+      }));
+      applyPriceToItem(item, minPrice);
       return;
     }
 
-    adjustLocalItems((prev) =>
-      prev.map((it) =>
-        it.productId === item.productId ? { ...it, precio: nextPrice } : it,
-      ),
-    );
+    const parsed = Number(value);
+    if (Number.isNaN(parsed)) {
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: String(item.precio ?? normalizedMinPrice),
+      }));
+      return;
+    }
+
+    if (parsed < minPrice) {
+      toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: normalizedMinPrice,
+      }));
+      applyPriceToItem(item, minPrice);
+      window.requestAnimationFrame(() => {
+        if (!input || input.disabled) return;
+        input.focus();
+        input.select?.();
+      });
+      return;
+    }
+
+    setPriceDrafts((prev) => ({ ...prev, [item.productId]: String(parsed) }));
+    applyPriceToItem(item, parsed);
   };
 
   const formMethods = useForm({
@@ -319,11 +430,11 @@ const PaymentPage = () => {
   const {
     watch,
     setValue,
+    setFocus,
     getValues,
     register,
     control,
-    handleSubmit,
-    formState: { isSubmitting, dirtyFields, touchedFields },
+    formState: { isSubmitting, dirtyFields },
   } = formMethods;
 
   const docTypeCode = watch("docTypeCode");
@@ -365,8 +476,17 @@ const PaymentPage = () => {
   const isProforma = docTypeCode === "101";
   const formLocked = isConfirmed || isReadOnlyNoteView;
   const totalAmount = totalsToRender?.total ?? 0;
+  const maxDiscount = Math.max(0, Number(discountMaxFromSession) || 0);
+  const clampDiscount = useCallback(
+    (value: unknown) => {
+      const numeric = Number(value ?? 0);
+      if (!Number.isFinite(numeric)) return 0;
+      return Math.min(maxDiscount, Math.max(0, numeric));
+    },
+    [maxDiscount],
+  );
   const descuento = applyDiscount
-    ? Math.max(0, Number(discountInput ?? 0) || 0)
+    ? clampDiscount(discountInput)
     : 0;
   const discountedTotal = Math.max(0, totalAmount - descuento);
   const gravada = isProforma ? discountedTotal : discountedTotal / 1.18;
@@ -385,6 +505,47 @@ const PaymentPage = () => {
     [usernameFromSession],
   );
 
+  useEffect(() => {
+    if (!hasMountedApplyDiscountRef.current) {
+      hasMountedApplyDiscountRef.current = true;
+      prevApplyDiscountRef.current = applyDiscount;
+      return;
+    }
+
+    const wasChecked = prevApplyDiscountRef.current;
+    if (applyDiscount && !wasChecked && !formLocked) {
+      let attempts = 0;
+      const maxAttempts = 8;
+
+      const focusDiscountInput = () => {
+        setFocus("discount");
+        const input = document.querySelector<HTMLInputElement>(
+          '[data-discount-input="true"]',
+        );
+        if (!input || input.disabled) {
+          if (attempts >= maxAttempts) return;
+          attempts += 1;
+          window.setTimeout(focusDiscountInput, 30);
+          return;
+        }
+
+        input.focus();
+
+        if (document.activeElement === input) {
+          input.select?.();
+          return;
+        }
+
+        if (attempts >= maxAttempts) return;
+        attempts += 1;
+        window.setTimeout(focusDiscountInput, 30);
+      };
+
+      window.requestAnimationFrame(focusDiscountInput);
+    }
+    prevApplyDiscountRef.current = applyDiscount;
+  }, [applyDiscount, formLocked, setFocus]);
+
   const mapApiDetalleToItem = (detalle: any): PosCartItem => {
     const detalleId = Number(
       detalle?.detalleId ??
@@ -401,6 +562,13 @@ const PaymentPage = () => {
         detalle?.detalleCosto ??
         detalle?.precio ??
         detalle?.Precio ??
+        0,
+    );
+    const precioMinimo = Number(
+      detalle?.precioMinimo ??
+        detalle?.preVentaB ??
+        detalle?.PrecioMinimo ??
+        detalle?.PrecioB ??
         0,
     );
     const productId = Number(
@@ -429,7 +597,13 @@ const PaymentPage = () => {
         ) || "Producto",
       unidadMedida:
         safeTrim(detalle?.detalleUm ?? detalle?.unidadMedida ?? "") || "UND",
-      precio: Number.isFinite(precio) ? precio : 0,
+      precio: Math.max(
+        Number.isFinite(precio) ? precio : 0,
+        Number.isFinite(precioMinimo) ? Math.max(precioMinimo, 0) : 0,
+      ),
+      precioMinimo: Number.isFinite(precioMinimo)
+        ? Math.max(precioMinimo, 0)
+        : 0,
       cantidad: Number.isFinite(cantidad) ? cantidad : 0,
       stock: Number(detalle?.stock ?? detalle?.cantidadSaldo ?? 0) || undefined,
       detalleId:
@@ -554,12 +728,6 @@ const PaymentPage = () => {
       setServerItems(mappedItems);
       setServerItemsInStore(mappedItems);
       setEditingNotaInStore(notaIdToLoad);
-      console.log("Nota sincronizada", {
-        notaId: notaIdToLoad,
-        notaResponse,
-        detallesResponse,
-        mappedItems,
-      });
 
       const notaRaw =
         (notaResponse as any)?.nota ?? (notaResponse as any) ?? null;
@@ -685,6 +853,7 @@ const PaymentPage = () => {
   }, [getValues, paymentMethod, setValue]);
 
   const lastDocTypeRef = useRef<string | null>(null);
+  const defaultCustomerAppliedRef = useRef(false);
 
   useEffect(() => {
     if (!clients.length) {
@@ -695,10 +864,9 @@ const PaymentPage = () => {
   // En nuevo registro, preselecciona cliente ID 1 (sin afectar edici�n)
   useEffect(() => {
     if (notaId || isEditingMode || hasLoadedNotaMeta) return;
+    if (defaultCustomerAppliedRef.current) return;
     const hasClientAlready =
-      (Number(clienteId) ?? 0) > 0 ||
-      safeTrim(customerName) ||
-      safeTrim(customerId);
+      Number(clienteId) > 0 || safeTrim(customerName) || safeTrim(customerId);
     if (hasClientAlready) return;
 
     const defaultClient =
@@ -722,6 +890,8 @@ const PaymentPage = () => {
     if (defaultDoc) {
       setValue("customerId", defaultDoc, { shouldDirty: false });
     }
+
+    defaultCustomerAppliedRef.current = true;
   }, [
     notaId,
     isEditingMode,
@@ -769,9 +939,21 @@ const PaymentPage = () => {
 
   useEffect(() => {
     if (!applyDiscount) {
-      setValue("discount", 0, { shouldDirty: true });
+      if (Number(discountInput ?? 0) !== 0) {
+        setValue("discount", 0, { shouldDirty: true, shouldValidate: true });
+      }
+      return;
     }
-  }, [applyDiscount, setValue]);
+
+    const currentValue = Number(discountInput ?? 0);
+    const clampedValue = clampDiscount(discountInput);
+    if (!Number.isFinite(currentValue) || currentValue !== clampedValue) {
+      setValue("discount", clampedValue, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [applyDiscount, discountInput, clampDiscount, setValue]);
 
   useEffect(() => {
     // Solo resetea en flujo nuevo; en edici�n o con cliente cargado no limpiar
@@ -786,16 +968,15 @@ const PaymentPage = () => {
     // Solo limpiar al cambiar a Factura (RUC) para forzar nuevo documento
     if (docTypeCode !== "01" || previousDocType === docTypeCode) return;
     if (notaId || isEditingMode || hasLoadedNotaMeta) return;
-    const hasCustomerData = safeTrim(customerId) || safeTrim(customerName);
-    if (!hasCustomerData) return;
+    if (Number(clienteId) > 0) return;
+    if (!safeTrim(customerId)) return;
 
     setValue("customerId", "", { shouldDirty: false });
-    setValue("customerName", "", { shouldDirty: false });
   }, [
     docTypeCode,
     dirtyFields?.docTypeCode,
+    clienteId,
     customerId,
-    customerName,
     notaId,
     isEditingMode,
     hasLoadedNotaMeta,
@@ -810,18 +991,28 @@ const PaymentPage = () => {
   }, [notaId, items.length]);
 
   const setClienteIdFromOption = useCallback(
-    (opt: any) => {
+    (opt: any, options?: { shouldDirty?: boolean }) => {
+      const shouldDirty = options?.shouldDirty ?? true;
       const candidate = opt?.id ?? opt?.clienteId ?? opt?.clientId;
       const numeric = Number(candidate);
       if (Number.isFinite(numeric) && numeric > 0) {
-        setValue("clienteId", numeric, { shouldDirty: true });
+        setValue("clienteId", numeric, { shouldDirty });
         return;
       }
 
-      setValue("clienteId", null, { shouldDirty: true });
+      setValue("clienteId", null, { shouldDirty });
     },
     [setValue],
   );
+
+  // Si el usuario borra manualmente el DNI/RUC, se mantiene el nombre
+  // y solo se desvincula clienteId para no rehidratar el documento anterior.
+  useEffect(() => {
+    if (!dirtyFields?.customerId) return;
+    if (safeTrim(customerId)) return;
+    if (Number(clienteId) <= 0) return;
+    setClienteIdFromOption(null, { shouldDirty: true });
+  }, [customerId, clienteId, dirtyFields?.customerId, setClienteIdFromOption]);
 
   const handleOpenCreateClientModal = useCallback(() => {
     if (formLocked) return;
@@ -989,124 +1180,92 @@ const PaymentPage = () => {
     return typeof customerId === "string" ? customerId : "";
   }, [customerId, docTypeCode, dniOptions, rucOptions]);
 
-  // Sincroniza: cambio en customerId (DNI/RUC) actualiza nombre y clienteId
-  useEffect(() => {
-    if (dirtyFields?.customerName || touchedFields?.customerName) return;
-    const docOptions = docTypeCode === "01" ? rucOptions : dniOptions;
-    const normalizedDoc = safeTrim(customerId).toLowerCase();
-    if (!normalizedDoc) return;
+  const ensureExistingCustomerByName = useCallback(
+    (rawName?: string) => {
+      if (formLocked) return true;
 
-    const match = docOptions.find((opt) => {
-      const valueStr = safeTrim(String(opt.value)).toLowerCase();
-      const labelStr = safeTrim(opt.label ?? "").toLowerCase();
-      const docStr = safeTrim(
-        (opt as any)?.dni ?? (opt as any)?.ruc ?? "",
-      ).toLowerCase();
-      return (
-        valueStr === normalizedDoc ||
-        labelStr === normalizedDoc ||
-        docStr === normalizedDoc
+      const currentNameFromForm = safeTrim(getValues("customerName"));
+      const typedName = safeTrim(rawName ?? currentNameFromForm);
+      if (!typedName) {
+        if (!hasInvalidCustomerSelectionRef.current) return true;
+        window.requestAnimationFrame(() => {
+          setFocus("customerName");
+        });
+        return false;
+      }
+
+      const typedNameNormalized = typedName.toLowerCase();
+      const matchedOption = clientOptions.find(
+        (opt) => safeTrim(opt.label).toLowerCase() === typedNameNormalized,
       );
-    });
 
-    if (!match) return;
+      if (!matchedOption) {
+        hasInvalidCustomerSelectionRef.current = true;
+        toast.error(
+          "Intentaste seleccionar un cliente que no existe, por favor agrega el cliente y seleccionalo.",
+        );
+        setValue("customerName", "", { shouldDirty: true });
+        setValue("customerId", "", { shouldDirty: true });
+        setClienteIdFromOption(null, { shouldDirty: true });
+        window.requestAnimationFrame(() => {
+          setFocus("customerName");
+        });
+        return false;
+      }
 
-    const nameFromMatch = safeTrim(
-      (match as any).nombreRazon ?? match.label ?? "",
-    );
-    if (nameFromMatch && safeTrim(customerName) !== nameFromMatch) {
-      setValue("customerName", nameFromMatch, { shouldDirty: false });
-    }
+      hasInvalidCustomerSelectionRef.current = false;
+      const selectedName = safeTrim(matchedOption.label ?? "");
+      const docValue =
+        docTypeCode === "01"
+          ? safeTrim((matchedOption as any).ruc ?? "")
+          : safeTrim((matchedOption as any).dni ?? "");
 
-    const numericId = Number((match as any).id);
-    if (
-      Number.isFinite(numericId) &&
-      numericId > 0 &&
-      Number(clienteId) !== numericId
-    ) {
-      setValue("clienteId", numericId, { shouldDirty: false });
-    }
-  }, [
-    customerId,
-    customerName,
-    clienteId,
-    docTypeCode,
-    dniOptions,
-    rucOptions,
-    dirtyFields?.customerName,
-    touchedFields?.customerName,
-    setValue,
-  ]);
+      setValue("customerName", selectedName, { shouldDirty: true });
+      setValue("customerId", docValue || "", { shouldDirty: true });
+      setClienteIdFromOption(matchedOption, { shouldDirty: true });
+      return true;
+    },
+    [
+      formLocked,
+      clientOptions,
+      docTypeCode,
+      getValues,
+      setValue,
+      setFocus,
+      setClienteIdFromOption,
+    ],
+  );
 
-  // Sincroniza: cambio en customerName actualiza documento y clienteId
+  // Sincronizacion consistente: si hay clienteId seleccionado, nombre/documento
+  // se alinean a ese cliente (especialmente al cambiar tipo de documento).
   useEffect(() => {
     const clientIdNumeric = Number(clienteId);
-    if (Number.isFinite(clientIdNumeric) && clientIdNumeric > 0) {
-      const clientById = uniqueClients.find(
-        (client) => Number(client.id) === clientIdNumeric,
-      );
+    if (!Number.isFinite(clientIdNumeric) || clientIdNumeric <= 0) return;
 
-      if (clientById) {
-        const nameFromId = safeTrim(clientById.nombreRazon ?? "");
-        const currentName = safeTrim(customerName);
-        const isMatchingName =
-          !currentName ||
-          currentName.toLowerCase() === nameFromId.toLowerCase();
-
-        if (!isMatchingName) {
-          setValue("clienteId", null, { shouldDirty: false });
-        } else {
-          const docFromId =
-            docTypeCode === "01"
-              ? safeTrim((clientById as any).ruc ?? "")
-              : safeTrim((clientById as any).dni ?? "");
-
-          if (nameFromId && safeTrim(customerName) !== nameFromId) {
-            setValue("customerName", nameFromId, { shouldDirty: false });
-          }
-
-          if (safeTrim(customerId) !== docFromId) {
-            setValue("customerId", docFromId, { shouldDirty: false });
-          }
-          return;
-        }
-      }
-    }
-
-    const normalizedName = safeTrim(customerName).toLowerCase();
-    if (!normalizedName) return;
-
-    const match = clientOptions.find(
-      (opt) => safeTrim(opt.label).toLowerCase() === normalizedName,
+    const clientById = uniqueClients.find(
+      (client) => Number(client.id) === clientIdNumeric,
     );
-    if (!match) return;
+    if (!clientById) return;
 
-    const docFromMatch =
+    const nameFromId = safeTrim(clientById.nombreRazon ?? "");
+    const docFromId =
       docTypeCode === "01"
-        ? safeTrim((match as any).ruc ?? "")
-        : safeTrim((match as any).dni ?? "");
+        ? safeTrim((clientById as any).ruc ?? "")
+        : safeTrim((clientById as any).dni ?? "");
 
-    if (safeTrim(customerId) !== docFromMatch) {
-      setValue("customerId", docFromMatch, { shouldDirty: false });
+    if (nameFromId && safeTrim(customerName) !== nameFromId) {
+      setValue("customerName", nameFromId, { shouldDirty: false });
     }
 
-    const numericId = Number((match as any).id);
-    if (
-      Number.isFinite(numericId) &&
-      numericId > 0 &&
-      Number(clienteId) !== numericId
-    ) {
-      setValue("clienteId", numericId, { shouldDirty: false });
-    } else if (!Number.isFinite(numericId) || numericId <= 0) {
-      setValue("clienteId", null, { shouldDirty: false });
+    if (safeTrim(customerId) !== docFromId) {
+      setValue("customerId", docFromId, { shouldDirty: false });
     }
   }, [
-    customerName,
-    customerId,
     clienteId,
     docTypeCode,
-    clientOptions,
     uniqueClients,
+    customerName,
+    customerId,
     setValue,
   ]);
 
@@ -1150,11 +1309,38 @@ const PaymentPage = () => {
   const validateRucLength = useCallback(
     (value: any) => {
       const doc = resolveDocumentValue(value, "ruc");
-      if (!doc) return true;
+      if (!doc) return "El RUC es obligatorio para Factura";
       return /^\d{11}$/.test(doc) || "El RUC debe tener 11 digitos";
     },
     [resolveDocumentValue],
   );
+
+  const ensureFacturaCustomerAndRuc = useCallback(() => {
+    if (docTypeCode !== "01") return true;
+
+    const selectedClientId = Number(getValues("clienteId") ?? 0);
+    const selectedName = safeTrim(getValues("customerName"));
+    const resolvedRuc = resolveDocumentValue(getValues("customerId"), "ruc");
+    const ruc = safeTrim(resolvedRuc);
+
+    if (!selectedName || selectedClientId <= 0) {
+      toast.error("Para Factura debes seleccionar un cliente.");
+      window.requestAnimationFrame(() => {
+        setFocus("customerName");
+      });
+      return false;
+    }
+
+    if (!/^\d{11}$/.test(ruc)) {
+      toast.error("Para Factura debes ingresar un RUC valido de 11 digitos.");
+      window.requestAnimationFrame(() => {
+        setFocus("customerId");
+      });
+      return false;
+    }
+
+    return true;
+  }, [docTypeCode, getValues, resolveDocumentValue, setFocus]);
   const documentFilterOptions = useCallback(
     (
       options: Array<(typeof dniOptions)[number] | (typeof rucOptions)[number]>,
@@ -1212,17 +1398,39 @@ const PaymentPage = () => {
   const ticketPreviewProps = useMemo(() => {
     const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
     const safeTotals = itemsToRender.length ? totalsToRender : paidTotals;
+    const selectedClientById = uniqueClients.find(
+      (client) => Number(client.id) === Number(clienteId),
+    );
+    const selectedClientByName = uniqueClients.find(
+      (client) =>
+        safeTrim(client.nombreRazon).toLowerCase() ===
+        safeTrim(customerName).toLowerCase(),
+    );
+    const selectedClient = selectedClientById ?? selectedClientByName ?? null;
     return {
       clientName: safeTrim(customerName) || "Ultimo cliente",
       clientId: safeTrim(selectedDocument),
+      clientAddress:
+        safeTrim((selectedClient as any)?.direccionFiscal ?? "") ||
+        safeTrim((selectedClient as any)?.direccionDespacho ?? "") ||
+        "-",
       docType: docTypeForTicket,
       paymentMethod,
       items: safeItems,
       totals: safeTotals,
       documentNumber,
+      companyName:
+        companyCommercialFromSession ||
+        companyNameFromSession ||
+        "CONSORCIO FERRETERO ROSITA E.I.R.L.",
+      companyRuc: companyRucFromSession || "20601070155",
+      companyAddress: companyAddressSunatFromSession || "Calle 2 Mz B Lote 1",
+      companyDistrict: companyUbigeoNameFromSession || "LIMA",
     };
   }, [
-    customerId,
+    selectedDocument,
+    uniqueClients,
+    clienteId,
     customerName,
     docTypeForTicket,
     documentNumber,
@@ -1231,6 +1439,11 @@ const PaymentPage = () => {
     totalsToRender,
     purchasedItems,
     paidTotals,
+    companyCommercialFromSession,
+    companyNameFromSession,
+    companyRucFromSession,
+    companyAddressSunatFromSession,
+    companyUbigeoNameFromSession,
   ]);
   const previewKey = useMemo(
     () =>
@@ -1346,6 +1559,8 @@ const PaymentPage = () => {
 
   const confirmPayment = async () => {
     if (isReadOnlyNoteView) return;
+    if (!ensureExistingCustomerByName(getValues("customerName"))) return;
+    if (!ensureFacturaCustomerAndRuc()) return;
 
     const sourceItems = hasLiveItems ? items : purchasedItems;
     const sourceTotals = hasLiveItems ? totals : paidTotals;
@@ -1773,7 +1988,6 @@ const PaymentPage = () => {
       setIsPrinting(false);
     }
   };
-  console.log("itemsToRender", itemsToRender);
   if (!itemsToRender.length) {
     return (
       <div className="space-y-4">
@@ -1811,6 +2025,7 @@ const PaymentPage = () => {
           {itemsToRender.map((item, rowIndex) => {
             const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
             const isStockNegative = Number(item.stock ?? 0) < 0;
+            const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
 
             return (
               <div
@@ -1876,14 +2091,22 @@ const PaymentPage = () => {
                       <span className="text-xs text-slate-500">S/</span>
                       <input
                         type="number"
+                        min={minPrice}
                         step="0.01"
                         inputMode="decimal"
                         data-payment-column="price"
                         data-payment-row-index={rowIndex}
                         className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        value={item.precio === 0 ? "" : item.precio}
+                        value={priceDrafts[item.productId] ?? item.precio}
                         onChange={(e) => {
                           handlePriceChange(item, e.target.value);
+                        }}
+                        onBlur={(e) => {
+                          handlePriceBlur(
+                            item,
+                            e.currentTarget.value,
+                            e.currentTarget,
+                          );
                         }}
                         onKeyDown={(event) =>
                           handleColumnArrowNavigation(event, "price", rowIndex)
@@ -1950,7 +2173,7 @@ const PaymentPage = () => {
     <>
       <HookForm
         methods={formMethods}
-        onSubmit={handleSubmit(confirmPayment)}
+        onSubmit={confirmPayment}
         preventSubmitOnEnter
         className="bg-white rounded-xl shadow p-4 space-y-4"
       >
@@ -1980,14 +2203,36 @@ const PaymentPage = () => {
           label="Nombre del cliente"
           placeholder="Seleccionar cliente"
           options={clientOptions}
+          rules={{
+            validate: (value: any) => {
+              if (docTypeCode !== "01") return true;
+              const normalized = safeTrim(value);
+              return normalized
+                ? true
+                : "Nombre de cliente obligatorio para Factura";
+            },
+          }}
+          syncInputToValue
           disableClearable={formLocked}
           disabled={formLocked}
+          onInputBlur={({ inputValue }) => {
+            ensureExistingCustomerByName(inputValue);
+          }}
           onOptionSelected={(opt: any) => {
-            if (!opt) return;
+            if (!opt) {
+              setValue("customerName", "", { shouldDirty: true });
+              setValue("customerId", "", { shouldDirty: true });
+              setClienteIdFromOption(null, { shouldDirty: true });
+              return;
+            }
+
+            const selectedName = safeTrim(opt.nombreRazon ?? opt.label ?? "");
             const docValue =
               docTypeCode === "01" ? safeTrim(opt.ruc) : safeTrim(opt.dni);
+
+            setValue("customerName", selectedName, { shouldDirty: true });
             setValue("customerId", docValue || "", { shouldDirty: true });
-            setClienteIdFromOption(opt);
+            setClienteIdFromOption(opt, { shouldDirty: true });
           }}
         />
         {docTypeCode === "01" ? (
@@ -2008,14 +2253,22 @@ const PaymentPage = () => {
             onOptionSelected={(opt: any) => {
               if (!opt) {
                 setValue("customerId", "", { shouldDirty: true });
+                setClienteIdFromOption(null, { shouldDirty: true });
                 return;
               }
-              if (opt?.nombreRazon) {
-                setValue("customerName", opt.nombreRazon, {
-                  shouldDirty: false,
-                });
+
+              const selectedDoc = resolveDocumentValue(opt, "ruc");
+              const selectedName = safeTrim(opt?.nombreRazon ?? "");
+
+              setValue("customerId", selectedDoc, { shouldDirty: true });
+              if (selectedName) {
+                setValue("customerName", selectedName, { shouldDirty: true });
+                setClienteIdFromOption(opt, { shouldDirty: true });
+                return;
               }
-              setClienteIdFromOption(opt);
+
+              // Documento manual (freeSolo): no cliente asociado.
+              setClienteIdFromOption(null, { shouldDirty: true });
             }}
           />
         ) : (
@@ -2036,14 +2289,22 @@ const PaymentPage = () => {
             onOptionSelected={(opt: any) => {
               if (!opt) {
                 setValue("customerId", "", { shouldDirty: true });
+                setClienteIdFromOption(null, { shouldDirty: true });
                 return;
               }
-              if (opt?.nombreRazon) {
-                setValue("customerName", opt.nombreRazon, {
-                  shouldDirty: false,
-                });
+
+              const selectedDoc = resolveDocumentValue(opt, "dni");
+              const selectedName = safeTrim(opt?.nombreRazon ?? "");
+
+              setValue("customerId", selectedDoc, { shouldDirty: true });
+              if (selectedName) {
+                setValue("customerName", selectedName, { shouldDirty: true });
+                setClienteIdFromOption(opt, { shouldDirty: true });
+                return;
               }
-              setClienteIdFromOption(opt);
+
+              // Documento manual (freeSolo): no cliente asociado.
+              setClienteIdFromOption(null, { shouldDirty: true });
             }}
           />
         )}
@@ -2112,10 +2373,21 @@ const PaymentPage = () => {
             disabled={formLocked}
             checked={applyDiscount}
             {...register("applyDiscount", {
-              onChange: (e) =>
-                setValue("applyDiscount", e.target.checked, {
+              onChange: (e) => {
+                const checked = Boolean(e.target.checked);
+                setValue("applyDiscount", checked, {
                   shouldDirty: true,
-                }),
+                });
+                if (!checked || formLocked) return;
+                window.setTimeout(() => {
+                  const input = document.querySelector<HTMLInputElement>(
+                    '[data-discount-input="true"]',
+                  );
+                  if (!input || input.disabled) return;
+                  input.focus();
+                  input.select?.();
+                }, 0);
+              },
             })}
           />
         </div>
@@ -2134,10 +2406,37 @@ const PaymentPage = () => {
                   name="discount"
                   label=""
                   type="number"
+                  min={0}
+                  max={Number(maxDiscount.toFixed(2))}
                   step="0.01"
+                  data-discount-input="true"
+                  rules={{
+                    validate: (value: any) => {
+                      const numeric = Number(value ?? 0);
+                      if (!Number.isFinite(numeric)) return "Descuento inválido";
+                      if (numeric < 0) return "El descuento no puede ser negativo";
+                      return (
+                        numeric <= maxDiscount ||
+                        `No puede superar S/ ${maxDiscount.toFixed(2)}`
+                      );
+                    },
+                  }}
                   className="w-12 text-right appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   style={{ MozAppearance: "textfield" }}
                   onFocus={(e) => e.target.select()}
+                  onBlur={(e) => {
+                    const currentValue = Number(e.currentTarget.value ?? 0);
+                    const clampedValue = clampDiscount(e.currentTarget.value);
+                    if (
+                      !Number.isFinite(currentValue) ||
+                      currentValue !== clampedValue
+                    ) {
+                      setValue("discount", clampedValue, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
                   disabled={formLocked}
                 />
               </div>

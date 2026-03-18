@@ -214,18 +214,62 @@ const POSPage = () => {
   };
 
   const handlePriceChange = (item: PosCartItem, value: string) => {
+    if (!/^\d*\.?\d*$/.test(value)) return;
+
+    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
     setPriceDrafts((prev) => ({ ...prev, [item.productId]: value }));
 
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed) && parsed >= minPrice) {
+      updatePrice(item.productId, parsed);
+    }
+  };
+
+  const handlePriceBlur = (
+    item: PosCartItem,
+    value: string,
+    input?: HTMLInputElement | null,
+  ) => {
+    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+    const normalizedMinPrice = Number.isInteger(minPrice)
+      ? String(minPrice)
+      : minPrice.toFixed(2);
+
     if (value.trim() === "") {
-      updatePrice(item.productId, 0);
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: normalizedMinPrice,
+      }));
+      updatePrice(item.productId, minPrice);
       return;
     }
 
-    if (!/^\d*\.?\d*$/.test(value)) return;
-
     const parsed = Number(value);
-    if (Number.isNaN(parsed)) return;
-    updatePrice(item.productId, Math.max(0, parsed));
+    if (Number.isNaN(parsed)) {
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: String(item.precio ?? normalizedMinPrice),
+      }));
+      return;
+    }
+
+    if (parsed < minPrice) {
+      toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
+      setPriceDrafts((prev) => ({
+        ...prev,
+        [item.productId]: normalizedMinPrice,
+      }));
+      updatePrice(item.productId, minPrice);
+      window.requestAnimationFrame(() => {
+        if (!input || input.disabled) return;
+        input.focus();
+        input.select?.();
+      });
+      return;
+    }
+
+    setPriceDrafts((prev) => ({ ...prev, [item.productId]: String(parsed) }));
+    updatePrice(item.productId, parsed);
   };
 
   useEffect(() => {
@@ -342,6 +386,7 @@ const POSPage = () => {
         {items.map((item) => {
           const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
           const isStockNegative = Number(item.stock ?? 0) < 0;
+          const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
           const highlightClass =
             isZeroOrNegative || isStockNegative
               ? "border-red-200 bg-red-50"
@@ -378,13 +423,21 @@ const POSPage = () => {
                   <label className="text-xs text-gray-500 block text-left">
                     P. Unitario
                   </label>
+
                   <div className="mt-1 flex items-center gap-1">
                     <span className="text-sm text-gray-500">S/</span>
                     <NavigableNumberInput
-                      min={0}
+                      min={minPrice}
                       step="0.01"
                       value={priceDrafts[item.productId] ?? item.precio}
                       onChange={(value) => handlePriceChange(item, value)}
+                      onBlur={(event) =>
+                        handlePriceBlur(
+                          item,
+                          event.currentTarget.value,
+                          event.currentTarget,
+                        )
+                      }
                       navGroup="pos-price-input"
                       className="w-full text-right border rounded-md px-2 py-1 text-sm"
                     />

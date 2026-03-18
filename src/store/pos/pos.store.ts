@@ -59,8 +59,25 @@ export const usePosStore = create<PosState>()(
 
       setItems: (items) =>
         set((state) => {
-          if (state.items === items) return state;
-          return { items, totals: calculateTotals(items) };
+          let hasNormalizationChanges = false;
+          const normalizedItems = items.map((item) => {
+            const rawMinPrice = toNumber(item.precioMinimo ?? 0);
+            const minPrice = toNonNegative(rawMinPrice);
+            const safePrice = Math.max(toNonNegative(item.precio), minPrice);
+            if (safePrice === item.precio && rawMinPrice === minPrice) {
+              return item;
+            }
+            hasNormalizationChanges = true;
+            return {
+              ...item,
+              precio: safePrice,
+              precioMinimo: minPrice,
+            };
+          });
+
+          const nextItems = hasNormalizationChanges ? normalizedItems : items;
+          if (state.items === nextItems) return state;
+          return { items: nextItems, totals: calculateTotals(nextItems) };
         }),
 
       setEditingNota: (notaId) =>
@@ -100,7 +117,8 @@ export const usePosStore = create<PosState>()(
 
       addProduct: (product, quantity = 1) =>
         set((state) => {
-          const price =
+          const minPrice = toNonNegative((product as any).preVentaB ?? 0);
+          const basePrice =
             toNumber((product as any).preVenta ?? 0) ||
             toNumber((product as any).preVentaB ?? 0) ||
             0;
@@ -110,17 +128,29 @@ export const usePosStore = create<PosState>()(
           const currentQty = toNonNegative(existing?.cantidad ?? 0);
           const desiredQty = currentQty + quantity;
           const nextQty = Math.max(desiredQty, 1);
+          const currentPrice = toNonNegative(existing?.precio ?? basePrice);
+          const nextPrice = Math.max(currentPrice, minPrice);
 
           if (nextQty <= 0) return state;
 
-          if (existing && nextQty === existing.cantidad && existing.precio === price) {
+          if (
+            existing &&
+            nextQty === existing.cantidad &&
+            existing.precio === nextPrice &&
+            toNonNegative(existing.precioMinimo ?? 0) === minPrice
+          ) {
             return state;
           }
 
           const nextItems = existing
             ? state.items.map((item) =>
                 item.productId === product.id
-                  ? { ...item, cantidad: nextQty, precio: price }
+                  ? {
+                      ...item,
+                      cantidad: nextQty,
+                      precio: nextPrice,
+                      precioMinimo: minPrice,
+                    }
                   : item
               )
             : [
@@ -130,7 +160,8 @@ export const usePosStore = create<PosState>()(
                   codigo: product.codigo,
                   nombre: product.nombre,
                   unidadMedida: product.unidadMedida,
-                  precio: price,
+                  precio: Math.max(toNonNegative(basePrice), minPrice),
+                  precioMinimo: minPrice,
                   cantidad: nextQty,
                   stock: toNumber(
                     (product as any).cantidad ?? (product as any).stock ?? 0
@@ -158,10 +189,11 @@ export const usePosStore = create<PosState>()(
 
       updatePrice: (productId, price) =>
         set((state) => {
-          const safePrice = toNonNegative(price);
           let changed = false;
           const nextItems = state.items.map((item) => {
             if (item.productId !== productId) return item;
+            const minPrice = toNonNegative(item.precioMinimo ?? 0);
+            const safePrice = Math.max(toNonNegative(price), minPrice);
             if (item.precio === safePrice) return item;
             changed = true;
             return { ...item, precio: safePrice };

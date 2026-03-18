@@ -4,6 +4,7 @@ export interface PosCartItem {
   nombre: string;
   unidadMedida?: string;
   precio: number;
+  precioMinimo?: number;
   cantidad: number;
   stock?: number;
   detalleId?: number;

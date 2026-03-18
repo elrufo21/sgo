@@ -14,6 +14,11 @@ export interface AuthUser {
   displayName: string;
   companyId: string;
   companyName: string;
+  companyRuc: string;
+  companyUbigeoName: string;
+  companyCommercialName: string;
+  companySunatAddress: string;
+  maxDiscount: number;
 }
 
 export interface AuthSession {
@@ -51,7 +56,12 @@ interface LoginResponse {
   usuario: string;
   companiaId: string;
   razonSocial: string;
+  companiaRuc?: string | null;
+  companiaNomUbg?: string | null;
+  companiaComercial?: string | null;
+  companiaDirecSunat?: string | null;
   fechaVencimientoClave?: string | null;
+  descuentoMax?: string | number | null;
   token: string;
   expiresAtUtc?: string;
   expiresInSeconds?: number;
@@ -144,6 +154,34 @@ const hasPasswordExpired = (value?: string | null): boolean => {
   return Date.now() >= parsed;
 };
 
+const normalizeMaxDiscount = (value: unknown): number => {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric)) return 0;
+  return Math.max(0, numeric);
+};
+
+const normalizeText = (value: unknown): string => String(value ?? "").trim();
+
+const normalizeAuthUser = (user: AuthUser): AuthUser => ({
+  ...user,
+  companyRuc: normalizeText(
+    (user as AuthUser & { companyRuc?: unknown }).companyRuc,
+  ),
+  companyUbigeoName: normalizeText(
+    (user as AuthUser & { companyUbigeoName?: unknown }).companyUbigeoName,
+  ),
+  companyCommercialName: normalizeText(
+    (user as AuthUser & { companyCommercialName?: unknown })
+      .companyCommercialName,
+  ),
+  companySunatAddress: normalizeText(
+    (user as AuthUser & { companySunatAddress?: unknown }).companySunatAddress,
+  ),
+  maxDiscount: normalizeMaxDiscount(
+    (user as AuthUser & { maxDiscount?: unknown }).maxDiscount,
+  ),
+});
+
 export const useAuthStore = create<AuthState>((set, get) => {
   const storedSession = readSessionFromStorage();
 
@@ -176,7 +214,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
     if (session && !isExpired(session.expiresAt)) {
       const passwordExpiresAt = session.passwordExpiresAt ?? null;
       set({
-        user: session.user,
+        user: normalizeAuthUser(session.user),
         token: session.token,
         isAuthenticated: true,
         passwordExpiresAt,
@@ -190,7 +228,9 @@ export const useAuthStore = create<AuthState>((set, get) => {
   };
 
   return {
-    user: hasValidStoredSession ? storedSession?.user : null,
+    user: hasValidStoredSession
+      ? normalizeAuthUser(storedSession.user)
+      : null,
     token: hasValidStoredSession ? storedSession?.token : null,
     isAuthenticated: !!hasValidStoredSession,
     passwordExpiresAt: hasValidStoredSession
@@ -218,7 +258,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
       const currentSession = readSessionFromStorage();
       const session: AuthSession = {
         token: state.token,
-        user: state.user,
+        user: normalizeAuthUser(state.user),
         expiresAt: currentSession?.expiresAt ?? Date.now() + 5 * 60 * 1000,
         passwordExpiresAt: normalized,
       };
@@ -269,6 +309,11 @@ export const useAuthStore = create<AuthState>((set, get) => {
           displayName: parsed.usuario ?? username,
           companyId: parsed.companiaId,
           companyName: parsed.razonSocial,
+          companyRuc: normalizeText(parsed.companiaRuc),
+          companyUbigeoName: normalizeText(parsed.companiaNomUbg),
+          companyCommercialName: normalizeText(parsed.companiaComercial),
+          companySunatAddress: normalizeText(parsed.companiaDirecSunat),
+          maxDiscount: normalizeMaxDiscount(parsed.descuentoMax),
         },
       };
 

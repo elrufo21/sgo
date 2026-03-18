@@ -30,7 +30,7 @@ interface ProductFormBaseProps {
   mode: "create" | "edit";
   onSave: (
     data: Omit<Product, "id"> & { images?: string[]; imageFile?: File | null },
-  ) => void;
+  ) => Promise<boolean | void> | boolean | void;
   onNew?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
@@ -73,7 +73,7 @@ export default function ProductFormBase({
 
   const generateCode = useCallback(() => {
     const latestProducts = useProductsStore.getState().products ?? [];
-    const codePattern = /^(PRO|PRD)([-_ ]?)(\d+)$/i;
+    const codePattern = /^(PRO)([-_ ]?)(\d+)$/i;
 
     const validCodes = latestProducts
       .filter((product) => {
@@ -87,13 +87,13 @@ export default function ProductFormBase({
         const match = rawCode.match(codePattern);
         if (!match) return null;
 
-        const [, prefix, separator, numericPart] = match;
+        const [, rawPrefix, separator, numericPart] = match;
         const numericValue = Number.parseInt(numericPart, 10);
         if (!Number.isFinite(numericValue)) return null;
 
         return {
-          prefix,
-          separator,
+          prefix: (rawPrefix ?? "").toUpperCase(),
+          separator: separator ?? "",
           numericPartLength: numericPart.length,
           numericValue,
         };
@@ -112,6 +112,22 @@ export default function ProductFormBase({
     const nextLength = Math.max(6, latestCode.numericPartLength);
     return `${latestCode.prefix}${latestCode.separator}${String(nextValue).padStart(nextLength, "0")}`;
   }, []);
+
+  const incrementCodeFromCurrent = useCallback((currentCode: string) => {
+    const trimmed = String(currentCode ?? "").trim().toUpperCase();
+    const match = trimmed.match(/^(PRO)([-_ ]?)(\d+)$/i);
+    if (!match) return generateCode();
+
+    const [, rawPrefix, rawSeparator, numericPart] = match;
+    const prefix = (rawPrefix ?? "").toUpperCase();
+    const separator = rawSeparator ?? "";
+    const numericValue = Number.parseInt(numericPart, 10);
+    if (!Number.isFinite(numericValue)) return generateCode();
+
+    const nextValue = numericValue + 1;
+    const nextLength = Math.max(6, numericPart.length);
+    return `${prefix}${separator}${String(nextValue).padStart(nextLength, "0")}`;
+  }, [generateCode]);
 
   const defaults = useMemo<ProductFormValues>(
     () => ({
@@ -341,7 +357,14 @@ export default function ProductFormBase({
   useEffect(() => stopCamera, []);
 
   const resetForm = () => {
-    reset(defaults);
+    if (mode === "create") {
+      reset({
+        ...defaults,
+        codigo: generateCode(),
+      });
+    } else {
+      reset(defaults);
+    }
     setCodeEditable(false);
     focusFirstInput(containerRef.current);
   };
@@ -365,13 +388,23 @@ export default function ProductFormBase({
       cantidad: values.aplicaINV === "N" ? 0 : values.cantidad,
       nombre: values.nombre?.toUpperCase() ?? "",
     };
-    await Promise.resolve(onSave(payload));
+    const saved = await Promise.resolve(onSave(payload));
+    if (saved === false) return;
+
     if (mode === "create") {
+      await fetchProducts();
+      const generatedCode = generateCode();
+      const nextCode =
+        generatedCode && generatedCode !== trimmedCode
+          ? generatedCode
+          : incrementCodeFromCurrent(trimmedCode);
+
       reset({
         ...defaults,
-        codigo: generateCode(),
+        codigo: nextCode,
       });
       setCodeEditable(false);
+      focusFirstInput(containerRef.current);
     } else {
       focusFirstInput(containerRef.current);
     }
@@ -699,8 +732,8 @@ export default function ProductFormBase({
                     placeholder="Selecciona o escribe una unidad"
                     rules={{ required: "La unidad de medida es obligatoria" }}
                     allowCreate
-                    createLabel={(v) => `Agregar "${v}"`}
-                    onCreateOption={(v) => setValue("unidadMedida", v)}
+                    showCreateOption={false}
+                    syncInputToValue
                     className="w-full"
                   />
 

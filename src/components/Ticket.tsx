@@ -8,17 +8,22 @@ import {
 } from "@react-pdf/renderer";
 
 import QRCode from "qrcode";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import type { PosCartItem, PosTotals } from "@/types/pos";
 
 type TicketDocumentProps = {
   clientName?: string;
   clientId?: string;
-  docType?: "boleta" | "factura";
+  clientAddress?: string;
+  docType?: "boleta" | "factura" | "proforma";
   paymentMethod?: string;
   items?: PosCartItem[];
   totals?: PosTotals;
   documentNumber?: string;
+  companyName?: string;
+  companyRuc?: string;
+  companyAddress?: string;
+  companyDistrict?: string;
 };
 
 const UNITS = [
@@ -312,11 +317,16 @@ const styles = StyleSheet.create({
 const TicketDocument = ({
   clientName,
   clientId,
+  clientAddress,
   docType = "boleta",
   paymentMethod,
   items,
   totals,
   documentNumber,
+  companyName,
+  companyRuc,
+  companyAddress,
+  companyDistrict,
 }: TicketDocumentProps) => {
   const [qrBase64, setQrBase64] = useState("");
 
@@ -333,12 +343,14 @@ const TicketDocument = ({
     const amountInWords = numberToWords(totalValue, "SOLES");
 
     return {
+      isFactura: docType === "factura",
       logo: "/LogoManuel.png",
       qrData: "https://tu-url.com/boleta?id=396548",
-      companyName: "CONSORCIO FERRETERO ROSITA E.I.R.L.",
-      ruc: "20601070155",
-      address: "Calle 2 Mz B Lote 1 ",
-      district: "Lima-Lima-Carabayllo",
+      companyName:
+        companyName?.trim() || "CONSORCIO FERRETERO ROSITA E.I.R.L.",
+      ruc: companyRuc?.trim() || "20601070155",
+      address: companyAddress?.trim() || "Calle 2 Mz B Lote 1",
+      district: companyDistrict?.trim() || "LIMA",
       phones: "Telef: 607-1883 / 943-296-081 / 944-284-915",
       documentType:
         docType === "factura"
@@ -351,7 +363,7 @@ const TicketDocument = ({
       currency: "SOLES",
       paymentMethod: paymentMethod ?? "AL CONTADO",
       clientName: clientName || "Ultimo cliente",
-      clientAddress: "AV TUPAC 123",
+      clientAddress: clientAddress?.trim() || "-",
       clientDNI: clientDoc,
       clientDocLabel: docLabel,
       seller: "ANDRE",
@@ -380,12 +392,17 @@ const TicketDocument = ({
     };
   }, [
     clientId,
+    clientAddress,
     clientName,
     docType,
     documentNumber,
     items,
     paymentMethod,
     totals,
+    companyName,
+    companyRuc,
+    companyAddress,
+    companyDistrict,
   ]);
 
   useEffect(() => {
@@ -445,6 +462,12 @@ const TicketDocument = ({
           <Text style={styles.infoLabel}>{ticketData.clientDocLabel}</Text>
           <Text style={styles.infoValue}>: {ticketData.clientDNI}</Text>
         </View>
+        {ticketData.isFactura && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>DIRECCION</Text>
+            <Text style={styles.infoValue}>: {ticketData.clientAddress}</Text>
+          </View>
+        )}
 
         <View style={styles.divider} />
 

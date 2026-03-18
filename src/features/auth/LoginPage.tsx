@@ -211,7 +211,7 @@ export function LoginPage() {
                   <TextField
                     fullWidth
                     placeholder="Usuario"
-                    autoComplete="username"
+                    autoComplete="one-time-code"
                     value={field.value ?? ""}
                     onChange={(event) => field.onChange(event.target.value)}
                     onBlur={field.onBlur}
@@ -220,6 +220,16 @@ export function LoginPage() {
                     error={!!fieldState.error}
                     helperText={fieldState.error?.message}
                     InputProps={{ "data-auto-next": "true" }}
+                    inputProps={{
+                      autoComplete: "one-time-code",
+                      autoCorrect: "off",
+                      autoCapitalize: "off",
+                      spellCheck: false,
+                      "data-lpignore": "true",
+                      "data-1p-ignore": "true",
+                      "data-bwignore": "true",
+                      "data-form-type": "other",
+                    }}
                     sx={{
                       "& .MuiOutlinedInput-root": {
                         height: 44,
@@ -261,9 +271,9 @@ export function LoginPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     fullWidth
-                    type={showPassword ? "text" : "password"}
+                    type="text"
                     placeholder="Contraseña"
-                    autoComplete="current-password"
+                    autoComplete="one-time-code"
                     value={field.value ?? ""}
                     onChange={(event) => field.onChange(event.target.value)}
                     onBlur={field.onBlur}
@@ -298,6 +308,17 @@ export function LoginPage() {
                           </IconButton>
                         </InputAdornment>
                       ),
+                    }}
+                    inputProps={{
+                      autoComplete: "one-time-code",
+                      autoCorrect: "off",
+                      autoCapitalize: "off",
+                      spellCheck: false,
+                      ...(showPassword ? {} : { style: { WebkitTextSecurity: "disc" } }),
+                      "data-lpignore": "true",
+                      "data-1p-ignore": "true",
+                      "data-bwignore": "true",
+                      "data-form-type": "other",
                     }}
                     sx={{
                       "& .MuiOutlinedInput-root": {

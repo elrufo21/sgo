@@ -52,22 +52,6 @@ export function HookForm<T extends FieldValues>({
         data-form-type="other"
         noValidate
       >
-        <input
-          type="text"
-          name="__sgo_autofill_username"
-          autoComplete="username"
-          tabIndex={-1}
-          aria-hidden="true"
-          className="sr-only"
-        />
-        <input
-          type="password"
-          name="__sgo_autofill_password"
-          autoComplete="new-password"
-          tabIndex={-1}
-          aria-hidden="true"
-          className="sr-only"
-        />
         {children}
       </form>
     </FormProvider>
