@@ -24,6 +24,7 @@ export function GlobalDialog() {
     disableBackdropClose,
     disableClose,
     hideCancelButton,
+    mobileFullScreen,
     loading,
     data,
     onConfirm,
@@ -71,13 +72,25 @@ export function GlobalDialog() {
       open={open}
       onClose={handleClose}
       fullWidth={fullWidth}
-      fullScreen={isMobile}
+      fullScreen={isMobile && mobileFullScreen}
       maxWidth={maxWidth}
       disableEscapeKeyDown={disableClose || disableBackdropClose}
+      scroll="paper"
+      PaperProps={{
+        sx: isMobile
+          ? {
+              width: "calc(100% - 16px)",
+              maxHeight: "calc(100dvh - 16px)",
+              m: 1,
+            }
+          : undefined,
+      }}
     >
       {title ? <DialogTitle>{title}</DialogTitle> : null}
-      <DialogContent dividers>{content}</DialogContent>
-      <DialogActions>
+      <DialogContent dividers sx={isMobile ? { p: 2 } : undefined}>
+        {content}
+      </DialogContent>
+      <DialogActions sx={isMobile ? { px: 2, py: 1.5 } : undefined}>
         {!hideCancelButton && (
           <Button onClick={handleClose} disabled={loading}>
             {cancelText}

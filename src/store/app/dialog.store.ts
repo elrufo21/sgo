@@ -14,6 +14,7 @@ type DialogOptions = {
   disableBackdropClose?: boolean;
   disableClose?: boolean;
   hideCancelButton?: boolean;
+  mobileFullScreen?: boolean;
 };
 
 const defaults = {
@@ -29,6 +30,7 @@ const defaults = {
   disableBackdropClose: false,
   disableClose: false,
   hideCancelButton: false,
+  mobileFullScreen: false,
   loading: false,
   data: null as unknown,
 };

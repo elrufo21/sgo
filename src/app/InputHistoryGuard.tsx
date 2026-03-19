@@ -305,14 +305,33 @@ export function InputHistoryGuard() {
     // Use window capture so uppercase mutation runs before React delegated onChange handlers.
     window.addEventListener("input", onInput, true);
 
+    const pendingNodes = new Set<Element>();
+    let rafId: number | null = null;
+
+    const flushPendingNodes = () => {
+      rafId = null;
+      pendingNodes.forEach((node) => {
+        if (node.isConnected) {
+          hardenNodeTree(node);
+        }
+      });
+      pendingNodes.clear();
+    };
+
+    const scheduleFlush = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(flushPendingNodes);
+    };
+
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         mutation.addedNodes.forEach((addedNode) => {
           if (addedNode instanceof Element) {
-            hardenNodeTree(addedNode);
+            pendingNodes.add(addedNode);
           }
         });
       });
+      scheduleFlush();
     });
 
     if (document.body) {
@@ -323,7 +342,11 @@ export function InputHistoryGuard() {
     }
 
     return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
       observer.disconnect();
+      pendingNodes.clear();
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("focusout", onFocusOut, true);
       document.removeEventListener("change", onChange, true);

@@ -12,10 +12,12 @@ import sendNoteRoutes from "../features/sendNote/routes";
 import MainLayout from "./layouts/MainLayout";
 import { RedirectIfAuthenticated, RequireAuth } from "./guards/AuthGuard";
 import LoginPage from "@/features/auth/LoginPage";
+import { RouteErrorBoundary } from "./RouteErrorBoundary";
 
 const router = createBrowserRouter([
   {
     path: "/login",
+    errorElement: <RouteErrorBoundary />,
     element: (
       <RedirectIfAuthenticated>
         <LoginPage />
@@ -24,6 +26,7 @@ const router = createBrowserRouter([
   },
   {
     path: "/",
+    errorElement: <RouteErrorBoundary />,
     element: (
       <RequireAuth>
         <MainLayout />
