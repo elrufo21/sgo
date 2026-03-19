@@ -17,7 +17,7 @@ const PurchanseCreate = () => {
     telefonoMovil: "",
     email: "",
     registradoPor: "Admin",
-    estado: "activo",
+    estado: "ACTIVO",
   });
 
   const handleSave = (data: Omit<typeof form, "id">) => {
@@ -36,7 +36,7 @@ const PurchanseCreate = () => {
       telefonoMovil: "",
       email: "",
       registradoPor: "Admin",
-      estado: "activo",
+      estado: "ACTIVO",
     });
   };
 

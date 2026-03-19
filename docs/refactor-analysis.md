@@ -1,9 +1,11 @@
 # Refactor analysis (enfoque basado en configs por módulo)
 
 ## Idea central
+
 Cada módulo (empleados, áreas, categorías, computadoras, etc.) expone un archivo de configuración que describe el “contrato” de la vista: metadatos, endpoints, columnas de tabla, normalizadores, validadores y textos (toasts, diálogos). Las vistas/CRUD genéricos consumen ese config para renderizar tabla, formularios y flujos (crear, editar, eliminar) sin lógica duplicada.
 
 ## Qué define un config de módulo
+
 - **Metadatos**: `moduleKey`, `title`, `basePath`.
 - **API**: endpoints relativos (`list`, `create`, `update`, `delete`) o funciones `buildPath(id)`.
 - **Normalizadores**: entrada/salida (`toForm`, `toPayload`, `beforeSave`).
@@ -13,6 +15,7 @@ Cada módulo (empleados, áreas, categorías, computadoras, etc.) expone un arch
 - **Hooks opcionales**: `onAfterSave`, `onError`, flags (`supportsCreate`, `supportsDelete`).
 
 ### Ejemplo (borrador) `src/features/maintenance/employees/employee.config.ts`
+
 ```ts
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Personal } from "@/types/employees";
@@ -41,7 +44,7 @@ export const employeeConfig = {
       personalDireccion: raw.personalDireccion ?? raw.direccion ?? "",
       personalTelefono: raw.personalTelefono ?? raw.telefono ?? "",
       personalEmail: raw.personalEmail ?? raw.correo ?? "",
-      personalEstado: raw.personalEstado ?? raw.estado ?? "activo",
+      personalEstado: raw.personalEstado ?? raw.estado ?? "ACTIVO",
       personalImagen: raw.personalImagen ?? raw.foto ?? "",
       companiaId: raw.companiaId ?? 1,
     }),
@@ -56,7 +59,7 @@ export const employeeConfig = {
       personalDNI: v.personalDni ?? "",
       personalDireccion: v.personalDireccion ?? "",
       personalTelefono: v.personalTelefono ?? "",
-      personalEstado: v.personalEstado ?? "activo",
+      personalEstado: v.personalEstado ?? "ACTIVO",
       personalEmail: v.personalEmail ?? "",
       personalImagen: v.personalImagen ?? "",
       companiaId: Number(v.companiaId) || 1,
@@ -71,7 +74,11 @@ export const employeeConfig = {
     columns: [
       { id: "codigo", header: "Código", accessorKey: "personalCodigo" },
       { id: "nombres", header: "Nombres", accessorKey: "personalNombres" },
-      { id: "apellidos", header: "Apellidos", accessorKey: "personalApellidos" },
+      {
+        id: "apellidos",
+        header: "Apellidos",
+        accessorKey: "personalApellidos",
+      },
       { id: "estado", header: "Estado", accessorKey: "personalEstado" },
     ] satisfies ColumnDef<Personal>[],
   },
@@ -85,6 +92,7 @@ export const employeeConfig = {
 ```
 
 ## Infraestructura de soporte
+
 - `src/config.ts`: API base/global; per-módulo configs viven junto a cada feature.
 - `src/shared/api/client.ts`: `request(path, options) => ApiResult`; acepta path relativo y usa `API_BASE_URL`. Devuelve `{ ok, data, status, message }`.
 - `src/shared/validators.ts`: `isEmail`, `isDni`, `required`, `minLength`, etc.
@@ -94,15 +102,17 @@ export const employeeConfig = {
 - `src/shared/table/columnFactory.ts`: fabrica columnas comunes (acciones, estado) para reutilizar entre configs.
 
 ## Refactor propuesto (pasos)
-1) **Infra mínima**: añadir `src/config.ts` (API base), `shared/api/client.ts`, `shared/validators.ts`, `shared/ui/toast.ts`, `shared/ui/confirmDelete.tsx`.
-2) **Config de listados**: definir configs por módulo (ej. `employee.list.config.ts`, `category.list.config.ts`, `area.list.config.ts`) y usar `CrudList` consumiendo esos objetos para columnas, rutas y textos.
-3) **Config por módulo (formularios y API)**: crear `employee.config.ts` (normalizadores, endpoints) y ajustar stores a usar `api.client` + normalizadores del config.
-4) **Extender a áreas/categorías/computadoras**: crear sus configs y adaptar stores a consumirlos (payloads/normalización/labels).
-5) **Form validation**: reemplazar regex inline por `validators` del config.
-6) **Toasts/confirm**: usar helpers centralizados y textos del config.
-7) **Column reuse**: mover definiciones de columnas a los configs y consumirlos en `ListView`/`DataTable`.
+
+1. **Infra mínima**: añadir `src/config.ts` (API base), `shared/api/client.ts`, `shared/validators.ts`, `shared/ui/toast.ts`, `shared/ui/confirmDelete.tsx`.
+2. **Config de listados**: definir configs por módulo (ej. `employee.list.config.ts`, `category.list.config.ts`, `area.list.config.ts`) y usar `CrudList` consumiendo esos objetos para columnas, rutas y textos.
+3. **Config por módulo (formularios y API)**: crear `employee.config.ts` (normalizadores, endpoints) y ajustar stores a usar `api.client` + normalizadores del config.
+4. **Extender a áreas/categorías/computadoras**: crear sus configs y adaptar stores a consumirlos (payloads/normalización/labels).
+5. **Form validation**: reemplazar regex inline por `validators` del config.
+6. **Toasts/confirm**: usar helpers centralizados y textos del config.
+7. **Column reuse**: mover definiciones de columnas a los configs y consumirlos en `ListView`/`DataTable`.
 
 ## Beneficios
+
 - Menos lógica duplicada (normalización, validación, mensajes).
 - Cambios de API centralizados (solo actualizar paths en config).
 - Vistas CRUD más declarativas: la UI se arma leyendo el config.

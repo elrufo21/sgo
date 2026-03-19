@@ -23,7 +23,7 @@ type PurchaseFormValues = {
   celular: string;
   email: string;
   direccion: string;
-  estado: "activo" | "inactivo";
+  estado: "ACTIVO" | "INACTIVO";
   cuentasBancarias: CuentaBancaria[];
   cuentaTemp: CuentaBancaria;
 };
@@ -37,7 +37,7 @@ interface PurchaseFormBaseProps {
 }
 
 const buildDefaults = (
-  data?: Partial<PurchaseFormValues>
+  data?: Partial<PurchaseFormValues>,
 ): PurchaseFormValues => ({
   nombreRazon: data?.nombreRazon ?? "",
   ruc: data?.ruc ?? "",
@@ -45,7 +45,7 @@ const buildDefaults = (
   celular: data?.celular ?? "",
   email: data?.email ?? "",
   direccion: data?.direccion ?? "",
-  estado: (data?.estado as PurchaseFormValues["estado"]) ?? "activo",
+  estado: (data?.estado as PurchaseFormValues["estado"]) ?? "ACTIVO",
   cuentasBancarias: data?.cuentasBancarias ?? [],
   cuentaTemp: {
     entidadBancaria: "",
@@ -110,7 +110,7 @@ export default function PurchaseFormBase({
     if (!valid) return;
 
     const existingIndex = fields.findIndex(
-      (c) => c.numeroCuenta === temp.numeroCuenta
+      (c) => c.numeroCuenta === temp.numeroCuenta,
     );
     if (existingIndex >= 0) {
       update(existingIndex, temp);
@@ -161,7 +161,10 @@ export default function PurchaseFormBase({
   const cuentasBancarias = watch("cuentasBancarias");
 
   return (
-    <div ref={containerRef} className="h-auto px-3 py-5 sm:px-6 sm:py-7 lg:px-8">
+    <div
+      ref={containerRef}
+      className="h-auto px-3 py-5 sm:px-6 sm:py-7 lg:px-8"
+    >
       <div className="max-w-6xl mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           <HookForm methods={formMethods} onSubmit={onSubmit}>
@@ -258,8 +261,8 @@ export default function PurchaseFormBase({
                     name="estado"
                     label="Estado"
                     options={[
-                      { value: "activo", label: "Activo" },
-                      { value: "inactivo", label: "Inactivo" },
+                      { value: "ACTIVO", label: "Activo" },
+                      { value: "INACTIVO", label: "Inactivo" },
                     ]}
                   />
                 </div>

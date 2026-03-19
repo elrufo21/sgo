@@ -37,11 +37,14 @@ interface ProductsState {
     product: Omit<Product, "id"> & {
       imageFile?: File | null;
       imageRemoved?: boolean;
-    }
+    },
   ) => Promise<boolean>;
   updateProduct: (
     id: number,
-    data: Omit<Product, "id"> & { imageFile?: File | null; imageRemoved?: boolean }
+    data: Omit<Product, "id"> & {
+      imageFile?: File | null;
+      imageRemoved?: boolean;
+    },
   ) => Promise<boolean>;
   deleteProduct: (id: number) => Promise<boolean>;
 }
@@ -56,9 +59,9 @@ const normalizeEstado = (value: unknown): Product["estado"] => {
     .trim()
     .toLowerCase();
 
-  if (normalized === "inactivo") return "inactivo";
+  if (normalized === "INACTIVO") return "INACTIVO";
   if (normalized === "archivado") return "archivado";
-  return "activo";
+  return "ACTIVO";
 };
 
 const parseDelimitedProducts = (rawValue: string): ApiProduct[] => {
@@ -138,8 +141,7 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
   valorCritico: toNumberValue(item.valorCritico, 0),
   preCosto: toNumberValue(item.productoCosto, 0),
   preVenta: toNumberValue(item.productoVenta, 0),
-  aplicaINV:
-    String(item.aplicaINV ?? "").toUpperCase() === "N" ? "N" : "S",
+  aplicaINV: String(item.aplicaINV ?? "").toUpperCase() === "N" ? "N" : "S",
   cantidad: toNumberValue(item.productoCantidad, 0),
   usuario: item.productoUsuario ?? "",
   estado: normalizeEstado(item.productoEstado),
@@ -150,7 +152,7 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
 
 const mapProductToApi = (
   product: Partial<Product>,
-  idOverride?: number
+  idOverride?: number,
 ): ApiProduct => ({
   idProducto: idOverride ?? product.id ?? 0,
   idSubLinea:
@@ -176,9 +178,7 @@ const mapProductToApi = (
   fechaVencimiento: null,
   aplicaFechaV: false,
   aplicaINV:
-    product.aplicaINV === "N" || product.aplicaINV === "servicio"
-      ? "N"
-      : "S",
+    product.aplicaINV === "N" || product.aplicaINV === "servicio" ? "N" : "S",
   cantidadANT: product.cantidad ?? 0,
   fechaModCant: null,
 });
@@ -190,7 +190,7 @@ const buildProductFormData = (
     imageFile?: File | null;
     imageRemoved?: boolean;
   },
-  idOverride?: number
+  idOverride?: number,
 ) => {
   const payload = mapProductToApi(product, idOverride);
   const formData = new FormData();

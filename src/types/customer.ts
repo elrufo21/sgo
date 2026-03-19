@@ -41,6 +41,6 @@ export interface Purchase {
   celular: string;
   email: string;
   direccion: string;
-  estado: "activo" | "inactivo";
+  estado: "ACTIVO" | "INACTIVO";
   cuentasBancarias?: CuentaBancaria[];
 }

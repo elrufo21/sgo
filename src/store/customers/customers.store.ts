@@ -8,11 +8,11 @@ interface ClientsState {
   loading: boolean;
   fetchClients: (estado?: "ACTIVO" | "INACTIVO" | "") => Promise<void>;
   addClient: (
-    client: Omit<Client, "id">
+    client: Omit<Client, "id">,
   ) => Promise<{ ok: boolean; error?: string }>;
   updateClient: (
     id: number,
-    data: Partial<Client>
+    data: Partial<Client>,
   ) => Promise<{ ok: boolean; error?: string }>;
   deleteClient: (id: number) => Promise<boolean>;
 }
@@ -25,19 +25,19 @@ const mapApiToClient = (item: unknown): Client => {
     ruc: String(payload.clienteRuc ?? payload.ClienteRuc ?? ""),
     dni: String(payload.clienteDni ?? payload.ClienteDni ?? ""),
     direccionFiscal: String(
-      payload.clienteDireccion ?? payload.ClienteDireccion ?? ""
+      payload.clienteDireccion ?? payload.ClienteDireccion ?? "",
     ),
     direccionDespacho: String(
-      payload.clienteDespacho ?? payload.ClienteDespacho ?? ""
+      payload.clienteDespacho ?? payload.ClienteDespacho ?? "",
     ),
     telefonoMovil: String(
-      payload.clienteTelefono ?? payload.ClienteTelefono ?? ""
+      payload.clienteTelefono ?? payload.ClienteTelefono ?? "",
     ),
     email: String(payload.clienteCorreo ?? payload.ClienteCorreo ?? ""),
     registradoPor: String(
-      payload.clienteUsuario ?? payload.ClienteUsuario ?? ""
+      payload.clienteUsuario ?? payload.ClienteUsuario ?? "",
     ),
-    estado: String(payload.clienteEstado ?? payload.ClienteEstado ?? "activo"),
+    estado: String(payload.clienteEstado ?? payload.ClienteEstado ?? "ACTIVO"),
     fecha:
       payload.clienteFecha === null || payload.ClienteFecha === null
         ? null
@@ -61,7 +61,7 @@ const mapClientToApi = (client: Partial<Client>): ApiClient => ({
 
 const parseClientRegisterResponse = (
   result: unknown,
-  fallback: ApiClient
+  fallback: ApiClient,
 ): ApiClient => {
   if (result && typeof result === "object") {
     const payload = result as Record<string, unknown>;
@@ -77,35 +77,43 @@ const parseClientRegisterResponse = (
           payload.ClienteRazon ??
           payload.nombreRazon ??
           payload.nombre ??
-          fallback.clienteRazon
+          fallback.clienteRazon,
       ),
       clienteRuc: String(
-        payload.clienteRuc ?? payload.ClienteRuc ?? fallback.clienteRuc
+        payload.clienteRuc ?? payload.ClienteRuc ?? fallback.clienteRuc,
       ),
       clienteDni: String(
-        payload.clienteDni ?? payload.ClienteDni ?? fallback.clienteDni
+        payload.clienteDni ?? payload.ClienteDni ?? fallback.clienteDni,
       ),
       clienteDireccion: String(
         payload.clienteDireccion ??
           payload.ClienteDireccion ??
-          fallback.clienteDireccion
+          fallback.clienteDireccion,
       ),
       clienteTelefono: String(
-        payload.clienteTelefono ?? payload.ClienteTelefono ?? fallback.clienteTelefono
+        payload.clienteTelefono ??
+          payload.ClienteTelefono ??
+          fallback.clienteTelefono,
       ),
       clienteCorreo: String(
-        payload.clienteCorreo ?? payload.ClienteCorreo ?? fallback.clienteCorreo
+        payload.clienteCorreo ??
+          payload.ClienteCorreo ??
+          fallback.clienteCorreo,
       ),
       clienteEstado: String(
-        payload.clienteEstado ?? payload.ClienteEstado ?? fallback.clienteEstado
+        payload.clienteEstado ??
+          payload.ClienteEstado ??
+          fallback.clienteEstado,
       ),
       clienteDespacho: String(
         payload.clienteDespacho ??
           payload.ClienteDespacho ??
-          fallback.clienteDespacho
+          fallback.clienteDespacho,
       ),
       clienteUsuario: String(
-        payload.clienteUsuario ?? payload.ClienteUsuario ?? fallback.clienteUsuario
+        payload.clienteUsuario ??
+          payload.ClienteUsuario ??
+          fallback.clienteUsuario,
       ),
       clienteFecha:
         parsedFechaRaw === null || parsedFechaRaw === undefined
@@ -125,7 +133,9 @@ const parseClientRegisterResponse = (
     return {
       ...fallback,
       clienteId:
-        Number.isFinite(parsedId) && parsedId > 0 ? parsedId : fallback.clienteId,
+        Number.isFinite(parsedId) && parsedId > 0
+          ? parsedId
+          : fallback.clienteId,
       clienteRazon: razonRaw.trim() || fallback.clienteRazon,
     };
   }
@@ -230,7 +240,7 @@ export const useClientsStore = create<ClientsState>((set) => ({
       const parsedClient = parseClientRegisterResponse(updated, payload);
       set((state) => ({
         clients: state.clients.map((c) =>
-          c.id === id ? mapApiToClient(parsedClient) : c
+          c.id === id ? mapApiToClient(parsedClient) : c,
         ),
       }));
       return { ok: true };

@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import {
   Save,
   Plus,
@@ -80,10 +86,12 @@ export default function ProductFormBase({
         const normalizedStatus = String(product.estado ?? "")
           .trim()
           .toLowerCase();
-        return normalizedStatus === "bueno" || normalizedStatus === "activo";
+        return normalizedStatus === "bueno" || normalizedStatus === "ACTIVO";
       })
       .map((product) => {
-        const rawCode = String(product.codigo ?? "").trim().toUpperCase();
+        const rawCode = String(product.codigo ?? "")
+          .trim()
+          .toUpperCase();
         const match = rawCode.match(codePattern);
         if (!match) return null;
 
@@ -113,21 +121,26 @@ export default function ProductFormBase({
     return `${latestCode.prefix}${latestCode.separator}${String(nextValue).padStart(nextLength, "0")}`;
   }, []);
 
-  const incrementCodeFromCurrent = useCallback((currentCode: string) => {
-    const trimmed = String(currentCode ?? "").trim().toUpperCase();
-    const match = trimmed.match(/^(PRO)([-_ ]?)(\d+)$/i);
-    if (!match) return generateCode();
+  const incrementCodeFromCurrent = useCallback(
+    (currentCode: string) => {
+      const trimmed = String(currentCode ?? "")
+        .trim()
+        .toUpperCase();
+      const match = trimmed.match(/^(PRO)([-_ ]?)(\d+)$/i);
+      if (!match) return generateCode();
 
-    const [, rawPrefix, rawSeparator, numericPart] = match;
-    const prefix = (rawPrefix ?? "").toUpperCase();
-    const separator = rawSeparator ?? "";
-    const numericValue = Number.parseInt(numericPart, 10);
-    if (!Number.isFinite(numericValue)) return generateCode();
+      const [, rawPrefix, rawSeparator, numericPart] = match;
+      const prefix = (rawPrefix ?? "").toUpperCase();
+      const separator = rawSeparator ?? "";
+      const numericValue = Number.parseInt(numericPart, 10);
+      if (!Number.isFinite(numericValue)) return generateCode();
 
-    const nextValue = numericValue + 1;
-    const nextLength = Math.max(6, numericPart.length);
-    return `${prefix}${separator}${String(nextValue).padStart(nextLength, "0")}`;
-  }, [generateCode]);
+      const nextValue = numericValue + 1;
+      const nextLength = Math.max(6, numericPart.length);
+      return `${prefix}${separator}${String(nextValue).padStart(nextLength, "0")}`;
+    },
+    [generateCode],
+  );
 
   const defaults = useMemo<ProductFormValues>(
     () => ({

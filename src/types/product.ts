@@ -12,6 +12,6 @@ export interface Product {
   aplicaINV: "bien" | "servicio" | "S" | "N";
   cantidad: number;
   usuario: string;
-  estado: "activo" | "inactivo" | "archivado";
+  estado: "ACTIVO" | "INACTIVO" | "archivado";
   images?: string[];
 }

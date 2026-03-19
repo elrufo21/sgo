@@ -32,7 +32,7 @@ export const usePurchasesStore = create<PurchasesState>((set, get) => ({
                 celular: "987654321",
                 email: "contacto@distribucioneslima.com",
                 direccion: "Av. Lima 123",
-                estado: "activo",
+                estado: "ACTIVO",
                 cuentasBancarias: [
                   {
                     entidadBancaria: "BCP",
@@ -56,7 +56,7 @@ export const usePurchasesStore = create<PurchasesState>((set, get) => ({
                 celular: "987123456",
                 email: "info@solucionestech.com",
                 direccion: "Calle Tech 456",
-                estado: "activo",
+                estado: "ACTIVO",
                 cuentasBancarias: [
                   {
                     entidadBancaria: "Scotiabank",
@@ -67,8 +67,8 @@ export const usePurchasesStore = create<PurchasesState>((set, get) => ({
                 ],
               },
             ]),
-          600
-        )
+          600,
+        ),
       );
 
       set({ purchases: response, loading: false });
@@ -90,7 +90,7 @@ export const usePurchasesStore = create<PurchasesState>((set, get) => ({
   updatePurchase: (id, data) =>
     set((state) => ({
       purchases: state.purchases.map((p) =>
-        p.id === id ? { ...p, ...data } : p
+        p.id === id ? { ...p, ...data } : p,
       ),
     })),
 

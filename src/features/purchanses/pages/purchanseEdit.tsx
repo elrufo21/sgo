@@ -21,7 +21,7 @@ const PurchanseEdit = () => {
     telefonoMovil: "",
     email: "",
     registradoPor: "",
-    estado: "activo",
+    estado: "ACTIVO",
   });
 
   useEffect(() => {
