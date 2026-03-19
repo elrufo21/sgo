@@ -34,6 +34,12 @@ npm run dev
 npm run build
 ```
 
+Para el entorno de Vercel se usa:
+
+```bash
+npm run build:vercel
+```
+
 ## Despliegue en Vercel
 
 1. Importar el repositorio en Vercel.
