@@ -27,6 +27,7 @@ import { useProductsStore } from "@/store/products/products.store";
 import { useDialogStore } from "@/store/app/dialog.store";
 import type { PosCartItem } from "@/types/pos";
 import type { Client } from "@/types/customer";
+import { buildApiUrl } from "@/config";
 
 type NotaDetallePayload = {
   detalleId?: number;
@@ -467,7 +468,7 @@ const PaymentPage = () => {
     return `${serie}-${paddedNotaNumero}`;
   }, [notaSerie, paddedNotaNumero]);
   const docTypeName = docConfig?.docu ?? "BOLETA";
-  const docTypeForTicket =
+  const docTypeForTicket: "boleta" | "factura" | "proforma" =
     docTypeCode === "01"
       ? "factura"
       : docTypeCode === "101"
@@ -485,9 +486,7 @@ const PaymentPage = () => {
     },
     [maxDiscount],
   );
-  const descuento = applyDiscount
-    ? clampDiscount(discountInput)
-    : 0;
+  const descuento = applyDiscount ? clampDiscount(discountInput) : 0;
   const discountedTotal = Math.max(0, totalAmount - descuento);
   const gravada = isProforma ? discountedTotal : discountedTotal / 1.18;
   const igvAmount = isProforma ? 0 : discountedTotal - gravada;
@@ -705,13 +704,13 @@ const PaymentPage = () => {
     try {
       const [notaResponse, detallesResponse] = await Promise.all([
         apiRequest({
-          url: `http://localhost:5000/api/v1/Nota/${notaIdToLoad}`,
+          url: buildApiUrl(`/Nota/${notaIdToLoad}`),
           method: "GET",
           config: { headers: { Accept: "text/plain" } },
           fallback: null,
         }),
         apiRequest({
-          url: `http://localhost:5000/api/v1/Nota/${notaIdToLoad}/detalles`,
+          url: buildApiUrl(`/Nota/${notaIdToLoad}/detalles`),
           method: "GET",
           config: { headers: { Accept: "text/plain" } },
           fallback: [],
@@ -1418,6 +1417,15 @@ const PaymentPage = () => {
       paymentMethod,
       items: safeItems,
       totals: safeTotals,
+      noteId: notaId,
+      summary: {
+        operacionGravada: Number(gravada.toFixed(2)),
+        descuento: Number(descuento.toFixed(2)),
+        showDiscount: applyDiscount,
+        subtotal: Number(discountedTotal.toFixed(2)),
+        igv: Number(igvAmount.toFixed(2)),
+        total: Number(totalAPagar.toFixed(2)),
+      },
       documentNumber,
       companyName:
         companyCommercialFromSession ||
@@ -1434,11 +1442,18 @@ const PaymentPage = () => {
     customerName,
     docTypeForTicket,
     documentNumber,
+    notaId,
     paymentMethod,
     itemsToRender,
     totalsToRender,
     purchasedItems,
     paidTotals,
+    gravada,
+    descuento,
+    applyDiscount,
+    discountedTotal,
+    igvAmount,
+    totalAPagar,
     companyCommercialFromSession,
     companyNameFromSession,
     companyRucFromSession,
@@ -1453,7 +1468,8 @@ const PaymentPage = () => {
         ticketPreviewProps.clientName,
         ticketPreviewProps.clientId,
         ticketPreviewProps.documentNumber,
-        totalsToRender.total.toFixed(2),
+        totalAPagar.toFixed(2),
+        descuento.toFixed(2),
         itemsToRender.length,
       ].join("|"),
     [
@@ -1463,7 +1479,8 @@ const PaymentPage = () => {
       ticketPreviewProps.clientId,
       ticketPreviewProps.clientName,
       ticketPreviewProps.documentNumber,
-      totalsToRender.total,
+      totalAPagar,
+      descuento,
     ],
   );
 
@@ -1697,8 +1714,8 @@ const PaymentPage = () => {
 
     const result = await apiRequest({
       url: isEditing
-        ? "http://localhost:5000/api/v1/Nota/editarOrden"
-        : "http://localhost:5000/api/v1/Nota/crearOrden",
+        ? buildApiUrl("/Nota/editarOrden")
+        : buildApiUrl("/Nota/crearOrden"),
       method: isEditing ? "PUT" : "POST",
       data: editPayloadForApi,
       config: {
@@ -2011,41 +2028,56 @@ const PaymentPage = () => {
   const ItemsList = (
     <div
       data-payment-items-list="true"
-      className="max-h-[min(58vh,620px)] md:max-h-[60vh] overflow-auto rounded-xl border border-slate-200 bg-white"
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
     >
-      <div className="min-w-[520px] sm:min-w-[640px]">
-        <div className="sticky top-0 z-10 grid grid-cols-[96px_minmax(0,1fr)_120px_130px] border-b-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold tracking-wide text-slate-800">
-          <div className="text-center">Cantidad</div>
-          <div>Descripción</div>
-          <div className="text-right">P.Uni</div>
-          <div className="text-right">Importe</div>
-        </div>
+      <div className="sm:hidden max-h-[62vh] overflow-y-auto divide-y divide-slate-200">
+        {itemsToRender.map((item) => {
+          const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+          const isStockNegative = Number(item.stock ?? 0) < 0;
+          const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
 
-        <div className="divide-y divide-slate-200">
-          {itemsToRender.map((item, rowIndex) => {
-            const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
-            const isStockNegative = Number(item.stock ?? 0) < 0;
-            const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+          return (
+            <article
+              key={item.productId}
+              className={`p-3 ${
+                isZeroOrNegative || isStockNegative
+                  ? "bg-red-50/70"
+                  : "bg-white"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold leading-snug text-slate-900">
+                    {item.nombre}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {item.unidadMedida || "UND"}
+                    {item.stock !== undefined ? ` · Stock: ${item.stock}` : ""}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="h-7 w-7 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => handleRemoveItem(item.productId)}
+                  disabled={!canEditItems}
+                  title="Quitar"
+                >
+                  <Trash2 className="mx-auto h-3.5 w-3.5" />
+                </button>
+              </div>
 
-            return (
-              <div
-                key={item.productId}
-                className={`grid grid-cols-[96px_minmax(0,1fr)_120px_130px] items-start px-3 py-3 ${
-                  isZeroOrNegative || isStockNegative
-                    ? "bg-red-50/70"
-                    : "bg-white"
-                }`}
-              >
-                <div className="flex items-start justify-center pt-1">
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    Cantidad
+                  </p>
                   {canEditItems ? (
                     <input
                       type="number"
                       min={0}
                       step="1"
                       inputMode="numeric"
-                      data-payment-column="quantity"
-                      data-payment-row-index={rowIndex}
-                      className="h-9 w-16 rounded-md border border-slate-300 py-1 text-center text-sm outline-none appearance-none [appearance:textfield] focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className="mt-1 h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-center text-sm outline-none appearance-none [appearance:textfield] focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       value={item.cantidad === 0 ? "" : item.cantidad}
                       onChange={(e) => {
                         const value = e.target.value;
@@ -2061,42 +2093,30 @@ const PaymentPage = () => {
                           desired - (item.cantidad ?? 0),
                         );
                       }}
-                      onKeyDown={(event) =>
-                        handleColumnArrowNavigation(event, "quantity", rowIndex)
-                      }
                       onFocus={(e) => e.target.select()}
                       disabled={!canEditItems}
                       style={{ MozAppearance: "textfield" }}
                     />
                   ) : (
-                    <span className="inline-flex h-9 min-w-10 items-center justify-center text-lg">
+                    <p className="mt-1 text-base font-semibold text-slate-800">
                       {item.cantidad}
-                    </span>
+                    </p>
                   )}
                 </div>
 
-                <div className="min-w-0 pr-3">
-                  <p className="break-words text-base leading-snug text-slate-900">
-                    {item.nombre}
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                    P. Uni
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {item.unidadMedida || "UND"}
-                    {item.stock !== undefined ? ` · Stock: ${item.stock}` : ""}
-                  </p>
-                </div>
-
-                <div className="pt-1 text-right">
                   {canEditItems ? (
-                    <div className="inline-flex h-9 items-center justify-end gap-1 rounded-md border border-slate-300 bg-white px-2">
+                    <div className="mt-1 inline-flex h-9 w-full items-center gap-1 rounded-md border border-slate-300 bg-white px-2">
                       <span className="text-xs text-slate-500">S/</span>
                       <input
                         type="number"
                         min={minPrice}
                         step="0.01"
                         inputMode="decimal"
-                        data-payment-column="price"
-                        data-payment-row-index={rowIndex}
-                        className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        className="w-full border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         value={priceDrafts[item.productId] ?? item.precio}
                         onChange={(e) => {
                           handlePriceChange(item, e.target.value);
@@ -2108,61 +2128,202 @@ const PaymentPage = () => {
                             e.currentTarget,
                           );
                         }}
-                        onKeyDown={(event) =>
-                          handleColumnArrowNavigation(event, "price", rowIndex)
-                        }
                         onFocus={(e) => e.target.select()}
                         disabled={!canEditItems}
                         style={{ MozAppearance: "textfield" }}
                       />
                     </div>
                   ) : (
-                    <span className="inline-block pt-1 text-xl leading-none text-slate-900">
-                      {item.precio.toFixed(2)}
-                    </span>
+                    <p className="mt-1 text-base font-semibold text-slate-800">
+                      S/ {item.precio.toFixed(2)}
+                    </p>
                   )}
                 </div>
 
-                <div className="pt-1">
-                  <div className="flex items-start justify-end gap-2">
+                <div className="col-span-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                      Importe
+                    </p>
                     <p
-                      className={`pt-1 text-right text-xl leading-none ${
+                      className={`text-lg font-semibold ${
                         isZeroOrNegative ? "text-red-600" : "text-slate-900"
                       }`}
                     >
-                      {(item.precio * item.cantidad).toFixed(2)}
+                      S/ {(item.precio * item.cantidad).toFixed(2)}
                     </p>
-                    <button
-                      type="button"
-                      className="h-6 w-6 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      onClick={() => handleRemoveItem(item.productId)}
-                      disabled={!canEditItems}
-                      title="Quitar"
-                    >
-                      <Trash2 className="mx-auto h-3 w-3" />
-                    </button>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="hidden sm:block max-h-[min(58vh,620px)] md:max-h-[60vh] overflow-auto">
+        <div className="min-w-[640px]">
+          <div className="sticky top-0 z-10 grid grid-cols-[96px_minmax(0,1fr)_120px_130px] border-b-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold tracking-wide text-slate-800">
+            <div className="text-center">Cantidad</div>
+            <div>Descripción</div>
+            <div className="text-right">P.Uni</div>
+            <div className="text-right">Importe</div>
+          </div>
+
+          <div className="divide-y divide-slate-200">
+            {itemsToRender.map((item, rowIndex) => {
+              const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
+              const isStockNegative = Number(item.stock ?? 0) < 0;
+              const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+
+              return (
+                <div
+                  key={item.productId}
+                  className={`grid grid-cols-[96px_minmax(0,1fr)_120px_130px] items-start px-3 py-3 ${
+                    isZeroOrNegative || isStockNegative
+                      ? "bg-red-50/70"
+                      : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-start justify-center pt-1">
+                    {canEditItems ? (
+                      <input
+                        type="number"
+                        min={0}
+                        step="1"
+                        inputMode="numeric"
+                        data-payment-column="quantity"
+                        data-payment-row-index={rowIndex}
+                        className="h-9 w-16 rounded-md border border-slate-300 py-1 text-center text-sm outline-none appearance-none [appearance:textfield] focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        value={item.cantidad === 0 ? "" : item.cantidad}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "") {
+                            handleQuantityChange(item, -item.cantidad);
+                            return;
+                          }
+                          const parsed = Number(value);
+                          if (Number.isNaN(parsed)) return;
+                          const desired = Math.max(0, parsed);
+                          handleQuantityChange(
+                            item,
+                            desired - (item.cantidad ?? 0),
+                          );
+                        }}
+                        onKeyDown={(event) =>
+                          handleColumnArrowNavigation(
+                            event,
+                            "quantity",
+                            rowIndex,
+                          )
+                        }
+                        onFocus={(e) => e.target.select()}
+                        disabled={!canEditItems}
+                        style={{ MozAppearance: "textfield" }}
+                      />
+                    ) : (
+                      <span className="inline-flex h-9 min-w-10 items-center justify-center text-lg">
+                        {item.cantidad}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 pr-3">
+                    <p className="break-words text-base leading-snug text-slate-900">
+                      {item.nombre}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {item.unidadMedida || "UND"}
+                      {item.stock !== undefined
+                        ? ` · Stock: ${item.stock}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="pt-1 text-right">
+                    {canEditItems ? (
+                      <div className="inline-flex h-9 items-center justify-end gap-1 rounded-md border border-slate-300 bg-white px-2">
+                        <span className="text-xs text-slate-500">S/</span>
+                        <input
+                          type="number"
+                          min={minPrice}
+                          step="0.01"
+                          inputMode="decimal"
+                          data-payment-column="price"
+                          data-payment-row-index={rowIndex}
+                          className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          value={priceDrafts[item.productId] ?? item.precio}
+                          onChange={(e) => {
+                            handlePriceChange(item, e.target.value);
+                          }}
+                          onBlur={(e) => {
+                            handlePriceBlur(
+                              item,
+                              e.currentTarget.value,
+                              e.currentTarget,
+                            );
+                          }}
+                          onKeyDown={(event) =>
+                            handleColumnArrowNavigation(
+                              event,
+                              "price",
+                              rowIndex,
+                            )
+                          }
+                          onFocus={(e) => e.target.select()}
+                          disabled={!canEditItems}
+                          style={{ MozAppearance: "textfield" }}
+                        />
+                      </div>
+                    ) : (
+                      <span className="inline-block pt-1 text-xl leading-none text-slate-900">
+                        {item.precio.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="pt-1">
+                    <div className="flex items-start justify-end gap-2">
+                      <p
+                        className={`pt-1 text-right text-xl leading-none ${
+                          isZeroOrNegative ? "text-red-600" : "text-slate-900"
+                        }`}
+                      >
+                        {(item.precio * item.cantidad).toFixed(2)}
+                      </p>
+                      <button
+                        type="button"
+                        className="h-6 w-6 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        onClick={() => handleRemoveItem(item.productId)}
+                        disabled={!canEditItems}
+                        title="Quitar"
+                      >
+                        <Trash2 className="mx-auto h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
   );
 
   const PdfViewerCard = (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
       {canPreviewPdf ? (
-        <PDFViewer
-          key={previewKey}
-          style={{ width: "100%", height: 620 }}
-          showToolbar={isConfirmed}
-        >
-          <TicketDocument {...ticketPreviewProps} />
-        </PDFViewer>
+        <div className="h-[68vh] min-h-[420px] sm:h-[620px]">
+          <PDFViewer
+            key={previewKey}
+            style={{ width: "100%", height: "100%" }}
+            showToolbar={isConfirmed}
+          >
+            <TicketDocument {...ticketPreviewProps} />
+          </PDFViewer>
+        </div>
       ) : (
-        <div className="p-3 text-xs text-gray-500">
+        <div className="p-4 text-xs text-gray-500">
           Cargando vista previa del comprobante...
         </div>
       )}
@@ -2175,8 +2336,83 @@ const PaymentPage = () => {
         methods={formMethods}
         onSubmit={confirmPayment}
         preventSubmitOnEnter
-        className="bg-white rounded-xl shadow p-4 space-y-4"
+        className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
       >
+        <div className="fixed inset-x-0 top-0 z-[90] px-3 pt-2 md:hidden">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {!formLocked && (
+                <button
+                  type="submit"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                  disabled={isSubmitting}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Confirmar
+                </button>
+              )}
+              {isConfirmed && isProforma && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs font-medium text-orange-800 transition-colors hover:bg-orange-50"
+                  onClick={handleEnableEditing}
+                >
+                  {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
+                </button>
+              )}
+              {isConfirmed && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 transition-colors hover:bg-green-100"
+                  onClick={() => {
+                    void shareByWhatsApp();
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </button>
+              )}
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                onClick={() => handlePrint()}
+                disabled={isPrinting}
+              >
+                <Printer className="h-4 w-4" />
+                {isPrinting ? "Imprimiendo..." : "Imprimir"}
+              </button>
+              <button
+                type="button"
+                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50"
+                onClick={handleBackToPos}
+              >
+                <ArrowLeft className="h-4 w-4" />
+                {backLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="h-20 md:hidden" />
+
+        <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">
+              Ítems
+            </p>
+            <p className="text-sm font-semibold text-slate-800">
+              {itemsToRender.length}
+            </p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-right">
+            <p className="text-[11px] uppercase tracking-wide text-slate-500">
+              Total
+            </p>
+            <p className="text-sm font-semibold text-slate-800">
+              S/ {totalAPagar.toFixed(2)}
+            </p>
+          </div>
+        </div>
+
         <HookFormSelect
           name="docTypeCode"
           label="Tipo de documento"
@@ -2365,8 +2601,8 @@ const PaymentPage = () => {
             }}
           />
         )}
-        <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
-          <span>Aplica descuento</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700">
+          <span className="font-medium">Aplica descuento</span>
           <input
             type="checkbox"
             className="w-4 h-4 accent-slate-700 rounded"
@@ -2391,14 +2627,14 @@ const PaymentPage = () => {
             })}
           />
         </div>
-        <div className="space-y-1 border-t pt-3">
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
           <div className="flex justify-between text-sm text-gray-700">
             <span>Op. gravada</span>
             <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
           </div>
 
           {applyDiscount && (
-            <div className="flex items-center justify-between text-sm text-gray-700 gap-3">
+            <div className="flex items-center justify-between gap-3 text-sm text-gray-700">
               <span>Descuento</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-gray-500">S/</span>
@@ -2413,15 +2649,17 @@ const PaymentPage = () => {
                   rules={{
                     validate: (value: any) => {
                       const numeric = Number(value ?? 0);
-                      if (!Number.isFinite(numeric)) return "Descuento inválido";
-                      if (numeric < 0) return "El descuento no puede ser negativo";
+                      if (!Number.isFinite(numeric))
+                        return "Descuento inválido";
+                      if (numeric < 0)
+                        return "El descuento no puede ser negativo";
                       return (
                         numeric <= maxDiscount ||
                         `No puede superar S/ ${maxDiscount.toFixed(2)}`
                       );
                     },
                   }}
-                  className="w-12 text-right appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  className="w-20 text-right appearance-none sm:w-16 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   style={{ MozAppearance: "textfield" }}
                   onFocus={(e) => e.target.select()}
                   onBlur={(e) => {
@@ -2450,7 +2688,7 @@ const PaymentPage = () => {
             <span>IGV (18%)</span>
             <span className="font-semibold">S/ {igvAmount.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-base text-slate-800 font-bold">
+          <div className="flex justify-between text-base font-bold text-slate-800">
             <span>Total pago</span>
             <span>S/ {totalAPagar.toFixed(2)}</span>
           </div>
@@ -2458,7 +2696,7 @@ const PaymentPage = () => {
         {!formLocked && (
           <button
             type="submit"
-            className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
+            className="hidden w-full items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 font-semibold text-white transition-colors hover:bg-slate-800 md:inline-flex"
             disabled={isSubmitting}
           >
             <CheckCircle2 className="w-5 h-5" />
@@ -2466,56 +2704,57 @@ const PaymentPage = () => {
           </button>
         )}
       </HookForm>
-
-      {isConfirmed && isProforma && (
+      <div className="hidden gap-2 sm:gap-3 md:grid">
+        {isConfirmed && isProforma && (
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-orange-300 bg-white py-2.5 text-orange-800 transition-colors hover:bg-orange-50"
+            onClick={handleEnableEditing}
+          >
+            {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
+          </button>
+        )}
+        {isConfirmed && (
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 py-2.5 text-green-800 transition-colors hover:bg-green-100"
+            onClick={() => {
+              void shareByWhatsApp();
+            }}
+          >
+            <MessageCircle className="w-5 h-5" />
+            Enviar por WhatsApp
+          </button>
+        )}
         <button
-          className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-orange-300 bg-white text-orange-800 hover:bg-orange-50 transition-colors"
-          onClick={handleEnableEditing}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
+          onClick={() => handlePrint()}
+          disabled={isPrinting}
         >
-          {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
+          <Printer className="w-5 h-5" />
+          {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
         </button>
-      )}
-      {isConfirmed && (
         <button
-          className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-green-300 bg-green-50 text-green-800 hover:bg-green-100 transition-colors"
-          onClick={() => {
-            void shareByWhatsApp();
-          }}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50"
+          onClick={handleBackToPos}
         >
-          <MessageCircle className="w-5 h-5" />
-          Enviar por WhatsApp
+          <ArrowLeft className="w-5 h-5" />
+          {backLabel}
         </button>
-      )}
-      <button
-        className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors disabled:opacity-50"
-        onClick={() => handlePrint()}
-        disabled={isPrinting}
-      >
-        <Printer className="w-5 h-5" />
-        {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
-      </button>
-      <button
-        className="w-full inline-flex justify-center items-center gap-2 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 transition-colors"
-        onClick={handleBackToPos}
-      >
-        <ArrowLeft className="w-5 h-5" />
-        {backLabel}
-      </button>
+      </div>
     </>
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm text-gray-500">Confirmar cobro</p>
-          <h1 className="text-2xl font-semibold text-slate-800">
+          <h1 className="text-xl font-semibold text-slate-800 sm:text-2xl">
             Pago y comprobante
           </h1>
         </div>
         <Link
           to={backRoute}
-          className="inline-flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
+          className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
           onClick={(e) => handleBackToPos(e)}
         >
           <ArrowLeft className="w-4 h-4" />
@@ -2523,24 +2762,24 @@ const PaymentPage = () => {
         </Link>
       </div>
       {/* Layout móvil/mediano: tabs combinados + formulario */}
-      <div className="grid grid-cols-1 md:grid-cols-[1.2fr_1fr] gap-5 min-[1405px]:hidden">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr] lg:gap-5 min-[1405px]:hidden">
         <section className="space-y-4">
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-1 border-b border-slate-200 p-2 bg-slate-50">
               <button
                 type="button"
-                className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 sm:px-4 sm:py-3 ${
                   activeTab === "items"
                     ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
                 }`}
                 onClick={() => setActiveTab("items")}
               >
-                Items a cobrar
+                Items ({itemsToRender.length})
               </button>
               <button
                 type="button"
-                className={`flex-1 px-4 py-3 text-sm font-semibold rounded-xl transition-all duration-200 ${
+                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 sm:px-4 sm:py-3 ${
                   activeTab === "pdf"
                     ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
                     : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
@@ -2551,14 +2790,14 @@ const PaymentPage = () => {
               </button>
             </div>
 
-            <div className="p-5">
+            <div className="p-3 sm:p-5">
               {activeTab === "items" && ItemsList}
               {activeTab === "pdf" && PdfViewerCard}
             </div>
           </div>
         </section>
 
-        <section className="space-y-3">{renderForm()}</section>
+        <section className="space-y-4">{renderForm()}</section>
       </div>
 
       {/* Layout grande: 3 columnas optimizadas */}
@@ -2574,10 +2813,12 @@ const PaymentPage = () => {
         <section className="space-y-4">
           <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-5">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-200">
-              {itemsToRender.length}
               <h2 className="text-lg font-bold text-slate-800">
                 Items a cobrar
               </h2>
+              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                {itemsToRender.length}
+              </span>
             </div>
             {ItemsList}
           </div>

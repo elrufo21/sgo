@@ -200,7 +200,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
 
       if (account.action === "i") {
         const created = await apiRequest<any>({
-          url: "http://localhost:5000/api/v1/Proveedor/registerCuenta",
+          url: `${API_BASE_URL}/Proveedor/registerCuenta`,
           method: "POST",
           data: payload,
           config: {
@@ -217,7 +217,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         }
       } else if (account.action === "u") {
         const updated = await apiRequest<any>({
-          url: "http://localhost:5000/api/v1/Proveedor/registerCuenta",
+          url: `${API_BASE_URL}/Proveedor/registerCuenta`,
           method: "POST",
           data: payload,
           config: {
@@ -378,7 +378,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       };
 
       const created = await apiRequest<unknown>({
-        url: "http://localhost:5000/api/v1/Linea/registerlinea",
+        url: `${API_BASE_URL}/Linea/registerlinea`,
         method: "POST",
         data: payload,
         config: {
@@ -426,7 +426,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       };
 
       const updated = await apiRequest<unknown>({
-        url: "http://localhost:5000/api/v1/Linea/registerlinea",
+        url: `${API_BASE_URL}/Linea/registerlinea`,
         method: "POST",
         data: payload,
         config: {
@@ -463,7 +463,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
 
     deleteCategory: async (idSubLinea) => {
       const result = await apiRequest({
-        url: `http://localhost:5000/api/v1/Linea/${idSubLinea}`,
+        url: `${API_BASE_URL}/Linea/${idSubLinea}`,
         method: "DELETE",
         config: {
           headers: {
@@ -496,7 +496,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         areaId?: number;
         areaNombre?: string;
       }>({
-        url: "http://localhost:5000/api/v1/Area/registerarea",
+        url: `${API_BASE_URL}/Area/registerarea`,
         method: "POST",
         data: payload,
         config: {
@@ -546,7 +546,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         areaId?: number;
         areaNombre?: string;
       }>({
-        url: "http://localhost:5000/api/v1/Area/registerarea",
+        url: `${API_BASE_URL}/Area/registerarea`,
         method: "POST",
         data: payload,
         config: {
@@ -592,7 +592,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     },
     deleteArea: async (id) => {
       const result = await apiRequest({
-        url: `http://localhost:5000/api/v1/Area/${id}`,
+        url: `${API_BASE_URL}/Area/${id}`,
         method: "DELETE",
         config: {
           headers: {
@@ -631,7 +631,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         serieBoleta?: string;
         tiketera?: string;
       }>({
-        url: "http://localhost:5000/api/v1/Maquina/registermaquina",
+        url: `${API_BASE_URL}/Maquina/registermaquina`,
         method: "POST",
         data: payload,
         config: {
@@ -700,7 +700,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
         serieBoleta?: string;
         tiketera?: string;
       }>({
-        url: "http://localhost:5000/api/v1/Maquina/registermaquina",
+        url: `${API_BASE_URL}/Maquina/registermaquina`,
         method: "POST",
         data: payload,
         config: {
@@ -757,7 +757,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
     },
     deleteComputer: async (id) => {
       const result = await apiRequest({
-        url: `http://localhost:5000/api/v1/Maquina/${id}`,
+        url: `${API_BASE_URL}/Maquina/${id}`,
         method: "DELETE",
         config: {
           headers: {
@@ -817,7 +817,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }
 
       const created = await apiRequest<any>({
-        url: "http://localhost:5000/api/v1/Proveedor/register",
+        url: `${API_BASE_URL}/Proveedor/register`,
         method: "POST",
         data: requestData as any,
         config: requestConfig,
@@ -928,7 +928,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
       }
 
       const updated = await apiRequest<any>({
-        url: "http://localhost:5000/api/v1/Proveedor/register",
+        url: `${API_BASE_URL}/Proveedor/register`,
         method: "POST",
         data: requestData as any,
         config: requestConfig,
@@ -1017,7 +1017,7 @@ export const useMaintenanceStore = create<MaintenanceState>((set, get) => {
 
     deleteProvider: async (id) => {
       const result = await apiRequest({
-        url: `http://localhost:5000/api/v1/Proveedor/${id}`,
+        url: `${API_BASE_URL}/Proveedor/${id}`,
         method: "DELETE",
         config: {
           headers: {

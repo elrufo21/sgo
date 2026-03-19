@@ -391,7 +391,7 @@ export default function ProviderForm({
 
           <div className="p-6 sm:p-8">
             <div className="flex flex-col lg:flex-row gap-6">
-              <div className="w-full lg:w-[35%] space-y-4">
+              <div className="order-2 lg:order-1 w-full lg:w-[35%] space-y-4">
                 <HookFormInput<ProviderFormValues>
                   name="razon"
                   label="Nombre / Razon Social"
@@ -446,26 +446,28 @@ export default function ProviderForm({
                 />
               </div>
 
-              <div className="w-full lg:w-[65%] mt-6 lg:mt-0">
+              <div className="order-1 lg:order-2 w-full lg:w-[65%]">
                 <div className="space-y-4 w-full lg:w-[70%]">
-                  <div className="flex flex-col gap-2">
-                    <HookFormInput<ProviderFormValues>
-                      name="numeroDocumentoConsulta"
-                      label="Numero de documento"
-                      type="number"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="Ingrese RUC"
-                      rules={{
-                        pattern: {
-                          value: /^\d{11}$/,
-                          message: "Debe tener 11 digitos",
-                        },
-                      }}
-                    />
+                  <div className="flex flex-row items-end gap-2 w-full">
+                    <div className="flex-1">
+                      <HookFormInput<ProviderFormValues>
+                        name="numeroDocumentoConsulta"
+                        label="Numero de documento"
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="Ingrese RUC"
+                        rules={{
+                          pattern: {
+                            value: /^\d{11}$/,
+                            message: "Debe tener 11 digitos",
+                          },
+                        }}
+                      />
+                    </div>
                     <button
                       type="button"
-                      className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors self-start"
+                      className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors"
                       onClick={handleConsultarDocumento}
                     >
                       Consultar

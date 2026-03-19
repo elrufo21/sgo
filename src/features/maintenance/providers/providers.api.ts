@@ -1,5 +1,6 @@
 import type { Provider } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { buildApiUrl } from "@/config";
 
 export const providersQueryKey = ["providers"] as const;
 
@@ -23,7 +24,7 @@ export const fetchProvidersApi = async (
       ? `?estado=${encodeURIComponent(estado)}`
       : "";
   const response = await apiRequest<ProviderApiResponse[]>({
-    url: `http://localhost:5000/api/v1/Proveedor/list${query}`,
+    url: `${buildApiUrl("/Proveedor/list")}${query}`,
     method: "GET",
     fallback: [],
   });

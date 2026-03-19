@@ -165,6 +165,7 @@ export default function ProductFormBase({
   const {
     handleSubmit,
     reset,
+    setFocus,
     setValue,
     watch,
     getValues,
@@ -178,9 +179,15 @@ export default function ProductFormBase({
     reset(defaults);
   }, [defaults, reset]);
 
+  const focusCategoryField = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      setFocus("idSubLinea");
+    });
+  }, [setFocus]);
+
   useEffect(() => {
-    focusFirstInput(containerRef.current);
-  }, [mode, initialData]);
+    focusCategoryField();
+  }, [mode, initialData, focusCategoryField]);
 
   useEffect(() => {
     if (!categories.length) {
@@ -366,7 +373,7 @@ export default function ProductFormBase({
       reset(defaults);
     }
     setCodeEditable(false);
-    focusFirstInput(containerRef.current);
+    focusCategoryField();
   };
 
   const onSubmit = async (values: ProductFormValues) => {
@@ -404,9 +411,9 @@ export default function ProductFormBase({
         codigo: nextCode,
       });
       setCodeEditable(false);
-      focusFirstInput(containerRef.current);
+      focusCategoryField();
     } else {
-      focusFirstInput(containerRef.current);
+      focusCategoryField();
     }
   };
 

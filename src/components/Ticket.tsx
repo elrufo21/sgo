@@ -20,10 +20,19 @@ type TicketDocumentProps = {
   items?: PosCartItem[];
   totals?: PosTotals;
   documentNumber?: string;
+  noteId?: number | string | null;
   companyName?: string;
   companyRuc?: string;
   companyAddress?: string;
   companyDistrict?: string;
+  summary?: {
+    operacionGravada?: number;
+    descuento?: number;
+    showDiscount?: boolean;
+    subtotal?: number;
+    igv?: number;
+    total?: number;
+  };
 };
 
 const UNITS = [
@@ -323,31 +332,81 @@ const TicketDocument = ({
   items,
   totals,
   documentNumber,
+  noteId,
   companyName,
   companyRuc,
   companyAddress,
   companyDistrict,
+  summary,
 }: TicketDocumentProps) => {
   const [qrBase64, setQrBase64] = useState("");
 
   const ticketData = useMemo(() => {
     const hasItems = Boolean(items?.length);
-    const subtotalValue = hasItems ? Number(totals?.subTotal ?? 0) : 10000;
-    const totalValue = hasItems ? Number(totals?.total ?? 0) : 100.0;
-    const igvValue = hasItems
-      ? Math.max(0, totalValue - subtotalValue)
-      : 100000;
+    const fallbackOperacionGravada = hasItems
+      ? Number(totals?.subTotal ?? 0)
+      : 10000;
+    const fallbackSubtotal = hasItems ? Number(totals?.total ?? 0) : 100.0;
+    const fallbackTotal = hasItems ? Number(totals?.total ?? 0) : 100.0;
+
+    const operacionGravadaValue = Number(summary?.operacionGravada);
+    const descuentoValue = Number(summary?.descuento);
+    const subtotalValue = Number(summary?.subtotal);
+    const igvValue = Number(summary?.igv);
+    const totalValue = Number(summary?.total);
+
+    const safeOperacionGravada = Number.isFinite(operacionGravadaValue)
+      ? Math.max(0, operacionGravadaValue)
+      : fallbackOperacionGravada;
+    const safeDescuento = Number.isFinite(descuentoValue)
+      ? Math.max(0, descuentoValue)
+      : 0;
+    const showDiscount = Boolean(summary?.showDiscount);
+    const safeSubtotal = Number.isFinite(subtotalValue)
+      ? Math.max(0, subtotalValue)
+      : fallbackSubtotal;
+    const safeIgv = Number.isFinite(igvValue)
+      ? Math.max(0, igvValue)
+      : Math.max(0, safeSubtotal - safeOperacionGravada);
+    const safeTotal = Number.isFinite(totalValue)
+      ? Math.max(0, totalValue)
+      : fallbackTotal;
     const docLabel = docType === "factura" ? "RUC" : "DNI";
     const clientDoc =
       clientId?.trim() || (docLabel === "RUC" ? "00000000000" : "00000000");
-    const amountInWords = numberToWords(totalValue, "SOLES");
+    const now = new Date();
+    const emissionDate = now.toLocaleDateString("es-PE");
+    const emissionDateISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const amountInWords = numberToWords(safeTotal, "SOLES");
+    const normalizedNoteId = String(noteId ?? "").trim();
+    const qrDocTypeCode =
+      docType === "factura" ? "01" : docType === "boleta" ? "03" : "";
+    const qrClientDocTypeCode = docType === "factura" ? "06" : "01";
+    const qrData = qrDocTypeCode
+      ? [
+          companyRuc?.trim() || "20601070155",
+          qrDocTypeCode,
+          documentNumber || "-",
+          safeIgv.toFixed(2),
+          safeTotal.toFixed(2),
+          emissionDateISO,
+          qrClientDocTypeCode,
+          clientDoc,
+        ].join("|")
+      : "";
+    const docLabelForAuthorization =
+      docType === "factura"
+        ? "Factura"
+        : docType === "boleta"
+          ? "Boleta"
+          : "Comprobante";
 
     return {
       isFactura: docType === "factura",
+      isProforma: docType === "proforma",
       logo: "/LogoManuel.png",
-      qrData: "https://tu-url.com/boleta?id=396548",
-      companyName:
-        companyName?.trim() || "CONSORCIO FERRETERO ROSITA E.I.R.L.",
+      qrData,
+      companyName: companyName?.trim() || "CONSORCIO FERRETERO ROSITA E.I.R.L.",
       ruc: companyRuc?.trim() || "20601070155",
       address: companyAddress?.trim() || "Calle 2 Mz B Lote 1",
       district: companyDistrict?.trim() || "LIMA",
@@ -359,7 +418,7 @@ const TicketDocument = ({
             ? "PROFORMA DE VENTA"
             : "BOLETA DE VENTA ELECTRONICA",
       documentNumber: documentNumber || "",
-      emissionDate: new Date().toLocaleDateString("es-PE"),
+      emissionDate,
       currency: "SOLES",
       paymentMethod: paymentMethod ?? "AL CONTADO",
       clientName: clientName || "Ultimo cliente",
@@ -382,13 +441,18 @@ const TicketDocument = ({
               total: 790.0,
             },
           ],
-      subtotal: subtotalValue,
-      igv: igvValue,
-      total: totalValue,
+      operacionGravada: safeOperacionGravada,
+      descuento: safeDescuento,
+      showDiscount,
+      subtotal: safeSubtotal,
+      igv: safeIgv,
+      total: safeTotal,
       son: amountInWords,
       authorization:
-        "Autorizado mediante Resolución de Intendencia SUNAT N° 032-005-Representación impresa de la Boleta Electrónica Descarga tu Comprobante en -http://e-consulta.sunat.gob.pe/ol-ti-itconsvalicpe/ConsValiCpe.htm",
-      id: "396548",
+        docType === "proforma"
+          ? "Nota: No es comprobante de pago, canjear por Boleta o Factura"
+          : `Autorizado mediante Resolución de Intendencia SUNAT 0180050003180. Representación impresa de la ${docLabelForAuthorization} Electrónica. Consulta tu comprobante en: https://www.nubefact.com/buscar`,
+      id: normalizedNoteId || "396548",
     };
   }, [
     clientId,
@@ -396,6 +460,7 @@ const TicketDocument = ({
     clientName,
     docType,
     documentNumber,
+    noteId,
     items,
     paymentMethod,
     totals,
@@ -403,6 +468,7 @@ const TicketDocument = ({
     companyRuc,
     companyAddress,
     companyDistrict,
+    summary,
   ]);
 
   useEffect(() => {
@@ -416,7 +482,10 @@ const TicketDocument = ({
         margin: 1,
         scale: 4,
       }).then((url) => setQrBase64(url));
+      return;
     }
+
+    setQrBase64("");
   }, [ticketData.qrBase64, ticketData.qrData]);
 
   return (
@@ -495,18 +564,37 @@ const TicketDocument = ({
 
         <View style={styles.divider} />
 
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
-          <Text style={styles.summaryValue}>
-            S/ {ticketData.subtotal.toFixed(2)}
-          </Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>I.G.V. :</Text>
-          <Text style={styles.summaryValue}>
-            S/ {ticketData.igv.toFixed(2)}
-          </Text>
-        </View>
+        {!ticketData.isProforma && (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
+              <Text style={styles.summaryValue}>
+                S/ {ticketData.operacionGravada.toFixed(2)}
+              </Text>
+            </View>
+            {ticketData.showDiscount && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>DESCUENTO :</Text>
+                <Text style={styles.summaryValue}>
+                  S/ {ticketData.descuento.toFixed(2)}
+                </Text>
+              </View>
+            )}
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>SUBTOTAL :</Text>
+              <Text style={styles.summaryValue}>
+                S/ {ticketData.subtotal.toFixed(2)}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>I.G.V. :</Text>
+              <Text style={styles.summaryValue}>
+                S/ {ticketData.igv.toFixed(2)}
+              </Text>
+            </View>
+          </>
+        )}
+        {/* Totals are still shown for all document types */}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL :</Text>
           <Text style={styles.totalValue}>
@@ -516,7 +604,9 @@ const TicketDocument = ({
 
         <View style={styles.footer}>
           <Text style={styles.footerText}>SON: {ticketData.son}</Text>
-          <Text style={styles.footerText}>{ticketData.authorization}</Text>
+          {ticketData.authorization ? (
+            <Text style={styles.footerText}>{ticketData.authorization}</Text>
+          ) : null}
           <Text style={styles.footerText}>ID: {ticketData.id}</Text>
         </View>
 

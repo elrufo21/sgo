@@ -1,73 +1,57 @@
-# React + TypeScript + Vite
+# SGO Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicacion React + TypeScript + Vite, preparada para despliegue en Vercel.
 
-Currently, two official plugins are available:
+## Requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js 20+
+- npm 10+
 
-## React Compiler
+## Variables de entorno
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Crear un archivo `.env` en local usando `.env.example` como base:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Variables disponibles:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `VITE_API_BASE_URL`: URL base del backend (ejemplo: `https://api.tu-dominio.com/api/v1`)
+- `VITE_API_DOCUMENTO`: token para consultas de documento
+- `VITE_PASSWORD_EXPIRATION_LOCK_ENABLED`: feature flag (`true` o `false`)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Desarrollo local
+
+```bash
+npm install
+npm run dev
 ```
+
+## Build de produccion
+
+```bash
+npm run build
+```
+
+## Despliegue en Vercel
+
+1. Importar el repositorio en Vercel.
+2. Framework preset: `Vite` (opcional, ya existe `vercel.json`).
+3. Configurar variables de entorno en Vercel:
+   - `VITE_API_BASE_URL`
+   - `VITE_API_DOCUMENTO`
+   - `VITE_PASSWORD_EXPIRATION_LOCK_ENABLED` (opcional)
+4. Deploy.
+
+`vercel.json` ya incluye:
+
+- `buildCommand`: `npm run build`
+- `outputDirectory`: `dist`
+- fallback de rutas SPA hacia `index.html`
+
+## Notas de arquitectura
+
+- El endpoint de backend se centraliza en `src/config.ts`.
+- Para construir endpoints se usa `buildApiUrl(path)`.
+- Evita hardcodes de host en componentes/stores para mantener escalabilidad por entorno.

@@ -9,6 +9,7 @@ import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
 import type { Personal } from "@/types/employees";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { buildApiUrl } from "@/config";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { focusNextInput } from "@/shared/helpers/focusNextInput";
 import {
@@ -119,7 +120,7 @@ export default function EmployeeFormBase({
         }
       }
       const response = await apiRequest<{ id: string; nombre: string }[]>({
-        url: "http://localhost:5000/api/v1/Compania/combo",
+        url: buildApiUrl("/Compania/combo"),
         method: "GET",
         fallback: [],
       });

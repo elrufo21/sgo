@@ -1,5 +1,6 @@
 import type { Computer } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { buildApiUrl } from "@/config";
 
 export const computersQueryKey = ["computers"] as const;
 
@@ -15,7 +16,7 @@ type ComputerApiResponse = {
 
 export const fetchComputersApi = async (): Promise<Computer[]> => {
   const response = await apiRequest<ComputerApiResponse[]>({
-    url: "http://localhost:5000/api/v1/Maquina/list",
+    url: buildApiUrl("/Maquina/list"),
     method: "GET",
     fallback: [],
   });

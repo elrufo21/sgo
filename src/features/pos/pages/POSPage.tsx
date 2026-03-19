@@ -639,7 +639,7 @@ const POSPage = () => {
                                     : ""
                                 }
                               >
-                                Stock: {stockValue}
+                                Stock: {stockValue} {product.unidadMedida}
                               </span>
                               <span className="font-semibold text-slate-800">
                                 S/ {priceLabel(product)}

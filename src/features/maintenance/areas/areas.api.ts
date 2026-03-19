@@ -1,5 +1,6 @@
 import type { Area } from "@/types/maintenance";
 import { apiRequest } from "@/shared/helpers/apiRequest";
+import { buildApiUrl } from "@/config";
 
 export const areasQueryKey = ["areas"] as const;
 
@@ -13,7 +14,7 @@ export const fetchAreasApi = async (): Promise<Area[]> => {
     | AreaApiResponse[]
     | { id?: string | number; nombre?: string; areaId?: number; areaNombre?: string }[]
   >({
-    url: "http://localhost:5000/api/v1/Area/list",
+    url: buildApiUrl("/Area/list"),
     method: "GET",
     fallback: [],
   });

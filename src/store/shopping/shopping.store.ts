@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Shopping, ShoppingFormData, ShoppingItem } from "@/types/shopping";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { addDaysToLocalDateISO, getLocalDateISO } from "@/shared/helpers/localDate";
-import { API_BASE_URL } from "@/config";
+import { API_BASE_URL, buildApiUrl } from "@/config";
 
 interface ShoppingState {
   shoppings: Shopping[];
@@ -304,7 +304,7 @@ export const useShoppingStore = create<ShoppingState>()(
         const payload = buildCompraPayload(data, detalle);
 
         const result = await apiRequest<any>({
-          url: "http://localhost:5000/api/v1/Compra/register-with-detail",
+          url: buildApiUrl("/Compra/register-with-detail"),
           method: "POST",
           data: payload,
           config: {
