@@ -62,6 +62,7 @@ export default function ProductFormBase({
   onDelete,
 }: ProductFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const categoryFieldRef = useRef<HTMLDivElement>(null);
   const [codeEditable, setCodeEditable] = useState(false);
   const authUser = useAuthStore((s) => s.user);
   const { categories, fetchCategories, addCategory, updateCategory } =
@@ -86,7 +87,7 @@ export default function ProductFormBase({
         const normalizedStatus = String(product.estado ?? "")
           .trim()
           .toLowerCase();
-        return normalizedStatus === "bueno" || normalizedStatus === "ACTIVO";
+        return normalizedStatus === "bueno" || normalizedStatus === "activo";
       })
       .map((product) => {
         const rawCode = String(product.codigo ?? "")
@@ -193,8 +194,22 @@ export default function ProductFormBase({
   }, [defaults, reset]);
 
   const focusCategoryField = useCallback(() => {
-    window.requestAnimationFrame(() => {
+    const focusInput = () => {
       setFocus("idSubLinea");
+
+      const categoryInput =
+        categoryFieldRef.current?.querySelector<HTMLInputElement>("input");
+      if (!categoryInput) return false;
+      categoryInput.focus();
+      categoryInput.select();
+      return true;
+    };
+
+    window.requestAnimationFrame(() => {
+      if (focusInput()) return;
+      window.setTimeout(() => {
+        focusInput();
+      }, 0);
     });
   }, [setFocus]);
 
@@ -525,7 +540,10 @@ export default function ProductFormBase({
                       ))}
                     </div>
                   </div>
-                  <div className="flex min-w-0 items-end gap-2">
+                  <div
+                    ref={categoryFieldRef}
+                    className="flex min-w-0 items-end gap-2"
+                  >
                     <HookFormAutocomplete<ProductFormValues>
                       name="idSubLinea"
                       label="Categoria"

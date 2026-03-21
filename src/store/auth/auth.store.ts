@@ -18,6 +18,11 @@ export interface AuthUser {
   companyUbigeoName: string;
   companyCommercialName: string;
   companySunatAddress: string;
+  usuarioSol: string;
+  claveSol: string;
+  certificadoBase64: string;
+  claveCertificado: string;
+  entorno: string;
   maxDiscount: number;
 }
 
@@ -26,6 +31,7 @@ export interface AuthSession {
   user: AuthUser;
   expiresAt: number;
   passwordExpiresAt: string | null;
+  loginPayload?: LoginResponse;
 }
 
 interface LoginPayload {
@@ -60,6 +66,11 @@ interface LoginResponse {
   companiaNomUbg?: string | null;
   companiaComercial?: string | null;
   companiaDirecSunat?: string | null;
+  usuarioSol?: string | null;
+  claveSol?: string | null;
+  certificadoBase64?: string | null;
+  claveCertificado?: string | null;
+  entorno?: string | number | null;
   fechaVencimientoClave?: string | null;
   descuentoMax?: string | number | null;
   token: string;
@@ -177,6 +188,19 @@ const normalizeAuthUser = (user: AuthUser): AuthUser => ({
   companySunatAddress: normalizeText(
     (user as AuthUser & { companySunatAddress?: unknown }).companySunatAddress,
   ),
+  usuarioSol: normalizeText(
+    (user as AuthUser & { usuarioSol?: unknown }).usuarioSol,
+  ),
+  claveSol: normalizeText(
+    (user as AuthUser & { claveSol?: unknown }).claveSol,
+  ),
+  certificadoBase64: normalizeText(
+    (user as AuthUser & { certificadoBase64?: unknown }).certificadoBase64,
+  ),
+  claveCertificado: normalizeText(
+    (user as AuthUser & { claveCertificado?: unknown }).claveCertificado,
+  ),
+  entorno: normalizeText((user as AuthUser & { entorno?: unknown }).entorno),
   maxDiscount: normalizeMaxDiscount(
     (user as AuthUser & { maxDiscount?: unknown }).maxDiscount,
   ),
@@ -257,6 +281,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       const currentSession = readSessionFromStorage();
       const session: AuthSession = {
+        ...(currentSession ?? {}),
         token: state.token,
         user: normalizeAuthUser(state.user),
         expiresAt: currentSession?.expiresAt ?? Date.now() + 5 * 60 * 1000,
@@ -313,7 +338,29 @@ export const useAuthStore = create<AuthState>((set, get) => {
           companyUbigeoName: normalizeText(parsed.companiaNomUbg),
           companyCommercialName: normalizeText(parsed.companiaComercial),
           companySunatAddress: normalizeText(parsed.companiaDirecSunat),
+          usuarioSol: normalizeText(parsed.usuarioSol),
+          claveSol: normalizeText(parsed.claveSol),
+          certificadoBase64: normalizeText(parsed.certificadoBase64),
+          claveCertificado: normalizeText(parsed.claveCertificado),
+          entorno: normalizeText(parsed.entorno),
           maxDiscount: normalizeMaxDiscount(parsed.descuentoMax),
+        },
+        loginPayload: {
+          ...parsed,
+          companiaRuc: normalizeText(parsed.companiaRuc),
+          companiaNomUbg: normalizeText(parsed.companiaNomUbg),
+          companiaComercial: normalizeText(parsed.companiaComercial),
+          companiaDirecSunat: normalizeText(parsed.companiaDirecSunat),
+          usuarioSol: normalizeText(parsed.usuarioSol),
+          claveSol: normalizeText(parsed.claveSol),
+          certificadoBase64: normalizeText(parsed.certificadoBase64),
+          claveCertificado: normalizeText(parsed.claveCertificado),
+          entorno: normalizeText(parsed.entorno),
+          fechaVencimientoClave: normalizeText(parsed.fechaVencimientoClave) || null,
+          descuentoMax:
+            parsed.descuentoMax === null || parsed.descuentoMax === undefined
+              ? null
+              : String(parsed.descuentoMax),
         },
       };
 

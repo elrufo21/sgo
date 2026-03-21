@@ -50,6 +50,7 @@ interface DataTableProps<T extends RowData> {
   isLoading?: boolean;
   emptyMessage?: string;
   searchPlaceholder?: string;
+  showSearch?: boolean;
   initialPageSize?: number;
   pageSizeOptions?: number[];
   stickyHeader?: boolean;
@@ -119,6 +120,7 @@ export default function DataTable<T extends RowData>({
   isLoading = false,
   emptyMessage = "No hay datos para mostrar.",
   searchPlaceholder = "Buscar en la tabla...",
+  showSearch = true,
   initialPageSize = 10,
   pageSizeOptions = [10, 20, 50, 100],
   stickyHeader = true,
@@ -253,29 +255,31 @@ export default function DataTable<T extends RowData>({
             {toolbarLeading ? (
               <div className="shrink-0">{toolbarLeading}</div>
             ) : null}
-            <div className="relative w-full xl:w-[34rem]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={searchRef}
-                autoFocus
-                placeholder={searchPlaceholder}
-                data-no-uppercase="true"
-                className="h-11 w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-9 text-sm text-slate-800 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-                value={globalFilter}
-                onChange={(e) => handleGlobalFilterChange(e.target.value)}
-                onInput={handleSearchInput}
-              />
-              {globalFilter ? (
-                <button
-                  type="button"
-                  onClick={() => handleGlobalFilterChange("")}
-                  className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Limpiar búsqueda"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
+            {showSearch ? (
+              <div className="relative w-full xl:w-[34rem]">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  ref={searchRef}
+                  autoFocus
+                  placeholder={searchPlaceholder}
+                  data-no-uppercase="true"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white py-2 pl-10 pr-9 text-sm text-slate-800 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
+                  value={globalFilter}
+                  onChange={(e) => handleGlobalFilterChange(e.target.value)}
+                  onInput={handleSearchInput}
+                />
+                {globalFilter ? (
+                  <button
+                    type="button"
+                    onClick={() => handleGlobalFilterChange("")}
+                    className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             {toolbarAction ? (
               <div className="shrink-0">{toolbarAction}</div>
             ) : null}

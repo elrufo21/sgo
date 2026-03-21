@@ -1,4 +1,9 @@
-import { DollarSign, NotebookPen, LucideDollarSign } from "lucide-react";
+import {
+  DollarSign,
+  LucideDollarSign,
+  NotebookPen,
+  ReceiptText,
+} from "lucide-react";
 import { useNavigate } from "react-router";
 
 const cards = [
@@ -19,6 +24,12 @@ const cards = [
     desc: "Gestiona los movimientos de caja chica.",
     icon: <DollarSign className="w-10 h-10 text-blue-600" />,
     route: "/sales/small_cash",
+  },
+  {
+    title: "Resumen de boletas",
+    desc: "Visualiza y exporta boletas por rango de fechas.",
+    icon: <ReceiptText className="w-10 h-10 text-violet-600" />,
+    route: "/sales/boletas_summary",
   },
 ];
 

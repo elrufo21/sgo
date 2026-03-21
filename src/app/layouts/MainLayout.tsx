@@ -1,12 +1,12 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router";
 import {
-  Home,
   Package,
   UserCheck,
   DollarSign,
   Menu,
   X,
   Settings2,
+  SlidersHorizontal,
   StoreIcon,
   ChevronDown,
   CopySlashIcon,
@@ -375,18 +375,31 @@ export default function MainLayout() {
   const navItems = [
     {
       label: "Ventas",
-      to: "/sales",
+      to: "/sales/pos",
       icon: <DollarSign size={18} />,
     },
-    { label: "Dashboard", to: "/", icon: <Home size={18} /> },
-
+    {
+      label: "Lista de ventas (Lista de ordenes)",
+      to: "/sales/order_notes",
+      icon: <CopySlashIcon size={18} />,
+    },
+    {
+      label: "Resumen de boletas",
+      to: "/sales/boletas_summary",
+      icon: <CopySlashIcon size={18} />,
+    },
     { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
-    { label: "Clientes", to: "/customers", icon: <UserCheck size={18} /> },
+    { label: "Cliente", to: "/customers", icon: <UserCheck size={18} /> },
     {
       label: "Mantenimiento",
       to: "/maintenance",
       icon: <Settings2 />,
+    },
+    {
+      label: "Configuración",
+      to: "/configuration",
+      icon: <SlidersHorizontal size={18} />,
     },
     {
       label: "Control de flujo de caja",

@@ -550,14 +550,16 @@ const POSPage = () => {
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700 bg-white px-3 py-2 rounded-lg shadow-sm">
+            <button
+              type="button"
+              className="fixed top-21 right-4 z-30 flex items-center gap-2 text-sm bg-slate-700 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-slate-50 xl:static xl:z-auto xl:shadow-sm"
+              onClick={() => setMobileCartOpen(true)}
+              aria-label="Abrir carrito"
+            >
               <ShoppingCart className="w-4 h-4" />
               <span>{totals.itemCount} ítems</span>
               <span className="text-gray-300">|</span>
-              <span className="font-semibold">
-                S/ {totals.total.toFixed(2)}
-              </span>
-            </div>
+            </button>
           </div>
 
           <div
@@ -686,15 +688,6 @@ const POSPage = () => {
           {renderCartPanel()}
         </section>
       </div>
-
-      <button
-        type="button"
-        className="xl:hidden fixed bottom-4 right-4 z-30 inline-flex items-center gap-2 rounded-full bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-slate-900"
-        onClick={() => setMobileCartOpen(true)}
-      >
-        <ShoppingCart className="h-4 w-4" />
-        <span>Carrito ({totals.itemCount})</span>
-      </button>
 
       {mobileCartOpen && (
         <div className="xl:hidden fixed inset-0 z-40">
