@@ -344,7 +344,14 @@ export default function ProductFormBase({
   const startCamera = async () => {
     try {
       setTakingPhoto(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -938,6 +945,7 @@ export default function ProductFormBase({
                           <video
                             ref={videoRef}
                             autoPlay
+                            playsInline
                             className="w-full h-64 bg-black rounded-lg"
                           />
                           <div className="flex gap-3">
