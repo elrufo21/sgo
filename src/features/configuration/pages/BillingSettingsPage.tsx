@@ -165,10 +165,6 @@ export default function BillingSettingsPage() {
 
     toast.success("Configuración de facturación guardada correctamente.");
     setCertificateFile(null);
-    setCertificatePassword("");
-    setCertificatePasswordTouched(false);
-    setSolPassword("");
-    setSolPasswordTouched(false);
   }, [
     certificateFile,
     effectiveCertificatePassword,

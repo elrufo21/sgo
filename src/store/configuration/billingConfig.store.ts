@@ -88,6 +88,45 @@ const resolvePayloadItem = (payload: unknown): Record<string, unknown> | null =>
   return record;
 };
 
+const hasBillingConfigShape = (item: Record<string, unknown>) => {
+  const knownKeys = [
+    "UsuarioSOL",
+    "usuarioSOL",
+    "usuarioSol",
+    "solUser",
+    "ClaveSOL",
+    "claveSOL",
+    "claveSol",
+    "solPassword",
+    "Entorno",
+    "entorno",
+    "processType",
+    "tipoProceso",
+    "TipoProceso",
+    "CompaniaPFX",
+    "certificadoPfx",
+    "certificadoPFX",
+    "CertificadoPFX",
+    "certificateName",
+    "nombreCertificado",
+    "NombreCertificado",
+    "ClaveCertificado",
+    "claveCertificado",
+    "certificadoClave",
+    "hasCertificate",
+    "tieneCertificado",
+    "TieneCertificado",
+    "certificateExpiresAt",
+    "fechaVencimientoCertificado",
+    "FechaVencimientoCertificado",
+    "updatedAt",
+    "fechaActualizacion",
+    "FechaActualizacion",
+  ];
+
+  return knownKeys.some((key) => Object.prototype.hasOwnProperty.call(item, key));
+};
+
 const normalizeCertificateName = (value: unknown) => {
   const raw = normalizeText(value);
   if (!raw) return "-";
@@ -105,6 +144,7 @@ const looksLikeBase64Payload = (value: string) => {
 const mapApiToSummary = (payload: unknown): BillingConfigSummary | null => {
   const item = resolvePayloadItem(payload);
   if (!item) return null;
+  if (!hasBillingConfigShape(item)) return null;
 
   const certificateRaw =
     item.CertificadoPFX ??
