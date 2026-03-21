@@ -552,7 +552,7 @@ const POSPage = () => {
             </div>
             <button
               type="button"
-              className="fixed top-21 right-4 z-30 flex items-center gap-2 text-sm bg-slate-700 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-slate-50 xl:static xl:z-auto xl:shadow-sm"
+              className="fixed top-21 right-4 z-30 flex items-center gap-2 text-sm bg-slate-700 text-white px-3 py-2 rounded-lg shadow-lg xl:static xl:z-auto xl:shadow-sm"
               onClick={() => setMobileCartOpen(true)}
               aria-label="Abrir carrito"
             >
