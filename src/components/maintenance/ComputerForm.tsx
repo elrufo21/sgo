@@ -177,9 +177,9 @@ export default function ComputerForm({
 
   return (
     <div ref={containerRef} className="h-auto py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-visible">
         <HookForm methods={formMethods} onSubmit={handleSubmit}>
-          <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
             <div className="flex items-center gap-3">
               <BackArrowButton />
               <h1 className="text-base font-semibold">

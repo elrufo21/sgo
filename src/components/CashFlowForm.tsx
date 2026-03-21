@@ -260,9 +260,9 @@ export default function CashFlowForm({
   return (
     <div
       ref={containerRef}
-      className=" bg-gray-50 flex flex-col overflow-hidden"
+      className=" bg-gray-50 flex flex-col overflow-visible"
     >
-      <div className="bg-[#B23636] text-white px-2 sm:px-4 py-2 flex items-center justify-between flex-shrink-0">
+      <div className="sticky top-2 z-30 bg-[#B23636] text-white px-2 sm:px-4 py-2 flex items-center justify-between flex-shrink-0 shadow-lg shadow-black/10">
         <div className="flex items-center gap-2">
           <BackArrowButton className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-white/30 bg-white/10 text-white hover:bg-white/20 transition-colors" />
           <h1 className="text-xs sm:text-sm font-semibold">

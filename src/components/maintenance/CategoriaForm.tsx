@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { HookForm } from "@/components/forms/HookForm";
@@ -37,6 +37,7 @@ export default function CategoriaForm({
 }: CategoriaFormProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const setDialogData = useDialogStore((s) => s.setData);
+  const setMobileActions = useDialogStore((s) => s.setMobileActions);
 
   const isModal = variant === "modal";
 
@@ -75,11 +76,39 @@ export default function CategoriaForm({
     return () => subscription.unsubscribe();
   }, [isModal, watch, setDialogData]);
 
-  const handleNew = () => {
+  const handleNew = useCallback(() => {
     reset(buildDefaults());
     focusFirstInput(containerRef.current);
     onNew?.();
-  };
+  }, [onNew, reset]);
+
+  useEffect(() => {
+    if (!isModal) return;
+
+    const previousConfirmText = useDialogStore.getState().confirmText;
+    useDialogStore.setState({ confirmText: "Guardar" });
+
+    if (mode !== "edit") {
+      setMobileActions(
+        <button
+          type="button"
+          onClick={handleNew}
+          aria-label="Nuevo"
+          title="Nuevo"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        >
+          <Plus className="h-4 w-4" />
+        </button>,
+      );
+    } else {
+      setMobileActions(<></>);
+    }
+
+    return () => {
+      setMobileActions(null);
+      useDialogStore.setState({ confirmText: previousConfirmText });
+    };
+  }, [handleNew, isModal, mode, setMobileActions]);
 
   const onSubmit = async (values: Category) => {
     const payload: Category = {
@@ -97,7 +126,7 @@ export default function CategoriaForm({
 
   const Header = () =>
     isModal ? null : (
-      <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+      <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
         <div className="flex items-center gap-3">
           <BackArrowButton />
           <h1 className="text-base font-semibold">
@@ -152,8 +181,10 @@ export default function CategoriaForm({
       <div className="max-w-4xl mx-auto">
         <div
           className={`bg-white ${
-            variant !== "modal" && "rounded-2xl shadow-xl"
-          } overflow-hidden`}
+            variant !== "modal"
+              ? "rounded-2xl shadow-xl overflow-visible"
+              : "overflow-hidden"
+          }`}
         >
           <HookForm methods={formMethods} onSubmit={onSubmit}>
             <Header />

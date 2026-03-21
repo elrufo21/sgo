@@ -15,6 +15,7 @@ type DialogOptions = {
   disableClose?: boolean;
   hideCancelButton?: boolean;
   mobileFullScreen?: boolean;
+  mobileActions?: ReactNode;
 };
 
 const defaults = {
@@ -31,6 +32,7 @@ const defaults = {
   disableClose: false,
   hideCancelButton: false,
   mobileFullScreen: false,
+  mobileActions: null as ReactNode,
   loading: false,
   data: null as unknown,
 };
@@ -40,6 +42,7 @@ type DialogState = typeof defaults & {
   closeDialog: () => void;
   setLoading: (loading: boolean) => void;
   setData: (data: unknown) => void;
+  setMobileActions: (mobileActions: ReactNode | null) => void;
 };
 
 export const useDialogStore = create<DialogState>((set) => ({
@@ -48,4 +51,5 @@ export const useDialogStore = create<DialogState>((set) => ({
   closeDialog: () => set(defaults),
   setLoading: (loading) => set({ loading }),
   setData: (data) => set({ data }),
+  setMobileActions: (mobileActions) => set({ mobileActions }),
 }));

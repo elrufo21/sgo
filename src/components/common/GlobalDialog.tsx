@@ -1,4 +1,5 @@
 import {
+  Box,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -8,6 +9,7 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
+import { Save } from "lucide-react";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 export function GlobalDialog() {
@@ -25,6 +27,7 @@ export function GlobalDialog() {
     disableClose,
     hideCancelButton,
     mobileFullScreen,
+    mobileActions,
     loading,
     data,
     onConfirm,
@@ -67,6 +70,8 @@ export function GlobalDialog() {
     }
   };
 
+  const showTitleActionsOnMobile = isMobile && mobileActions !== null;
+
   return (
     <Dialog
       open={open}
@@ -86,11 +91,59 @@ export function GlobalDialog() {
           : undefined,
       }}
     >
-      {title ? <DialogTitle>{title}</DialogTitle> : null}
+      {title || showTitleActionsOnMobile ? (
+        <DialogTitle sx={showTitleActionsOnMobile ? { py: 1.25, px: 2 } : undefined}>
+          {showTitleActionsOnMobile ? (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+              <Box sx={{ fontWeight: 600, fontSize: "1rem", minWidth: 0, pr: 1 }}>
+                {title}
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                {mobileActions}
+                {!hideCancelButton && (
+                  <Button onClick={handleClose} disabled={loading} size="small">
+                    {cancelText}
+                  </Button>
+                )}
+                {onConfirm && (
+                  <Button
+                    onClick={handleConfirm}
+                    variant="contained"
+                    disabled={loading}
+                    size="small"
+                    aria-label={confirmText}
+                    sx={{ minWidth: 36, width: 36, px: 0 }}
+                  >
+                    {loading ? <CircularProgress size={16} /> : <Save size={16} />}
+                  </Button>
+                )}
+              </Box>
+            </Box>
+          ) : (
+            title
+          )}
+        </DialogTitle>
+      ) : null}
       <DialogContent dividers sx={isMobile ? { p: 2 } : undefined}>
         {content}
       </DialogContent>
-      <DialogActions sx={isMobile ? { px: 2, py: 1.5 } : undefined}>
+      {!showTitleActionsOnMobile ? (
+        <DialogActions
+        sx={
+          isMobile
+            ? {
+                px: 2,
+                py: 1.5,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+                flexWrap: "wrap",
+              }
+            : undefined
+        }
+      >
+        {isMobile && mobileActions ? mobileActions : null}
         {!hideCancelButton && (
           <Button onClick={handleClose} disabled={loading}>
             {cancelText}
@@ -107,6 +160,7 @@ export function GlobalDialog() {
           </Button>
         )}
       </DialogActions>
+      ) : null}
     </Dialog>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { HookForm } from "@/components/forms/HookForm";
@@ -39,6 +39,7 @@ export default function HolidayForm({
   const containerRef = useRef<HTMLDivElement>(null);
   const isModal = variant === "modal";
   const setDialogData = useDialogStore((s) => s.setData);
+  const setMobileActions = useDialogStore((s) => s.setMobileActions);
 
   const defaults = useMemo(
     () => (mode === "edit" ? buildDefaults(initialData) : buildDefaults()),
@@ -85,11 +86,39 @@ export default function HolidayForm({
     focusFirstInput(containerRef.current);
   };
 
-  const handleNew = () => {
+  const handleNew = useCallback(() => {
     reset(buildDefaults());
     onNew?.();
     focusFirstInput(containerRef.current);
-  };
+  }, [onNew, reset]);
+
+  useEffect(() => {
+    if (!isModal) return;
+
+    const previousConfirmText = useDialogStore.getState().confirmText;
+    useDialogStore.setState({ confirmText: "Guardar" });
+
+    if (mode !== "edit") {
+      setMobileActions(
+        <button
+          type="button"
+          onClick={handleNew}
+          aria-label="Nuevo"
+          title="Nuevo"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        >
+          <Plus className="h-4 w-4" />
+        </button>,
+      );
+    } else {
+      setMobileActions(<></>);
+    }
+
+    return () => {
+      setMobileActions(null);
+      useDialogStore.setState({ confirmText: previousConfirmText });
+    };
+  }, [handleNew, isModal, mode, setMobileActions]);
 
   return (
     <div
@@ -97,13 +126,15 @@ export default function HolidayForm({
       className={isModal ? "h-auto" : "h-auto py-8 px-4 sm:px-6 lg:px-8"}
     >
       <div
-        className={`w-full mx-auto bg-white overflow-hidden ${
-          isModal ? "" : "rounded-2xl shadow-xl"
+        className={`w-full mx-auto bg-white ${
+          isModal
+            ? "overflow-hidden"
+            : "overflow-visible rounded-2xl shadow-xl"
         }`}
       >
         <HookForm methods={formMethods} onSubmit={handleSubmit(handleSave)}>
           {!isModal && (
-            <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
               <div className="flex items-center gap-3">
                 <BackArrowButton />
                 <h1 className="text-base font-semibold">

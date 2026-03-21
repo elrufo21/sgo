@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 
@@ -65,8 +65,10 @@ export default function CustomerFormBase({
   const containerRef = useRef<HTMLDivElement>(null);
   const previousTipoDocumentoRef = useRef<"ruc" | "dni" | null>(null);
   const setDialogData = useDialogStore((s) => s.setData);
+  const setMobileActions = useDialogStore((s) => s.setMobileActions);
   const authUser = useAuthStore((s) => s.user);
   const registradoPorUser = authUser?.displayName ?? authUser?.username ?? null;
+  const isModal = variant === "modal";
 
   const defaults = useMemo(
     () =>
@@ -206,11 +208,39 @@ export default function CustomerFormBase({
     focusNombreRazon();
   };
 
-  const handleNew = () => {
+  const handleNew = useCallback(() => {
     reset(buildDefaults());
     onNew?.();
     focusFirstInput(containerRef.current);
-  };
+  }, [onNew, reset]);
+
+  useEffect(() => {
+    if (!isModal) return;
+
+    const previousConfirmText = useDialogStore.getState().confirmText;
+    useDialogStore.setState({ confirmText: "Guardar" });
+
+    if (mode !== "edit") {
+      setMobileActions(
+        <button
+          type="button"
+          onClick={handleNew}
+          aria-label="Nuevo"
+          title="Nuevo"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        >
+          <Plus className="h-4 w-4" />
+        </button>,
+      );
+    } else {
+      setMobileActions(<></>);
+    }
+
+    return () => {
+      setMobileActions(null);
+      useDialogStore.setState({ confirmText: previousConfirmText });
+    };
+  }, [handleNew, isModal, mode, setMobileActions]);
 
   const handleConsultarDocumento = async () => {
     const tipoDocumento: "ruc" | "dni" =
@@ -360,8 +390,6 @@ export default function CustomerFormBase({
     setFocus("nombreRazon");
   };
 
-  const isModal = variant === "modal";
-
   return (
     <div
       ref={containerRef}
@@ -371,13 +399,15 @@ export default function CustomerFormBase({
     >
       <div className="max-w-5xl mx-auto">
         <div
-          className={`bg-white overflow-hidden ${
-            isModal ? "" : "rounded-2xl shadow-xl"
+          className={`bg-white ${
+            isModal
+              ? "overflow-hidden"
+              : "overflow-visible rounded-2xl shadow-xl"
           }`}
         >
           <HookForm methods={formMethods} onSubmit={handleSave}>
             {!isModal && (
-              <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center gap-3">
                   <BackArrowButton />
                   <h1 className="text-base font-semibold">

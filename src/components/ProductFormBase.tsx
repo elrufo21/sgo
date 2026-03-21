@@ -456,7 +456,7 @@ export default function ProductFormBase({
       className="h-auto from-blue-50 via-indigo-50 to-purple-50 py-8 px-4 sm:px-6 lg:px-8"
     >
       <div className="max-w-5xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden relative">
+        <div className="bg-white rounded-2xl shadow-xl overflow-visible relative">
           {productsLoading && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
               <div className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-100 rounded-xl shadow-lg">
@@ -469,7 +469,7 @@ export default function ProductFormBase({
           )}
 
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+            <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
               <div className="flex items-center gap-3">
                 <BackArrowButton />
                 <h1 className="text-base font-semibold">

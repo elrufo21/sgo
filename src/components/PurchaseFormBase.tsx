@@ -166,9 +166,9 @@ export default function PurchaseFormBase({
       className="h-auto px-3 py-5 sm:px-6 sm:py-7 lg:px-8"
     >
       <div className="max-w-6xl mx-auto">
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl overflow-visible">
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between shadow-lg shadow-black/10">
               <div className="flex items-center gap-3 min-w-0">
                 <BackArrowButton />
                 <h1 className="text-base font-semibold truncate">

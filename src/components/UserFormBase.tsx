@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Save, Plus, Trash2, Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "@/shared/ui/toast";
@@ -70,6 +70,7 @@ export default function UserFormBase({
 }: UserFormBaseProps) {
   const { employees, fetchEmployees } = useEmployeesStore();
   const setDialogData = useDialogStore((s) => s.setData);
+  const setMobileActions = useDialogStore((s) => s.setMobileActions);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const isModal = variant === "modal";
@@ -177,11 +178,39 @@ export default function UserFormBase({
     focusFirstInput(containerRef.current);
   };
 
-  const handleNew = () => {
+  const handleNew = useCallback(() => {
     reset(buildDefaults("create"));
     onNew?.();
     focusFirstInput(containerRef.current);
-  };
+  }, [onNew, reset]);
+
+  useEffect(() => {
+    if (!isModal) return;
+
+    const previousConfirmText = useDialogStore.getState().confirmText;
+    useDialogStore.setState({ confirmText: "Guardar" });
+
+    if (mode !== "edit") {
+      setMobileActions(
+        <button
+          type="button"
+          onClick={handleNew}
+          aria-label="Nuevo"
+          title="Nuevo"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+        >
+          <Plus className="h-4 w-4" />
+        </button>,
+      );
+    } else {
+      setMobileActions(<></>);
+    }
+
+    return () => {
+      setMobileActions(null);
+      useDialogStore.setState({ confirmText: previousConfirmText });
+    };
+  }, [handleNew, isModal, mode, setMobileActions]);
 
   return (
     <div
@@ -190,8 +219,10 @@ export default function UserFormBase({
     >
       <div className={isModal ? "w-full" : "w-full mx-auto"}>
         <div
-          className={`bg-white overflow-hidden ${
-            isModal ? "" : "rounded-2xl shadow-xl"
+          className={`bg-white ${
+            isModal
+              ? "overflow-hidden"
+              : "overflow-visible rounded-2xl shadow-xl"
           }`}
         >
           <HookForm
@@ -200,7 +231,7 @@ export default function UserFormBase({
             preventSubmitOnEnter={false}
           >
             {!isModal && (
-              <div className="bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+              <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
                 <div className="flex items-center gap-3">
                   <BackArrowButton />
                   <h1 className="text-base font-semibold">

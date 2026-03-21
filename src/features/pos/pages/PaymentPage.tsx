@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   Printer,
+  Download,
   Receipt,
   MessageCircle,
   UserPlus,
@@ -105,6 +106,8 @@ const PaymentPage = () => {
   );
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isDownloadingComprobante, setIsDownloadingComprobante] =
+    useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [notaId, setNotaId] = useState<number | null>(
     routeNotaId ?? editingNotaIdFromStore ?? null,
@@ -115,6 +118,10 @@ const PaymentPage = () => {
   );
   const [hasLoadedNotaMeta, setHasLoadedNotaMeta] = useState(false);
   const [activeTab, setActiveTab] = useState<"items" | "pdf">("items");
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 767px)").matches;
+  });
   const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
   const prevApplyDiscountRef = useRef(false);
   const hasMountedApplyDiscountRef = useRef(false);
@@ -128,6 +135,8 @@ const PaymentPage = () => {
     "01": { docu: "FACTURA", serie: "FA01", label: "Factura" },
     "101": { docu: "PROFORMA V", serie: "0001", label: "Proforma V" },
   };
+
+  const isPdfEnabled = !isMobileViewport;
 
   const {
     companyId,
@@ -212,6 +221,35 @@ const PaymentPage = () => {
       companyAddressSunatFromSession: companySunatAddress,
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia("(max-width: 767px)");
+    const updateViewport = (matches: boolean) => {
+      setIsMobileViewport(matches);
+    };
+
+    updateViewport(media.matches);
+
+    const onChange = (event: MediaQueryListEvent) => {
+      updateViewport(event.matches);
+    };
+
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    }
+
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) return;
+    if (activeTab !== "pdf") return;
+    setActiveTab("items");
+  }, [activeTab, isMobileViewport]);
 
   useEffect(() => {
     if (!routeNotaId) return;
@@ -1981,6 +2019,22 @@ const PaymentPage = () => {
     totalAPagar,
   ]);
 
+  const handleDownloadComprobante = useCallback(async () => {
+    try {
+      setIsDownloadingComprobante(true);
+      const blob = await createComprobanteBlob();
+      const fileName = getComprobanteFileName();
+      downloadComprobante(blob, fileName);
+      toast.success("Comprobante descargado.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "No se pudo descargar";
+      toast.error(message);
+    } finally {
+      setIsDownloadingComprobante(false);
+    }
+  }, [createComprobanteBlob, downloadComprobante, getComprobanteFileName]);
+
   const handlePrint = async () => {
     try {
       setIsPrinting(true);
@@ -2312,19 +2366,25 @@ const PaymentPage = () => {
 
   const PdfViewerCard = (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      {canPreviewPdf ? (
-        <div className="h-[68vh] min-h-[420px] sm:h-[620px]">
-          <PDFViewer
-            key={previewKey}
-            style={{ width: "100%", height: "100%" }}
-            showToolbar={isConfirmed}
-          >
-            <TicketDocument {...ticketPreviewProps} />
-          </PDFViewer>
-        </div>
+      {isPdfEnabled ? (
+        canPreviewPdf ? (
+          <div className="h-[68vh] min-h-[420px] sm:h-[620px]">
+            <PDFViewer
+              key={previewKey}
+              style={{ width: "100%", height: "100%" }}
+              showToolbar={isConfirmed}
+            >
+              <TicketDocument {...ticketPreviewProps} />
+            </PDFViewer>
+          </div>
+        ) : (
+          <div className="p-4 text-xs text-gray-500">
+            Cargando vista previa del comprobante...
+          </div>
+        )
       ) : (
         <div className="p-4 text-xs text-gray-500">
-          Cargando vista previa del comprobante...
+          Vista PDF deshabilitada en celular.
         </div>
       )}
     </div>
@@ -2338,7 +2398,7 @@ const PaymentPage = () => {
         preventSubmitOnEnter
         className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
       >
-        <div className="fixed inset-x-0 top-0 z-[90] px-3 pt-2 md:hidden">
+        <div className="fixed inset-x-0 top-15 z-[90] px-3 pt-2 md:hidden">
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
             <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {!formLocked && (
@@ -2372,15 +2432,30 @@ const PaymentPage = () => {
                   WhatsApp
                 </button>
               )}
-              <button
-                type="button"
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                onClick={() => handlePrint()}
-                disabled={isPrinting}
-              >
-                <Printer className="h-4 w-4" />
-                {isPrinting ? "Imprimiendo..." : "Imprimir"}
-              </button>
+              {isConfirmed && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50"
+                  onClick={() => {
+                    void handleDownloadComprobante();
+                  }}
+                  disabled={isDownloadingComprobante}
+                >
+                  <Download className="h-4 w-4" />
+                  {isDownloadingComprobante ? "Descargando..." : "Descargar"}
+                </button>
+              )}
+              {isPdfEnabled && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  onClick={() => handlePrint()}
+                  disabled={isPrinting}
+                >
+                  <Printer className="h-4 w-4" />
+                  {isPrinting ? "Imprimiendo..." : "Imprimir"}
+                </button>
+              )}
               <button
                 type="button"
                 className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50"
@@ -2724,6 +2799,18 @@ const PaymentPage = () => {
             Enviar por WhatsApp
           </button>
         )}
+        {isConfirmed && (
+          <button
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-300 bg-blue-50 py-2.5 text-blue-800 transition-colors hover:bg-blue-100 disabled:opacity-50"
+            onClick={() => {
+              void handleDownloadComprobante();
+            }}
+            disabled={isDownloadingComprobante}
+          >
+            <Download className="w-5 h-5" />
+            {isDownloadingComprobante ? "Descargando..." : "Descargar comprobante"}
+          </button>
+        )}
         <button
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
           onClick={() => handlePrint()}
@@ -2777,22 +2864,24 @@ const PaymentPage = () => {
               >
                 Items ({itemsToRender.length})
               </button>
-              <button
-                type="button"
-                className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 sm:px-4 sm:py-3 ${
-                  activeTab === "pdf"
-                    ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
-                    : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
-                }`}
-                onClick={() => setActiveTab("pdf")}
-              >
-                Comprobante
-              </button>
+              {isPdfEnabled && (
+                <button
+                  type="button"
+                  className={`flex-1 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 sm:px-4 sm:py-3 ${
+                    activeTab === "pdf"
+                      ? "text-white bg-gradient-to-r from-slate-700 to-slate-800 shadow-md"
+                      : "text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                  }`}
+                  onClick={() => setActiveTab("pdf")}
+                >
+                  Comprobante
+                </button>
+              )}
             </div>
 
             <div className="p-3 sm:p-5">
               {activeTab === "items" && ItemsList}
-              {activeTab === "pdf" && PdfViewerCard}
+              {activeTab === "pdf" && isPdfEnabled && PdfViewerCard}
             </div>
           </div>
         </section>

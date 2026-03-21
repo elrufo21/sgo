@@ -652,9 +652,9 @@ export default function SendNoteFormBase({
 
   return (
     <div ref={containerRef} className=" px-3 sm:px-4 lg:px-6 w-full">
-      <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+      <div className="mx-auto bg-white rounded-2xl shadow-xl overflow-visible">
         <HookForm methods={formMethods} onSubmit={handleSubmit(onSubmit)}>
-          <div className="bg-[#B23636]  text-white px-4 py-3 rounded-t-2xl flex items-center justify-between">
+          <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
             <div className="flex items-center gap-3">
               <BackArrowButton />
               <h1 className="text-base font-semibold">

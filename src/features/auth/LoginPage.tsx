@@ -136,8 +136,6 @@ export function LoginPage() {
             sx={{
               position: "absolute",
               inset: 0,
-              background:
-                "linear-gradient(120deg, rgba(2,6,23,0.35) 0%, rgba(2,6,23,0.62) 100%)",
             }}
           />
         </Box>
@@ -314,7 +312,9 @@ export function LoginPage() {
                       autoCorrect: "off",
                       autoCapitalize: "off",
                       spellCheck: false,
-                      ...(showPassword ? {} : { style: { WebkitTextSecurity: "disc" } }),
+                      ...(showPassword
+                        ? {}
+                        : { style: { WebkitTextSecurity: "disc" } }),
                       "data-lpignore": "true",
                       "data-1p-ignore": "true",
                       "data-bwignore": "true",
