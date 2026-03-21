@@ -3,7 +3,7 @@ import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { toast } from "@/shared/ui/toast";
 import { useBoletasSummaryStore } from "@/store/boletasSummary/boletasSummary.store";
 import type { BoletaSummaryDocument } from "@/types/boletasSummary";
-import { createColumnHelper } from "@tanstack/react-table";
+import { createColumnHelper, type ColumnDef } from "@tanstack/react-table";
 import {
   FileSpreadsheet,
   Loader2,
@@ -60,7 +60,7 @@ export default function BoletasSummaryPage() {
       return;
     }
 
-    toast.info("Proceso de envío de resumen pendiente de integración.");
+    toast.info("Procesando");
   }, [filteredRows.length]);
 
   const handleExportCsv = useCallback(() => {
@@ -85,7 +85,7 @@ export default function BoletasSummaryPage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
   }, [filteredRows, referenceDate]);
 
-  const columns = useMemo(
+  const columns = useMemo<ColumnDef<BoletaSummaryDocument, unknown>[]>(
     () => [
       columnHelper.display({
         id: "ver",
