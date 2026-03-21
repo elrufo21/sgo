@@ -7,9 +7,9 @@ import {
   Image,
 } from "@react-pdf/renderer";
 
-import QRCode from "qrcode";
 import React, { useEffect, useMemo, useState } from "react";
 import type { PosCartItem, PosTotals } from "@/types/pos";
+import { generateTicketQrBase64 } from "@/components/ticketQr";
 
 type TicketDocumentProps = {
   clientName?: string;
@@ -33,6 +33,7 @@ type TicketDocumentProps = {
     igv?: number;
     total?: number;
   };
+  preGeneratedQrBase64?: string;
 };
 
 const UNITS = [
@@ -154,6 +155,7 @@ const numberToWords = (amount: number, currencyLabel = "SOLES") => {
 
   return `${integerWords} CON ${cents}/100 ${currencyLabel}`.toUpperCase();
 };
+
 const styles = StyleSheet.create({
   page: {
     backgroundColor: "#fff",
@@ -338,8 +340,9 @@ const TicketDocument = ({
   companyAddress,
   companyDistrict,
   summary,
+  preGeneratedQrBase64,
 }: TicketDocumentProps) => {
-  const [qrBase64, setQrBase64] = useState("");
+  const [generatedQrBase64, setGeneratedQrBase64] = useState("");
 
   const ticketData = useMemo(() => {
     const hasItems = Boolean(items?.length);
@@ -472,21 +475,23 @@ const TicketDocument = ({
   ]);
 
   useEffect(() => {
-    if (ticketData.qrBase64) {
-      setQrBase64(ticketData.qrBase64);
+    if (preGeneratedQrBase64) {
       return;
     }
 
     if (ticketData.qrData) {
-      QRCode.toDataURL(ticketData.qrData, {
-        margin: 1,
-        scale: 4,
-      }).then((url) => setQrBase64(url));
-      return;
+      let active = true;
+      generateTicketQrBase64(ticketData.qrData).then((url) => {
+        if (active) setGeneratedQrBase64(url);
+      });
+      return () => {
+        active = false;
+      };
     }
+  }, [preGeneratedQrBase64, ticketData.qrData]);
 
-    setQrBase64("");
-  }, [ticketData.qrBase64, ticketData.qrData]);
+  const qrBase64 =
+    preGeneratedQrBase64 || (ticketData.qrData ? generatedQrBase64 : "");
 
   return (
     <Document>

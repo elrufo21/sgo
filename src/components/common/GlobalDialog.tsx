@@ -5,11 +5,12 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  IconButton,
   CircularProgress,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import { Save } from "lucide-react";
+import { Save, X } from "lucide-react";
 import { useDialogStore } from "@/store/app/dialog.store";
 
 export function GlobalDialog() {
@@ -101,9 +102,22 @@ export function GlobalDialog() {
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
                 {mobileActions}
                 {!hideCancelButton && (
-                  <Button onClick={handleClose} disabled={loading} size="small">
-                    {cancelText}
-                  </Button>
+                  <IconButton
+                    onClick={handleClose}
+                    disabled={loading}
+                    size="small"
+                    aria-label={cancelText}
+                    title={cancelText}
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 1.5,
+                    }}
+                  >
+                    <X size={16} />
+                  </IconButton>
                 )}
                 {onConfirm && (
                   <Button

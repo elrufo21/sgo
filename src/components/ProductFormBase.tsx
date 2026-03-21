@@ -154,7 +154,7 @@ export default function ProductFormBase({
       codigo: initialData?.codigo ?? (mode === "create" ? generateCode() : ""),
       nombre: initialData?.nombre ?? "",
       unidadMedida: initialData?.unidadMedida ?? "Unidad",
-      valorCritico: initialData?.valorCritico ?? null,
+      valorCritico: initialData?.valorCritico ?? 0,
       preCosto: initialData?.preCosto ?? null,
       preVenta: initialData?.preVenta ?? null,
       preVentaB: (initialData as any)?.preVentaB ?? null,
@@ -294,9 +294,8 @@ export default function ProductFormBase({
   useEffect(() => {
     if (!isServiceProduct) return;
 
-    setValue("valorCritico", 0, { shouldDirty: true, shouldValidate: true });
     setValue("cantidad", 0, { shouldDirty: true, shouldValidate: true });
-    clearErrors(["valorCritico", "cantidad"]);
+    clearErrors(["cantidad"]);
   }, [isServiceProduct, setValue, clearErrors]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -426,7 +425,7 @@ export default function ProductFormBase({
       ...values,
       codigo: trimmedCode,
       aplicaINV: values.aplicaINV ?? "S",
-      valorCritico: values.aplicaINV === "N" ? 0 : values.valorCritico,
+      valorCritico: 0,
       cantidad: values.aplicaINV === "N" ? 0 : values.cantidad,
       nombre: values.nombre?.toUpperCase() ?? "",
     };
@@ -782,28 +781,6 @@ export default function ProductFormBase({
                     className="w-full"
                   />
 
-                  <div className="mt-2">
-                    {" "}
-                    <HookFormInput<ProductFormValues>
-                      name="valorCritico"
-                      label="Stock Minimo (Valor Critico)"
-                      type="number"
-                      disabled={isServiceProduct}
-                      rules={{
-                        valueAsNumber: true,
-                        validate: (v) => {
-                          if (isServiceProduct) return true;
-                          return (
-                            (v !== undefined &&
-                              v !== null &&
-                              !Number.isNaN(v as number)) ||
-                            "El stock minimo es obligatorio"
-                          );
-                        },
-                      }}
-                    />
-                  </div>
-
                   <HookFormInput<ProductFormValues>
                     name="preCosto"
                     label="Precio de Costo"
@@ -898,23 +875,54 @@ export default function ProductFormBase({
                     <h3 className="text-lg font-semibold">Foto del producto</h3>
 
                     <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
-                      <img
-                        src={displayImage}
-                        onClick={openImageModal}
-                        className={`w-full h-full object-cover ${
-                          hasImage ? "cursor-zoom-in" : ""
-                        }`}
-                        alt="Foto producto"
-                      />
-                      {hasImage && (
-                        <button
-                          onClick={removeImage}
-                          className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
-                          title="Eliminar imagen"
-                          type="button"
-                        >
-                          <X className="w-5 h-5" />
-                        </button>
+                      {takingPhoto ? (
+                        <>
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            playsInline
+                            className="w-full h-full bg-black object-cover"
+                          />
+                          <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                onClick={takePhoto}
+                                className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                              >
+                                Capturar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={stopCamera}
+                                className="flex-1 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <img
+                            src={displayImage}
+                            onClick={openImageModal}
+                            className={`w-full h-full object-cover ${
+                              hasImage ? "cursor-zoom-in" : ""
+                            }`}
+                            alt="Foto producto"
+                          />
+                          {hasImage && (
+                            <button
+                              onClick={removeImage}
+                              className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 shadow-lg"
+                              title="Eliminar imagen"
+                              type="button"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
 
@@ -940,32 +948,7 @@ export default function ProductFormBase({
                           <Camera className="w-5 h-5" />
                           Tomar Foto
                         </button>
-                      ) : (
-                        <div className="space-y-3">
-                          <video
-                            ref={videoRef}
-                            autoPlay
-                            playsInline
-                            className="w-full h-64 bg-black rounded-lg"
-                          />
-                          <div className="flex gap-3">
-                            <button
-                              type="button"
-                              onClick={takePhoto}
-                              className="flex-1 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                            >
-                              Capturar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={stopCamera}
-                              className="flex-1 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>

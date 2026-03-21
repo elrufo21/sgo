@@ -19,4 +19,14 @@ export default [
       ],
     },
   },
+  {
+    path: "pos/payment/:notaId",
+    element: <PaymentPage />,
+    handle: {
+      breadcrumb: [
+        { label: "POS", to: "/pos" },
+        { label: "Pago" },
+      ],
+    },
+  },
 ];

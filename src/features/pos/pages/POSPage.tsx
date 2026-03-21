@@ -18,6 +18,7 @@ import NavigableNumberInput from "@/components/inputs/NavigableNumberInput";
 import { useProductsStore } from "@/store/products/products.store";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { usePosCartDraftPersistence } from "@/features/pos/hooks/usePosCartDraftPersistence";
 import type { Product } from "@/types/product";
 import type { PosCartItem } from "@/types/pos";
 import { toast } from "@/shared/ui/toast";
@@ -44,11 +45,28 @@ const POSPage = () => {
   const removeItem = usePosStore((state) => state.removeItem);
   const clearCart = usePosStore((state) => state.clearCart);
   const clearEditingNota = usePosStore((state) => state.clearEditingNota);
+  const editingNotaId = usePosStore((state) => state.editingNotaId);
+  const isEditingMode = usePosStore((state) => state.isEditingMode);
   const openDialog = useDialogStore((state) => state.openDialog);
+  const { resetDraftForNewSale } = usePosCartDraftPersistence({
+    enabled: true,
+    autosave: true,
+    hydrateFromStorage: true,
+  });
   const isCardsView = viewMode === "cards";
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const [priceDrafts, setPriceDrafts] = useState<Record<number, string>>({});
+
+  const focusSearchInput = () => {
+    window.requestAnimationFrame(() => {
+      const input = searchInputRef.current;
+      if (!input || input.disabled) return;
+      input.focus({ preventScroll: true });
+      const length = input.value.length;
+      input.setSelectionRange(length, length);
+    });
+  };
 
   const handleSearchTermInput = (event: FormEvent<HTMLInputElement>) => {
     setSearchTerm(event.currentTarget.value);
@@ -62,13 +80,22 @@ const POSPage = () => {
 
   useEffect(() => {
     const routeState =
-      (location.state as { preserveCart?: boolean } | null) ?? null;
+      (location.state as {
+        preserveCart?: boolean;
+        resetCart?: boolean;
+      } | null) ?? null;
     const preserveCart = routeState?.preserveCart === true;
+    const resetCart = routeState?.resetCart === true;
+    if (resetCart) {
+      clearCart();
+      clearEditingNota();
+      void resetDraftForNewSale();
+      return;
+    }
     if (preserveCart) return;
 
-    clearCart();
     clearEditingNota();
-  }, [clearCart, clearEditingNota, location.state]);
+  }, [clearCart, clearEditingNota, location.state, resetDraftForNewSale]);
 
   const getOutOfStockItems = () =>
     items.filter((item) => {
@@ -83,6 +110,18 @@ const POSPage = () => {
       toast.error("Agrega productos antes de procesar");
       return;
     }
+
+    const normalizedPath = location.pathname.toLowerCase();
+    const paymentBasePath = normalizedPath.includes("/sales/pos")
+      ? "/sales/pos/payment"
+      : "/pos/payment";
+    const hasEditingNota =
+      isEditingMode &&
+      Number.isFinite(Number(editingNotaId)) &&
+      Number(editingNotaId) > 0;
+    const paymentTarget = hasEditingNota
+      ? `${paymentBasePath}/${Number(editingNotaId)}?mode=edit`
+      : paymentBasePath;
 
     const outOfStockItems = getOutOfStockItems();
     if (outOfStockItems.length) {
@@ -108,12 +147,24 @@ const POSPage = () => {
         ),
         confirmText: "Continuar",
         cancelText: "Cancelar",
-        onConfirm: () => navigate("/pos/payment"),
+        onConfirm: () => navigate(paymentTarget),
       });
       return;
     }
 
-    navigate("/pos/payment");
+    navigate(paymentTarget);
+  };
+
+  const handleCartShortcut = () => {
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 767px)").matches
+    ) {
+      goToPayment();
+      return;
+    }
+
+    setMobileCartOpen(true);
   };
 
   const handleAddProduct = (product: Product) => {
@@ -134,6 +185,7 @@ const POSPage = () => {
           toast.success(`${product.nombre} agregado al carrito`, {
             duration: 1200,
           });
+          focusSearchInput();
         },
       });
       return;
@@ -143,6 +195,7 @@ const POSPage = () => {
     toast.success(`${product.nombre} agregado al carrito`, {
       duration: 1200,
     });
+    focusSearchInput();
   };
 
   const filteredProducts = useMemo(() => {
@@ -502,12 +555,12 @@ const POSPage = () => {
           <span>S/ {totals.total.toFixed(2)}</span>
         </div>
         <button
-          className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+          className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
           disabled={!items.length}
           onClick={goToPayment}
         >
           <CheckCircle2 className="w-5 h-5" />
-          Procesar venta
+          Ir a pago
         </button>
       </div>
     </div>
@@ -553,7 +606,7 @@ const POSPage = () => {
             <button
               type="button"
               className="fixed top-21 right-4 z-30 flex items-center gap-2 text-sm bg-slate-700 text-white px-3 py-2 rounded-lg shadow-lg xl:static xl:z-auto xl:shadow-sm"
-              onClick={() => setMobileCartOpen(true)}
+              onClick={handleCartShortcut}
               aria-label="Abrir carrito"
             >
               <ShoppingCart className="w-4 h-4" />

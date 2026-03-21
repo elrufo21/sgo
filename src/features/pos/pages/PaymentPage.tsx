@@ -17,12 +17,14 @@ import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "@/shared/ui/toast";
 import { getLocalDateISO } from "@/shared/helpers/localDate";
 import TicketDocument from "@/components/Ticket";
+import { generateTicketQrBase64 } from "@/components/ticketQr";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormSelect } from "@/components/forms/HookFormSelect";
 import { HookFormInput } from "@/components/forms/HookFormInput";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import CustomerFormBase from "@/components/CustomerFormBase";
+import { usePosCartDraftPersistence } from "@/features/pos/hooks/usePosCartDraftPersistence";
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useProductsStore } from "@/store/products/products.store";
 import { useDialogStore } from "@/store/app/dialog.store";
@@ -109,6 +111,9 @@ const PaymentPage = () => {
   const [isDownloadingComprobante, setIsDownloadingComprobante] =
     useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
+  const [confirmedFlowType, setConfirmedFlowType] = useState<
+    "create" | "edit" | null
+  >(null);
   const [notaId, setNotaId] = useState<number | null>(
     routeNotaId ?? editingNotaIdFromStore ?? null,
   );
@@ -137,6 +142,47 @@ const PaymentPage = () => {
   };
 
   const isPdfEnabled = !isMobileViewport;
+  const resolvedNoteIdForDraft = Number(notaId ?? routeNotaId ?? 0) || 0;
+  const hasResolvedNoteIdForDraft = resolvedNoteIdForDraft > 0;
+  const isPosEditDraftFlow =
+    !isOrderNotesFlow &&
+    hasResolvedNoteIdForDraft &&
+    (isEditingMode || forcedMode === "edit");
+  const isPosSaleDraftFlow =
+    !isOrderNotesFlow && !hasResolvedNoteIdForDraft && !isEditingMode;
+  const shouldPersistPosDraft = isPosSaleDraftFlow || isPosEditDraftFlow;
+  const {
+    isHydrated: isPosDraftHydrated,
+    markDraftAsConfirmed,
+    resetDraftForNewSale,
+    discardCurrentDraft,
+  } =
+    usePosCartDraftPersistence({
+      enabled: shouldPersistPosDraft,
+      autosave:
+        shouldPersistPosDraft &&
+        (isPosEditDraftFlow || (isPosSaleDraftFlow && !isConfirmed)),
+      hydrateFromStorage: shouldPersistPosDraft,
+      scope: isPosEditDraftFlow ? "note-edit" : "sale",
+      noteId: isPosEditDraftFlow ? resolvedNoteIdForDraft : null,
+    });
+
+  useEffect(() => {
+    if (!isPosEditDraftFlow || !isPosDraftHydrated) return;
+    if (items.length > 0) return;
+
+    const fallbackItems = serverItems.length ? serverItems : purchasedItems;
+    if (!fallbackItems.length) return;
+
+    setStoreItems(fallbackItems);
+  }, [
+    isPosDraftHydrated,
+    isPosEditDraftFlow,
+    items.length,
+    purchasedItems,
+    serverItems,
+    setStoreItems,
+  ]);
 
   const {
     companyId,
@@ -267,11 +313,13 @@ const PaymentPage = () => {
     if (forcedMode === "view") {
       setEditingModeInStore(false);
       setIsConfirmed(true);
+      setConfirmedFlowType(null);
       return;
     }
 
     setEditingModeInStore(true);
     setIsConfirmed(false);
+    setConfirmedFlowType(null);
   }, [
     forcedMode,
     isOrderNotesFlow,
@@ -765,6 +813,14 @@ const PaymentPage = () => {
       setServerItems(mappedItems);
       setServerItemsInStore(mappedItems);
       setEditingNotaInStore(notaIdToLoad);
+      const shouldSeedStoreForEdit =
+        !isOrderNotesFlow && (forcedMode === "edit" || isEditingMode);
+      if (shouldSeedStoreForEdit) {
+        const currentStoreItems = usePosStore.getState().items;
+        if (!currentStoreItems.length && mappedItems.length) {
+          setStoreItems(mappedItems);
+        }
+      }
 
       const notaRaw =
         (notaResponse as any)?.nota ?? (notaResponse as any) ?? null;
@@ -1877,21 +1933,51 @@ const PaymentPage = () => {
             : items,
       );
       await fetchNotaFromServer(numericNotaId);
-      // Rehabilita el formulario para permitir cambios posteriores
-      setIsConfirmed(false);
+
+      const isSalesPaymentPath = pathname
+        .toLowerCase()
+        .includes("/sales/pos/payment");
+      const paymentBasePath = isSalesPaymentPath
+        ? "/sales/pos/payment"
+        : "/pos/payment";
+      navigate(`${paymentBasePath}/${numericNotaId}?mode=view`, {
+        replace: true,
+      });
     }
 
     if (isEditingMode) {
       setEditingModeInStore(false);
     }
 
+    setIsConfirmed(true);
+
+    if (!isEditing && isPosSaleDraftFlow) {
+      const finalNoteId = parsedNotaId ? Number(parsedNotaId) : null;
+      try {
+        await markDraftAsConfirmed({
+          noteId: Number.isFinite(finalNoteId) ? finalNoteId : null,
+          documentNumber:
+            safeTrim(parsedNotaCorrelative) || safeTrim(documentNumber),
+          paymentMethod,
+          customerName: safeTrim(customerName),
+          total: Number(totalAPagar.toFixed(2)),
+        });
+      } catch (error) {
+        console.error("No se pudo marcar el carrito como confirmado", error);
+      }
+    }
+    if (isEditing && isPosEditDraftFlow) {
+      try {
+        await discardCurrentDraft();
+      } catch (error) {
+        console.error("No se pudo limpiar el borrador de edicion", error);
+      }
+    }
+
     refetchProducts();
 
+    setConfirmedFlowType(isEditing ? "edit" : "create");
     toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
-    if (!isEditing && hasLiveItems && items.length) {
-      clearCart();
-    }
-    setIsConfirmed(true);
     handlePrint();
   };
 
@@ -1900,6 +1986,18 @@ const PaymentPage = () => {
     if (isOrderNotesFlow) {
       clearEditingNota();
       navigate(backRoute);
+      return;
+    }
+
+    if (isConfirmed) {
+      clearCart();
+      clearEditingNota();
+      if (confirmedFlowType === "create") {
+        void resetDraftForNewSale();
+        navigate(backRoute, { state: { resetCart: true } });
+        return;
+      }
+      navigate(backRoute, { state: { preserveCart: true } });
       return;
     }
 
@@ -1932,8 +2030,7 @@ const PaymentPage = () => {
       setPurchasedItems(items);
       setPaidTotals(totals);
     }
-    clearCart();
-    navigate(backRoute);
+    navigate(backRoute, { state: { preserveCart: true } });
   };
 
   const handleEnableEditing = () => {
@@ -1943,15 +2040,56 @@ const PaymentPage = () => {
       return;
     }
     setIsConfirmed(false);
+    setConfirmedFlowType(null);
     setEditingNotaInStore(notaId);
     setEditingModeInStore(true);
-    setServerItemsInStore(serverItems.length ? serverItems : purchasedItems);
+    const itemsForEditing = serverItems.length ? serverItems : purchasedItems;
+    setServerItemsInStore(itemsForEditing);
   };
 
-  const createComprobanteBlob = useCallback(
-    async () => pdf(<TicketDocument {...ticketPreviewProps} />).toBlob(),
-    [ticketPreviewProps],
-  );
+  const createComprobanteBlob = useCallback(async () => {
+    const clean = (value: unknown) => String(value ?? "").trim();
+    const now = new Date();
+    const emissionDateISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const qrDocTypeCode =
+      ticketPreviewProps.docType === "factura"
+        ? "01"
+        : ticketPreviewProps.docType === "boleta"
+          ? "03"
+          : "";
+    const qrClientDocTypeCode =
+      ticketPreviewProps.docType === "factura" ? "06" : "01";
+    const qrClientDoc =
+      clean(ticketPreviewProps.clientId) ||
+      (qrClientDocTypeCode === "06" ? "00000000000" : "00000000");
+    const qrIgv = Number(ticketPreviewProps.summary?.igv);
+    const qrTotal = Number(ticketPreviewProps.summary?.total);
+    const safeQrIgv = Number.isFinite(qrIgv) ? Math.max(0, qrIgv) : 0;
+    const safeQrTotal = Number.isFinite(qrTotal) ? Math.max(0, qrTotal) : 0;
+
+    let preGeneratedQrBase64 = "";
+    if (qrDocTypeCode) {
+      const qrData = [
+        clean(ticketPreviewProps.companyRuc) || "20601070155",
+        qrDocTypeCode,
+        clean(ticketPreviewProps.documentNumber) || "-",
+        safeQrIgv.toFixed(2),
+        safeQrTotal.toFixed(2),
+        emissionDateISO,
+        qrClientDocTypeCode,
+        qrClientDoc,
+      ].join("|");
+
+      preGeneratedQrBase64 = await generateTicketQrBase64(qrData);
+    }
+
+    return pdf(
+      <TicketDocument
+        {...ticketPreviewProps}
+        preGeneratedQrBase64={preGeneratedQrBase64}
+      />,
+    ).toBlob();
+  }, [ticketPreviewProps]);
 
   const getComprobanteFileName = useCallback(() => {
     const safeCorrelative =
@@ -2456,14 +2594,6 @@ const PaymentPage = () => {
                   {isPrinting ? "Imprimiendo..." : "Imprimir"}
                 </button>
               )}
-              <button
-                type="button"
-                className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50"
-                onClick={handleBackToPos}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                {backLabel}
-              </button>
             </div>
           </div>
         </div>
@@ -2808,7 +2938,9 @@ const PaymentPage = () => {
             disabled={isDownloadingComprobante}
           >
             <Download className="w-5 h-5" />
-            {isDownloadingComprobante ? "Descargando..." : "Descargar comprobante"}
+            {isDownloadingComprobante
+              ? "Descargando..."
+              : "Descargar comprobante"}
           </button>
         )}
         <button

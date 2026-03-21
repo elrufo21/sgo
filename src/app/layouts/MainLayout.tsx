@@ -379,7 +379,7 @@ export default function MainLayout() {
       icon: <DollarSign size={18} />,
     },
     {
-      label: "Lista de ventas (Lista de ordenes)",
+      label: "Lista de ventas ",
       to: "/sales/order_notes",
       icon: <CopySlashIcon size={18} />,
     },
