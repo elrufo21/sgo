@@ -134,7 +134,7 @@ export default function HolidayForm({
       >
         <HookForm methods={formMethods} onSubmit={handleSubmit(handleSave)}>
           {!isModal && (
-            <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
+            <div className="sticky top-20 sm:top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
               <div className="flex items-center gap-3">
                 <BackArrowButton />
                 <h1 className="text-base font-semibold">
@@ -207,3 +207,4 @@ export default function HolidayForm({
     </div>
   );
 }
+

@@ -213,6 +213,30 @@ export default function ProductFormBase({
     });
   }, [setFocus]);
 
+  const focusProductNameField = useCallback(() => {
+    const focusInput = () => {
+      setFocus("nombre");
+      const nameInput =
+        containerRef.current?.querySelector<HTMLInputElement>(
+          'input[name="nombre"]',
+        ) ?? null;
+      if (!nameInput) return false;
+      nameInput.focus();
+      nameInput.select();
+      return true;
+    };
+
+    window.requestAnimationFrame(() => {
+      if (focusInput()) return;
+      window.setTimeout(() => {
+        if (focusInput()) return;
+        window.setTimeout(() => {
+          focusInput();
+        }, 120);
+      }, 0);
+    });
+  }, [setFocus]);
+
   useEffect(() => {
     focusCategoryField();
   }, [mode, initialData, focusCategoryField]);
@@ -475,51 +499,53 @@ export default function ProductFormBase({
           )}
 
           <HookForm methods={formMethods} onSubmit={onSubmit}>
-            <div className="sticky top-2 z-30 bg-[#B23636] text-white px-4 py-3 rounded-t-2xl flex items-center justify-between shadow-lg shadow-black/10">
-              <div className="flex items-center gap-3">
-                <BackArrowButton />
-                <h1 className="text-base font-semibold">
-                  {mode === "create"
-                    ? "Crear Nuevo Producto"
-                    : "Editar Producto"}
-                </h1>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                  title="Guardar"
-                >
-                  <Save className="w-4 h-4" />
-                  <span className="hidden sm:inline">Guardar</span>
-                </button>
-                {mode !== "edit" && (
+            <div className="fixed inset-x-0 top-20 z-30 px-4 pt-[env(safe-area-inset-top)] sm:sticky sm:top-2 sm:px-0 sm:pt-0">
+              <div className="mx-auto flex max-w-5xl items-center justify-between rounded-b-xl bg-[#B23636] px-4 py-3 text-white shadow-lg shadow-black/10 sm:max-w-none sm:rounded-t-2xl sm:rounded-b-none">
+                <div className="flex items-center gap-3">
+                  <BackArrowButton />
+                  <h1 className="text-base font-semibold">
+                    {mode === "create"
+                      ? "Crear Nuevo Producto"
+                      : "Editar Producto"}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
-                    type="button"
-                    onClick={handleNewClick}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                    title="Nuevo"
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                    title="Guardar"
                   >
-                    <Plus className="w-4 h-4" />
-                    <span className="hidden sm:inline">Nuevo</span>
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">Guardar</span>
                   </button>
-                )}
-                {mode === "edit" && onDelete && (
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                    title="Eliminar"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Eliminar</span>
-                  </button>
-                )}
+                  {mode !== "edit" && (
+                    <button
+                      type="button"
+                      onClick={handleNewClick}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                      title="Nuevo"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Nuevo</span>
+                    </button>
+                  )}
+                  {mode === "edit" && onDelete && (
+                    <button
+                      type="button"
+                      onClick={onDelete}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                      title="Eliminar"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Eliminar</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="p-6 sm:p-8">
+            <div className="px-6 pb-6 pt-24 sm:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2 md:col-span-2">
@@ -702,6 +728,8 @@ export default function ProductFormBase({
                                 },
                               );
                             }
+
+                            focusProductNameField();
                           },
                           maxWidth: "md",
                           fullWidth: true,
@@ -782,25 +810,6 @@ export default function ProductFormBase({
                   />
 
                   <HookFormInput<ProductFormValues>
-                    name="preCosto"
-                    label="Precio de Costo"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    rules={{
-                      valueAsNumber: true,
-                      required: "El precio de costo es obligatorio",
-                      validate: (v) =>
-                        v !== undefined &&
-                        v !== null &&
-                        !Number.isNaN(v) &&
-                        v > 0
-                          ? true
-                          : "El precio de costo debe ser mayor a 0",
-                    }}
-                  />
-
-                  <HookFormInput<ProductFormValues>
                     name="preVenta"
                     label="Precio de Venta"
                     type="number"
@@ -836,6 +845,25 @@ export default function ProductFormBase({
                           : "El precio de venta debe ser mayor a 0",
                     }}
                   />
+                  <HookFormInput<ProductFormValues>
+                    name="preCosto"
+                    label="Precio de Costo"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    rules={{
+                      valueAsNumber: true,
+                      required: "El precio de costo es obligatorio",
+                      validate: (v) =>
+                        v !== undefined &&
+                        v !== null &&
+                        !Number.isNaN(v) &&
+                        v > 0
+                          ? true
+                          : "El precio de costo debe ser mayor a 0",
+                    }}
+                  />
+
                   <HookFormInput<ProductFormValues>
                     name="cantidad"
                     label="Cantidad en Stock"
