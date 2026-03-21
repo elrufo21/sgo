@@ -1,5 +1,4 @@
 import { Navigate, RouterProvider, createBrowserRouter } from "react-router";
-import Dashboard from "@/features/Dashboard/dashboard";
 import cashFlowRoutes from "@/features/cashFlow/routes";
 import maintenanceRoutes from "@/features/maintenance/routes";
 import productRoutes from "@/features/products/routes";
@@ -35,7 +34,7 @@ const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <Dashboard /> },
+      { index: true, element: <Navigate to="/sales/pos" replace /> },
       ...productRoutes,
       ...customerRoutes,
       ...salesRoutes,
