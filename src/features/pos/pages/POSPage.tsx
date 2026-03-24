@@ -43,7 +43,6 @@ const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
 const POSPage = () => {
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [searchTerm, setSearchTerm] = useState("");
-  const [includeVariations, setIncludeVariations] = useState(false);
   const [page, setPage] = useState(1);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const navigate = useNavigate();
@@ -211,13 +210,6 @@ const POSPage = () => {
   };
 
   const catalogProducts = useMemo<PosCatalogProduct[]>(() => {
-    if (!includeVariations) {
-      return products.map((product) => ({
-        ...product,
-        catalogKey: `base-${product.id}`,
-      }));
-    }
-
     const expanded: PosCatalogProduct[] = [];
     products.forEach((product) => {
       expanded.push({
@@ -245,7 +237,7 @@ const POSPage = () => {
     });
 
     return expanded;
-  }, [includeVariations, products]);
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
@@ -268,7 +260,7 @@ const POSPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, includeVariations]);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (!isCardsView || !hasMoreProducts) return;
@@ -663,15 +655,6 @@ const POSPage = () => {
                   Tabla
                 </button>
               </div>
-              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={includeVariations}
-                  onChange={(e) => setIncludeVariations(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-slate-400"
-                />
-                Traer variaciones
-              </label>
             </div>
             <button
               type="button"

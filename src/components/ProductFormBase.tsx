@@ -16,6 +16,7 @@ import {
   PlusIcon,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
+import TextField from "@mui/material/TextField";
 import type { Product } from "@/types/product";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
@@ -66,9 +67,7 @@ const deriveInitialUnitsPerPackage = (
 ): number | null => {
   if (!initialData || !altRow) return null;
 
-  const explicitFactor = toSafePositiveNumber(
-    altRow.factor ?? altRow.valorUM,
-  );
+  const explicitFactor = toSafePositiveNumber(altRow.factor ?? altRow.valorUM);
   if (explicitFactor > 1) {
     return Number(explicitFactor.toFixed(2));
   }
@@ -113,6 +112,175 @@ type ProductFormValues = Omit<Product, "id"> & {
   unidadesPorEmpaque?: number | null;
 };
 
+type OtherUnitDialogData = {
+  unidadPrincipal: string;
+  unidadAlterna: string;
+  unidadesPorEmpaque: string;
+  preVenta: number;
+  preCosto: number;
+  error: string;
+};
+
+const toDialogString = (value: unknown, fallback = "") => {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return fallback;
+  return String(value);
+};
+
+const parseOtherUnitDialogData = (
+  value: unknown,
+  fallback?: Partial<OtherUnitDialogData>,
+): OtherUnitDialogData => {
+  const source =
+    value && typeof value === "object"
+      ? (value as Partial<OtherUnitDialogData>)
+      : {};
+
+  const unidadPrincipal = normalizeUnitLabel(
+    source.unidadPrincipal ?? fallback?.unidadPrincipal ?? "Unidad",
+  );
+
+  return {
+    unidadPrincipal: unidadPrincipal || "Unidad",
+    unidadAlterna: toDialogString(
+      source.unidadAlterna,
+      fallback?.unidadAlterna ?? "Unidad",
+    ),
+    unidadesPorEmpaque: toDialogString(
+      source.unidadesPorEmpaque,
+      fallback?.unidadesPorEmpaque ?? "",
+    ),
+    preVenta: toSafePositiveNumber(source.preVenta ?? fallback?.preVenta ?? 0),
+    preCosto: toSafePositiveNumber(source.preCosto ?? fallback?.preCosto ?? 0),
+    error: toDialogString(source.error, fallback?.error ?? ""),
+  };
+};
+
+const sharedDialogInputSx = {
+  "& .MuiOutlinedInput-root": {
+    borderRadius: "0.45rem",
+    backgroundColor: "#fff",
+    "& fieldset": {
+      borderWidth: "1px",
+      borderColor: "#e5e7eb",
+    },
+    "&.Mui-focused fieldset": {
+      borderColor: "#3b82f6",
+      boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
+    },
+  },
+  "& .MuiOutlinedInput-input": {
+    fontSize: "0.875rem",
+    py: 1,
+  },
+};
+
+function OtherUnitDialogContent() {
+  const rawDialogData = useDialogStore((s) => s.data);
+  const setDialogData = useDialogStore((s) => s.setData);
+  const dialogData = parseOtherUnitDialogData(rawDialogData);
+  const unidadBaseDraft =
+    normalizeUnitLabel(dialogData.unidadAlterna) || "Unidad";
+  const unidadesPorEmpaqueDraft = toSafePositiveNumber(
+    dialogData.unidadesPorEmpaque,
+  );
+  const precioVentaUnitarioPreview =
+    unidadesPorEmpaqueDraft > 0
+      ? dialogData.preVenta / unidadesPorEmpaqueDraft
+      : 0;
+  const precioCostoUnitarioPreview =
+    unidadesPorEmpaqueDraft > 0
+      ? dialogData.preCosto / unidadesPorEmpaqueDraft
+      : 0;
+
+  const updateField = (
+    field: "unidadAlterna" | "unidadesPorEmpaque",
+    value: string,
+  ) => {
+    setDialogData({
+      ...dialogData,
+      [field]: value,
+      error: "",
+    });
+  };
+
+  return (
+    <div className="space-y-4 py-1">
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+        <p className="text-slate-500">Unidad principal del producto</p>
+        <p className="font-semibold text-slate-800 uppercase">
+          {dialogData.unidadPrincipal}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <TextField
+          fullWidth
+          autoFocus
+          size="small"
+          label="Unidad base"
+          value={dialogData.unidadAlterna}
+          onChange={(event) => {
+            updateField("unidadAlterna", event.target.value);
+          }}
+          placeholder="Ej: UNIDAD"
+          autoComplete="off"
+          sx={sharedDialogInputSx}
+          inputProps={{ "data-auto-next": "true" }}
+        />
+
+        <TextField
+          fullWidth
+          size="small"
+          type="number"
+          label={`Cantidad por ${dialogData.unidadPrincipal}`}
+          value={dialogData.unidadesPorEmpaque}
+          onChange={(event) => {
+            updateField("unidadesPorEmpaque", event.target.value);
+          }}
+          placeholder="Ej: 20"
+          autoComplete="off"
+          sx={{
+            ...sharedDialogInputSx,
+            "& input[type=number]": {
+              MozAppearance: "textfield",
+            },
+            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+              {
+                WebkitAppearance: "none",
+                margin: 0,
+              },
+          }}
+          inputProps={{ min: 2, step: 1, "data-auto-next": "true" }}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <p className="text-slate-500">
+            Precio total ({dialogData.unidadPrincipal})
+          </p>
+          <p className="font-semibold text-slate-800">
+            Venta: {formatMoney(dialogData.preVenta)} | Costo:{" "}
+            {formatMoney(dialogData.preCosto)}
+          </p>
+        </div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+          <p className="text-slate-500">Precio por {unidadBaseDraft}</p>
+          <p className="font-semibold text-slate-800">
+            Venta: {formatMoney(precioVentaUnitarioPreview)} | Costo:{" "}
+            {formatMoney(precioCostoUnitarioPreview)}
+          </p>
+        </div>
+      </div>
+
+      {dialogData.error ? (
+        <p className="text-sm text-red-600">{dialogData.error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 export default function ProductFormBase({
   initialData,
   mode,
@@ -135,14 +303,6 @@ export default function ProductFormBase({
   const productsLoading = useProductsStore((s) => s.loading);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
-  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
-  const [isOtherUnitModalOpen, setIsOtherUnitModalOpen] = useState(false);
-  const [otherUnitModalError, setOtherUnitModalError] = useState("");
-  const [otherUnitDraft, setOtherUnitDraft] = useState({
-    unidadAlterna: "Unidad",
-    unidadesPorEmpaque: "",
-  });
 
   const generateCode = useCallback(() => {
     const latestProducts = useProductsStore.getState().products ?? [];
@@ -209,37 +369,38 @@ export default function ProductFormBase({
     [generateCode],
   );
 
-  const defaults = useMemo<ProductFormValues>(
-    () => {
-      const altRows = Array.isArray((initialData as any)?.unidadesAlternas)
-        ? ((initialData as any).unidadesAlternas as Array<Record<string, unknown>>)
-        : [];
-      const firstAltRow = altRows.find((row) =>
-        normalizeUnitLabel(row?.unidadMedida ?? row?.unidad),
-      );
-      const derivedUnidadAlterna = normalizeUnitLabel(
-        firstAltRow?.unidadMedida ?? firstAltRow?.unidad,
-      );
-      const derivedUnidadesPorEmpaque = deriveInitialUnitsPerPackage(
-        initialData,
-        firstAltRow ?? null,
-      );
-      const derivedAplicaOtraUnidad = Boolean(
-        derivedUnidadAlterna &&
-          toSafePositiveNumber(derivedUnidadesPorEmpaque) > 1,
-      );
-      const explicitAplicaOtraUnidad = (initialData as any)?.aplicaOtraUnidad;
-      const explicitUnidadAlterna = normalizeUnitLabel(
-        (initialData as any)?.unidadAlterna,
-      );
-      const explicitUnidadesPorEmpaque = toSafePositiveNumber(
-        (initialData as any)?.unidadesPorEmpaque,
-      );
-      const explicitFromFields = Boolean(
-        explicitUnidadAlterna && explicitUnidadesPorEmpaque > 1,
-      );
+  const defaults = useMemo<ProductFormValues>(() => {
+    const altRows = Array.isArray((initialData as any)?.unidadesAlternas)
+      ? ((initialData as any).unidadesAlternas as Array<
+          Record<string, unknown>
+        >)
+      : [];
+    const firstAltRow = altRows.find((row) =>
+      normalizeUnitLabel(row?.unidadMedida ?? row?.unidad),
+    );
+    const derivedUnidadAlterna = normalizeUnitLabel(
+      firstAltRow?.unidadMedida ?? firstAltRow?.unidad,
+    );
+    const derivedUnidadesPorEmpaque = deriveInitialUnitsPerPackage(
+      initialData,
+      firstAltRow ?? null,
+    );
+    const derivedAplicaOtraUnidad = Boolean(
+      derivedUnidadAlterna &&
+      toSafePositiveNumber(derivedUnidadesPorEmpaque) > 1,
+    );
+    const explicitAplicaOtraUnidad = (initialData as any)?.aplicaOtraUnidad;
+    const explicitUnidadAlterna = normalizeUnitLabel(
+      (initialData as any)?.unidadAlterna,
+    );
+    const explicitUnidadesPorEmpaque = toSafePositiveNumber(
+      (initialData as any)?.unidadesPorEmpaque,
+    );
+    const explicitFromFields = Boolean(
+      explicitUnidadAlterna && explicitUnidadesPorEmpaque > 1,
+    );
 
-      return {
+    return {
       categoria: initialData?.categoria ?? "",
       idSubLinea:
         initialData?.idSubLinea !== undefined &&
@@ -274,9 +435,7 @@ export default function ProductFormBase({
           ? explicitUnidadesPorEmpaque
           : derivedUnidadesPorEmpaque,
     };
-    },
-    [initialData, mode, fallbackUser, generateCode],
-  );
+  }, [initialData, mode, fallbackUser, generateCode]);
 
   const formMethods = useForm<ProductFormValues>({
     defaultValues: defaults,
@@ -294,6 +453,7 @@ export default function ProductFormBase({
     formState: { isSubmitting, errors, dirtyFields },
   } = formMethods;
   const openDialog = useDialogStore((s) => s.openDialog);
+  const setDialogData = useDialogStore((s) => s.setData);
 
   useEffect(() => {
     reset(defaults);
@@ -388,30 +548,8 @@ export default function ProductFormBase({
   const unidadMedidaActual = watch("unidadMedida");
   const aplicaINV = watch("aplicaINV");
   const aplicaOtraUnidad = Boolean(watch("aplicaOtraUnidad"));
-  const unidadAlternaActual = String(watch("unidadAlterna") ?? "").trim();
-  const unidadPrincipalActual = normalizeUnitLabel(unidadMedidaActual) || "Unidad";
-  const unidadBaseActual = unidadAlternaActual || "Unidad";
-  const unidadesPorEmpaqueActual = toSafePositiveNumber(
-    watch("unidadesPorEmpaque"),
-  );
   const preVentaActual = toSafePositiveNumber(watch("preVenta"));
   const preCostoActual = toSafePositiveNumber(watch("preCosto"));
-  const unidadesPorEmpaqueDraft = toSafePositiveNumber(
-    otherUnitDraft.unidadesPorEmpaque,
-  );
-  const precioVentaUnitarioPreview =
-    unidadesPorEmpaqueDraft > 0 ? preVentaActual / unidadesPorEmpaqueDraft : 0;
-  const precioCostoUnitarioPreview =
-    unidadesPorEmpaqueDraft > 0 ? preCostoActual / unidadesPorEmpaqueDraft : 0;
-  const precioVentaUnitario =
-    unidadesPorEmpaqueActual > 0
-      ? preVentaActual / unidadesPorEmpaqueActual
-      : 0;
-  const precioCostoUnitario =
-    unidadesPorEmpaqueActual > 0
-      ? preCostoActual / unidadesPorEmpaqueActual
-      : 0;
-  const unidadBaseDraft = normalizeUnitLabel(otherUnitDraft.unidadAlterna) || "Unidad";
   const isServiceProduct = aplicaINV === "N";
   const placeholderImage =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>";
@@ -477,13 +615,21 @@ export default function ProductFormBase({
 
   const openImageModal = () => {
     if (!hasImage) return;
-    setModalImageSrc(currentImage);
-    setIsImageModalOpen(true);
-  };
-
-  const closeImageModal = () => {
-    setIsImageModalOpen(false);
-    setModalImageSrc(null);
+    openDialog({
+      title: "Foto del producto",
+      content: (
+        <div className="rounded-lg bg-black p-1">
+          <img
+            src={currentImage}
+            alt="Foto producto ampliada"
+            className="max-h-[75vh] w-full object-contain"
+          />
+        </div>
+      ),
+      cancelText: "Cerrar",
+      maxWidth: "lg",
+      fullWidth: true,
+    });
   };
 
   const openOtherUnitModal = (modalError?: string) => {
@@ -497,15 +643,31 @@ export default function ProductFormBase({
         ? "Unidad"
         : unidadAlterna || "Unidad";
 
-    setOtherUnitDraft({
+    const initialDialogData: OtherUnitDialogData = {
+      unidadPrincipal: unidadPrincipal || "Unidad",
       unidadAlterna: unidadBaseDefault,
       unidadesPorEmpaque:
         unidadesPorEmpaque === null || unidadesPorEmpaque === undefined
           ? ""
           : String(unidadesPorEmpaque),
+      preVenta: preVentaActual,
+      preCosto: preCostoActual,
+      error: typeof modalError === "string" ? modalError : "",
+    };
+
+    openDialog({
+      title: "Configurar contenido por unidad principal",
+      content: <OtherUnitDialogContent />,
+      confirmText: "Guardar unidad",
+      cancelText: "Cancelar",
+      onConfirm: (data) => confirmOtherUnit(data),
+      onCancel: handleOtherUnitDialogCancel,
+      maxWidth: "md",
+      fullWidth: true,
+      disableBackdropClose: false,
+      mobileActions: <></>,
     });
-    setOtherUnitModalError(typeof modalError === "string" ? modalError : "");
-    setIsOtherUnitModalOpen(true);
+    setDialogData(initialDialogData);
   };
 
   const clearOtherUnitConfiguration = () => {
@@ -523,11 +685,13 @@ export default function ProductFormBase({
     });
   };
 
-  const closeOtherUnitModal = () => {
+  const handleOtherUnitDialogCancel = () => {
     const appliesOtherUnit = Boolean(getValues("aplicaOtraUnidad"));
     const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
     const unidadBase = normalizeUnitLabel(getValues("unidadAlterna"));
-    const unidadesPorEmpaque = parseUnitsPerPackage(getValues("unidadesPorEmpaque"));
+    const unidadesPorEmpaque = parseUnitsPerPackage(
+      getValues("unidadesPorEmpaque"),
+    );
     const hasValidConfig =
       !!unidadBase &&
       Number.isFinite(unidadesPorEmpaque) &&
@@ -537,53 +701,58 @@ export default function ProductFormBase({
     if (appliesOtherUnit && !hasValidConfig) {
       clearOtherUnitConfiguration();
     }
-
-    setIsOtherUnitModalOpen(false);
-    setOtherUnitModalError("");
   };
 
-  const updateOtherUnitDraft = (
-    field: "unidadAlterna" | "unidadesPorEmpaque",
-    value: string,
-  ) => {
-    setOtherUnitDraft((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    if (otherUnitModalError) {
-      setOtherUnitModalError("");
-    }
-  };
-
-  const confirmOtherUnit = () => {
-    const unidadAlterna = normalizeUnitLabel(otherUnitDraft.unidadAlterna);
-    const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
+  const confirmOtherUnit = (rawDialogData?: unknown) => {
+    const fallbackDialogData: Partial<OtherUnitDialogData> = {
+      unidadPrincipal:
+        normalizeUnitLabel(getValues("unidadMedida")) || "Unidad",
+      unidadAlterna: normalizeUnitLabel(getValues("unidadAlterna")) || "Unidad",
+      unidadesPorEmpaque: toDialogString(getValues("unidadesPorEmpaque"), ""),
+      preVenta: preVentaActual,
+      preCosto: preCostoActual,
+      error: "",
+    };
+    const dialogData = parseOtherUnitDialogData(
+      rawDialogData,
+      fallbackDialogData,
+    );
+    const unidadAlterna = normalizeUnitLabel(dialogData.unidadAlterna);
+    const unidadPrincipal = normalizeUnitLabel(dialogData.unidadPrincipal);
     const unidadesPorEmpaque = parseUnitsPerPackage(
-      otherUnitDraft.unidadesPorEmpaque,
+      dialogData.unidadesPorEmpaque,
     );
 
     if (!unidadPrincipal) {
-      setOtherUnitModalError("Selecciona primero la unidad principal del producto.");
-      return;
+      setDialogData({
+        ...dialogData,
+        error: "Selecciona primero la unidad principal del producto.",
+      });
+      return false;
     }
 
     if (!unidadAlterna) {
-      setOtherUnitModalError("La unidad base es obligatoria.");
-      return;
+      setDialogData({
+        ...dialogData,
+        error: "La unidad base es obligatoria.",
+      });
+      return false;
     }
 
     if (unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase()) {
-      setOtherUnitModalError(
-        "La unidad base debe ser distinta a la unidad principal.",
-      );
-      return;
+      setDialogData({
+        ...dialogData,
+        error: "La unidad base debe ser distinta a la unidad principal.",
+      });
+      return false;
     }
 
     if (!Number.isFinite(unidadesPorEmpaque) || unidadesPorEmpaque <= 1) {
-      setOtherUnitModalError(
-        `Ingresa una cantidad mayor a 1 para 1 ${unidadPrincipal}.`,
-      );
-      return;
+      setDialogData({
+        ...dialogData,
+        error: `Ingresa una cantidad mayor a 1 para 1 ${unidadPrincipal}.`,
+      });
+      return false;
     }
 
     setValue("aplicaOtraUnidad", true, {
@@ -598,8 +767,7 @@ export default function ProductFormBase({
       shouldDirty: true,
       shouldValidate: true,
     });
-
-    closeOtherUnitModal();
+    return true;
   };
 
   const stopCamera = () => {
@@ -1097,7 +1265,6 @@ export default function ProductFormBase({
                               }
 
                               clearOtherUnitConfiguration();
-                              setOtherUnitModalError("");
                             }}
                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                           />
@@ -1289,167 +1456,6 @@ export default function ProductFormBase({
               </div>
             </div>
           </HookForm>
-          {isOtherUnitModalOpen && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-              role="dialog"
-              aria-modal="true"
-            >
-              <div
-                className="w-full max-w-xl rounded-xl bg-white shadow-xl"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <form
-                  autoComplete="off"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    confirmOtherUnit();
-                  }}
-                >
-                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-                    <h3 className="text-base font-semibold text-slate-800">
-                      Configurar contenido por unidad principal
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={closeOtherUnitModal}
-                      className="rounded-md p-1 text-slate-600 hover:bg-slate-100"
-                      title="Cerrar"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-4 px-5 py-4">
-                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                      <p className="text-slate-500">Unidad principal del producto</p>
-                      <p className="font-semibold text-slate-800">
-                        {unidadPrincipalActual}
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                          Unidad base
-                        </label>
-                        <input
-                          type="text"
-                          value={otherUnitDraft.unidadAlterna}
-                          onChange={(e) =>
-                            updateOtherUnitDraft("unidadAlterna", e.target.value)
-                          }
-                          onInput={(e) =>
-                            updateOtherUnitDraft(
-                              "unidadAlterna",
-                              (e.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          autoComplete="off"
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                          placeholder="Ej: UNIDAD"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                          Cantidad por {unidadPrincipalActual}
-                        </label>
-                        <input
-                          type="number"
-                          min="2"
-                          step="1"
-                          value={otherUnitDraft.unidadesPorEmpaque}
-                          onChange={(e) =>
-                            updateOtherUnitDraft(
-                              "unidadesPorEmpaque",
-                              e.target.value,
-                            )
-                          }
-                          onInput={(e) =>
-                            updateOtherUnitDraft(
-                              "unidadesPorEmpaque",
-                              (e.currentTarget as HTMLInputElement).value,
-                            )
-                          }
-                          autoComplete="off"
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                          placeholder="Ej: 20"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <p className="text-slate-500">Precio total ({unidadPrincipalActual})</p>
-                        <p className="font-semibold text-slate-800">
-                          Venta: {formatMoney(preVentaActual)} | Costo:{" "}
-                          {formatMoney(preCostoActual)}
-                        </p>
-                      </div>
-                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                        <p className="text-slate-500">Precio por {unidadBaseDraft}</p>
-                        <p className="font-semibold text-slate-800">
-                          Venta: {formatMoney(precioVentaUnitarioPreview)} |
-                          Costo: {formatMoney(precioCostoUnitarioPreview)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {otherUnitModalError ? (
-                      <p className="text-sm text-red-600">
-                        {otherUnitModalError}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                    <button
-                      type="button"
-                      onClick={closeOtherUnitModal}
-                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
-                    >
-                      Guardar unidad
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-          {isImageModalOpen && modalImageSrc && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-              onClick={closeImageModal}
-              role="dialog"
-              aria-modal="true"
-            >
-              <div
-                className="relative max-w-4xl w-full max-h-[90vh]"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={closeImageModal}
-                  className="absolute top-3 right-3 text-white hover:text-gray-200"
-                  title="Cerrar"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-                <div className="bg-black rounded-lg overflow-hidden">
-                  <img
-                    src={modalImageSrc}
-                    alt="Foto producto ampliada"
-                    className="w-full h-full max-h-[80vh] object-contain"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>
