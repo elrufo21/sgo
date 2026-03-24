@@ -9,6 +9,10 @@ const toNumber = (value: unknown, fallback = 0): number => {
 };
 
 const toNonNegative = (value: unknown): number => Math.max(toNumber(value, 0), 0);
+const normalizeText = (value: unknown): string =>
+  String(value ?? "").trim().toLowerCase();
+const getItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">): number =>
+  toNumber(item.detalleId, 0) || toNumber(item.productId, 0);
 
 const EMPTY_TOTALS: PosTotals = { subTotal: 0, total: 0, itemCount: 0 };
 
@@ -122,8 +126,18 @@ export const usePosStore = create<PosState>()(
             toNumber((product as any).preVenta ?? 0) ||
             toNumber((product as any).preVentaB ?? 0) ||
             0;
+          const productDetailId = toNumber((product as any).detalleId, 0);
+          const normalizedDetailId =
+            Number.isFinite(productDetailId) && productDetailId !== 0
+              ? productDetailId
+              : undefined;
+          const productUnit = normalizeText((product as any).unidadMedida);
           const existing = state.items.find(
-            (item) => item.productId === product.id
+            (item) =>
+              item.productId === product.id &&
+              (toNumber(item.detalleId, 0) || 0) ===
+                (normalizedDetailId ?? 0) &&
+              normalizeText(item.unidadMedida) === productUnit
           );
           const currentQty = toNonNegative(existing?.cantidad ?? 0);
           const desiredQty = currentQty + quantity;
@@ -144,7 +158,10 @@ export const usePosStore = create<PosState>()(
 
           const nextItems = existing
             ? state.items.map((item) =>
-                item.productId === product.id
+                item.productId === product.id &&
+                (toNumber(item.detalleId, 0) || 0) ===
+                  (normalizedDetailId ?? 0) &&
+                normalizeText(item.unidadMedida) === productUnit
                   ? {
                       ...item,
                       cantidad: nextQty,
@@ -160,6 +177,7 @@ export const usePosStore = create<PosState>()(
                   codigo: product.codigo,
                   nombre: product.nombre,
                   unidadMedida: product.unidadMedida,
+                  detalleId: normalizedDetailId,
                   precio: Math.max(toNonNegative(basePrice), minPrice),
                   precioMinimo: minPrice,
                   cantidad: nextQty,
@@ -175,8 +193,14 @@ export const usePosStore = create<PosState>()(
       updateQuantity: (productId, quantity) =>
         set((state) => {
           let changed = false;
+          const hasExactKey = state.items.some(
+            (item) => getItemKey(item) === productId
+          );
           const nextItems = state.items.map((item) => {
-            if (item.productId !== productId) return item;
+            const matches = hasExactKey
+              ? getItemKey(item) === productId
+              : item.productId === productId;
+            if (!matches) return item;
             const cappedQty = toNonNegative(quantity);
             if (cappedQty === item.cantidad) return item;
             changed = true;
@@ -190,8 +214,14 @@ export const usePosStore = create<PosState>()(
       updatePrice: (productId, price) =>
         set((state) => {
           let changed = false;
+          const hasExactKey = state.items.some(
+            (item) => getItemKey(item) === productId
+          );
           const nextItems = state.items.map((item) => {
-            if (item.productId !== productId) return item;
+            const matches = hasExactKey
+              ? getItemKey(item) === productId
+              : item.productId === productId;
+            if (!matches) return item;
             const minPrice = toNonNegative(item.precioMinimo ?? 0);
             const safePrice = Math.max(toNonNegative(price), minPrice);
             if (item.precio === safePrice) return item;
@@ -205,8 +235,14 @@ export const usePosStore = create<PosState>()(
 
       removeItem: (productId) =>
         set((state) => {
+          const hasExactKey = state.items.some(
+            (item) => getItemKey(item) === productId
+          );
           const nextItems = state.items.filter(
-            (item) => item.productId !== productId
+            (item) =>
+              hasExactKey
+                ? getItemKey(item) !== productId
+                : item.productId !== productId
           );
           if (nextItems.length === state.items.length) return state;
           return { items: nextItems, totals: calculateTotals(nextItems) };

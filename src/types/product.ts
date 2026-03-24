@@ -1,3 +1,11 @@
+export interface ProductUnitOption {
+  unidadMedida: string;
+  cantidad: number;
+  preCosto: number;
+  preVenta: number;
+  preVentaB: number | string;
+}
+
 export interface Product {
   id: number;
   idSubLinea?: number | null;
@@ -14,4 +22,5 @@ export interface Product {
   usuario: string;
   estado: "ACTIVO" | "INACTIVO" | "archivado";
   images?: string[];
+  unidadesAlternas?: ProductUnitOption[];
 }

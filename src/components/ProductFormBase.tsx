@@ -45,12 +45,72 @@ interface ProductFormBaseProps {
 const unidadesMedida = ["Unidad", "Kg", "Litro", "Caja", "Docena"];
 
 const buildUserDate = () => `user-${getLocalDateISO()}`;
+const toSafePositiveNumber = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+const normalizeUnitLabel = (value: unknown) => String(value ?? "").trim();
+const parseUnitsPerPackage = (value: unknown) => {
+  if (typeof value === "number") return value;
+  const normalized = String(value ?? "")
+    .replace(",", ".")
+    .trim();
+  if (!normalized) return NaN;
+  return Number(normalized);
+};
+const formatMoney = (value: number) => `S/ ${value.toFixed(2)}`;
+
+const deriveInitialUnitsPerPackage = (
+  initialData?: Partial<Product>,
+  altRow?: Record<string, unknown> | null,
+): number | null => {
+  if (!initialData || !altRow) return null;
+
+  const explicitFactor = toSafePositiveNumber(
+    altRow.factor ?? altRow.valorUM,
+  );
+  if (explicitFactor > 1) {
+    return Number(explicitFactor.toFixed(2));
+  }
+
+  const baseStock = toSafePositiveNumber(initialData.cantidad);
+  const altStock = toSafePositiveNumber(altRow.cantidad);
+  if (baseStock > 0 && altStock > 0) {
+    const byStock = baseStock / altStock;
+    if (Number.isFinite(byStock) && byStock > 1) {
+      return Number(byStock.toFixed(2));
+    }
+  }
+
+  const baseVenta = toSafePositiveNumber(initialData.preVenta);
+  const altVenta = toSafePositiveNumber(altRow.preVenta);
+  if (baseVenta > 0 && altVenta > 0) {
+    const byVenta = baseVenta / altVenta;
+    if (Number.isFinite(byVenta) && byVenta > 1) {
+      return Number(byVenta.toFixed(2));
+    }
+  }
+
+  const baseCosto = toSafePositiveNumber(initialData.preCosto);
+  const altCosto = toSafePositiveNumber(altRow.preCosto);
+  if (baseCosto > 0 && altCosto > 0) {
+    const byCosto = baseCosto / altCosto;
+    if (Number.isFinite(byCosto) && byCosto > 1) {
+      return Number(byCosto.toFixed(2));
+    }
+  }
+
+  return null;
+};
 
 type ProductFormValues = Omit<Product, "id"> & {
   images?: string[];
   preVentaB?: number | null;
   imageFile?: File | null;
   imageRemoved?: boolean;
+  aplicaOtraUnidad?: boolean;
+  unidadAlterna?: string;
+  unidadesPorEmpaque?: number | null;
 };
 
 export default function ProductFormBase({
@@ -77,6 +137,12 @@ export default function ProductFormBase({
   const [takingPhoto, setTakingPhoto] = useState(false);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [modalImageSrc, setModalImageSrc] = useState<string | null>(null);
+  const [isOtherUnitModalOpen, setIsOtherUnitModalOpen] = useState(false);
+  const [otherUnitModalError, setOtherUnitModalError] = useState("");
+  const [otherUnitDraft, setOtherUnitDraft] = useState({
+    unidadAlterna: "Unidad",
+    unidadesPorEmpaque: "",
+  });
 
   const generateCode = useCallback(() => {
     const latestProducts = useProductsStore.getState().products ?? [];
@@ -144,7 +210,36 @@ export default function ProductFormBase({
   );
 
   const defaults = useMemo<ProductFormValues>(
-    () => ({
+    () => {
+      const altRows = Array.isArray((initialData as any)?.unidadesAlternas)
+        ? ((initialData as any).unidadesAlternas as Array<Record<string, unknown>>)
+        : [];
+      const firstAltRow = altRows.find((row) =>
+        normalizeUnitLabel(row?.unidadMedida ?? row?.unidad),
+      );
+      const derivedUnidadAlterna = normalizeUnitLabel(
+        firstAltRow?.unidadMedida ?? firstAltRow?.unidad,
+      );
+      const derivedUnidadesPorEmpaque = deriveInitialUnitsPerPackage(
+        initialData,
+        firstAltRow ?? null,
+      );
+      const derivedAplicaOtraUnidad = Boolean(
+        derivedUnidadAlterna &&
+          toSafePositiveNumber(derivedUnidadesPorEmpaque) > 1,
+      );
+      const explicitAplicaOtraUnidad = (initialData as any)?.aplicaOtraUnidad;
+      const explicitUnidadAlterna = normalizeUnitLabel(
+        (initialData as any)?.unidadAlterna,
+      );
+      const explicitUnidadesPorEmpaque = toSafePositiveNumber(
+        (initialData as any)?.unidadesPorEmpaque,
+      );
+      const explicitFromFields = Boolean(
+        explicitUnidadAlterna && explicitUnidadesPorEmpaque > 1,
+      );
+
+      return {
       categoria: initialData?.categoria ?? "",
       idSubLinea:
         initialData?.idSubLinea !== undefined &&
@@ -168,7 +263,18 @@ export default function ProductFormBase({
       images: initialData?.images ?? [],
       imageFile: null,
       imageRemoved: false,
-    }),
+      aplicaOtraUnidad:
+        explicitAplicaOtraUnidad !== undefined &&
+        explicitAplicaOtraUnidad !== null
+          ? Boolean(explicitAplicaOtraUnidad)
+          : explicitFromFields || derivedAplicaOtraUnidad,
+      unidadAlterna: explicitUnidadAlterna || derivedUnidadAlterna,
+      unidadesPorEmpaque:
+        explicitUnidadesPorEmpaque > 0
+          ? explicitUnidadesPorEmpaque
+          : derivedUnidadesPorEmpaque,
+    };
+    },
     [initialData, mode, fallbackUser, generateCode],
   );
 
@@ -281,6 +387,31 @@ export default function ProductFormBase({
   const selectedSubLineaId = watch("idSubLinea");
   const unidadMedidaActual = watch("unidadMedida");
   const aplicaINV = watch("aplicaINV");
+  const aplicaOtraUnidad = Boolean(watch("aplicaOtraUnidad"));
+  const unidadAlternaActual = String(watch("unidadAlterna") ?? "").trim();
+  const unidadPrincipalActual = normalizeUnitLabel(unidadMedidaActual) || "Unidad";
+  const unidadBaseActual = unidadAlternaActual || "Unidad";
+  const unidadesPorEmpaqueActual = toSafePositiveNumber(
+    watch("unidadesPorEmpaque"),
+  );
+  const preVentaActual = toSafePositiveNumber(watch("preVenta"));
+  const preCostoActual = toSafePositiveNumber(watch("preCosto"));
+  const unidadesPorEmpaqueDraft = toSafePositiveNumber(
+    otherUnitDraft.unidadesPorEmpaque,
+  );
+  const precioVentaUnitarioPreview =
+    unidadesPorEmpaqueDraft > 0 ? preVentaActual / unidadesPorEmpaqueDraft : 0;
+  const precioCostoUnitarioPreview =
+    unidadesPorEmpaqueDraft > 0 ? preCostoActual / unidadesPorEmpaqueDraft : 0;
+  const precioVentaUnitario =
+    unidadesPorEmpaqueActual > 0
+      ? preVentaActual / unidadesPorEmpaqueActual
+      : 0;
+  const precioCostoUnitario =
+    unidadesPorEmpaqueActual > 0
+      ? preCostoActual / unidadesPorEmpaqueActual
+      : 0;
+  const unidadBaseDraft = normalizeUnitLabel(otherUnitDraft.unidadAlterna) || "Unidad";
   const isServiceProduct = aplicaINV === "N";
   const placeholderImage =
     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='400'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-size='20' font-family='Arial, sans-serif'>No image</text></svg>";
@@ -353,6 +484,122 @@ export default function ProductFormBase({
   const closeImageModal = () => {
     setIsImageModalOpen(false);
     setModalImageSrc(null);
+  };
+
+  const openOtherUnitModal = (modalError?: string) => {
+    const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
+    const unidadAlterna = normalizeUnitLabel(getValues("unidadAlterna"));
+    const unidadesPorEmpaque = getValues("unidadesPorEmpaque");
+    const unidadBaseDefault =
+      unidadAlterna &&
+      unidadPrincipal &&
+      unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase()
+        ? "Unidad"
+        : unidadAlterna || "Unidad";
+
+    setOtherUnitDraft({
+      unidadAlterna: unidadBaseDefault,
+      unidadesPorEmpaque:
+        unidadesPorEmpaque === null || unidadesPorEmpaque === undefined
+          ? ""
+          : String(unidadesPorEmpaque),
+    });
+    setOtherUnitModalError(typeof modalError === "string" ? modalError : "");
+    setIsOtherUnitModalOpen(true);
+  };
+
+  const clearOtherUnitConfiguration = () => {
+    setValue("aplicaOtraUnidad", false, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("unidadAlterna", "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("unidadesPorEmpaque", null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const closeOtherUnitModal = () => {
+    const appliesOtherUnit = Boolean(getValues("aplicaOtraUnidad"));
+    const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
+    const unidadBase = normalizeUnitLabel(getValues("unidadAlterna"));
+    const unidadesPorEmpaque = parseUnitsPerPackage(getValues("unidadesPorEmpaque"));
+    const hasValidConfig =
+      !!unidadBase &&
+      Number.isFinite(unidadesPorEmpaque) &&
+      unidadesPorEmpaque > 1 &&
+      unidadBase.toLowerCase() !== unidadPrincipal.toLowerCase();
+
+    if (appliesOtherUnit && !hasValidConfig) {
+      clearOtherUnitConfiguration();
+    }
+
+    setIsOtherUnitModalOpen(false);
+    setOtherUnitModalError("");
+  };
+
+  const updateOtherUnitDraft = (
+    field: "unidadAlterna" | "unidadesPorEmpaque",
+    value: string,
+  ) => {
+    setOtherUnitDraft((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    if (otherUnitModalError) {
+      setOtherUnitModalError("");
+    }
+  };
+
+  const confirmOtherUnit = () => {
+    const unidadAlterna = normalizeUnitLabel(otherUnitDraft.unidadAlterna);
+    const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
+    const unidadesPorEmpaque = parseUnitsPerPackage(
+      otherUnitDraft.unidadesPorEmpaque,
+    );
+
+    if (!unidadPrincipal) {
+      setOtherUnitModalError("Selecciona primero la unidad principal del producto.");
+      return;
+    }
+
+    if (!unidadAlterna) {
+      setOtherUnitModalError("La unidad base es obligatoria.");
+      return;
+    }
+
+    if (unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase()) {
+      setOtherUnitModalError(
+        "La unidad base debe ser distinta a la unidad principal.",
+      );
+      return;
+    }
+
+    if (!Number.isFinite(unidadesPorEmpaque) || unidadesPorEmpaque <= 1) {
+      setOtherUnitModalError(
+        `Ingresa una cantidad mayor a 1 para 1 ${unidadPrincipal}.`,
+      );
+      return;
+    }
+
+    setValue("aplicaOtraUnidad", true, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("unidadAlterna", unidadAlterna, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("unidadesPorEmpaque", unidadesPorEmpaque, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+
+    closeOtherUnitModal();
   };
 
   const stopCamera = () => {
@@ -445,6 +692,24 @@ export default function ProductFormBase({
       return;
     }
 
+    const appliesOtherUnit = Boolean(values.aplicaOtraUnidad);
+    const unidadAlterna = String(values.unidadAlterna ?? "").trim();
+    const unidadPrincipal = normalizeUnitLabel(values.unidadMedida);
+    const unidadesPorEmpaque = parseUnitsPerPackage(values.unidadesPorEmpaque);
+
+    if (
+      appliesOtherUnit &&
+      (!unidadAlterna ||
+        !Number.isFinite(unidadesPorEmpaque) ||
+        unidadesPorEmpaque <= 1 ||
+        unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase())
+    ) {
+      openOtherUnitModal(
+        "Configura una unidad base valida y cuantas unidades contiene la unidad principal antes de guardar.",
+      );
+      return;
+    }
+
     const payload = {
       ...values,
       codigo: trimmedCode,
@@ -452,6 +717,9 @@ export default function ProductFormBase({
       valorCritico: 0,
       cantidad: values.aplicaINV === "N" ? 0 : values.cantidad,
       nombre: values.nombre?.toUpperCase() ?? "",
+      aplicaOtraUnidad: appliesOtherUnit,
+      unidadAlterna: appliesOtherUnit ? unidadAlterna : "",
+      unidadesPorEmpaque: appliesOtherUnit ? unidadesPorEmpaque : null,
     };
     const saved = await Promise.resolve(onSave(payload));
     if (saved === false) return;
@@ -797,17 +1065,55 @@ export default function ProductFormBase({
                     />
                   </div>
 
-                  <HookFormAutocomplete<ProductFormValues>
-                    name="unidadMedida"
-                    label="Unidad de Medida"
-                    options={unidadMedidaOptions}
-                    placeholder="Selecciona o escribe una unidad"
-                    rules={{ required: "La unidad de medida es obligatoria" }}
-                    allowCreate
-                    showCreateOption={false}
-                    syncInputToValue
-                    className="w-full"
-                  />
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
+                    <HookFormAutocomplete<ProductFormValues>
+                      name="unidadMedida"
+                      label="Unidad de Medida"
+                      options={unidadMedidaOptions}
+                      placeholder="Selecciona o escribe una unidad"
+                      rules={{ required: "La unidad de medida es obligatoria" }}
+                      allowCreate
+                      showCreateOption={false}
+                      syncInputToValue
+                      className="w-full"
+                    />
+
+                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={aplicaOtraUnidad}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setValue("aplicaOtraUnidad", checked, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+
+                              if (checked) {
+                                openOtherUnitModal();
+                                return;
+                              }
+
+                              clearOtherUnitConfiguration();
+                              setOtherUnitModalError("");
+                            }}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          Aplica otra unidad
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => openOtherUnitModal()}
+                          disabled={!aplicaOtraUnidad}
+                          className="px-3 py-1.5 text-sm rounded-md border border-blue-200 bg-white text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Configurar unidad
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   <HookFormInput<ProductFormValues>
                     name="preVenta"
@@ -983,6 +1289,138 @@ export default function ProductFormBase({
               </div>
             </div>
           </HookForm>
+          {isOtherUnitModalOpen && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+              role="dialog"
+              aria-modal="true"
+            >
+              <div
+                className="w-full max-w-xl rounded-xl bg-white shadow-xl"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <form
+                  autoComplete="off"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    confirmOtherUnit();
+                  }}
+                >
+                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <h3 className="text-base font-semibold text-slate-800">
+                      Configurar contenido por unidad principal
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={closeOtherUnitModal}
+                      className="rounded-md p-1 text-slate-600 hover:bg-slate-100"
+                      title="Cerrar"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 px-5 py-4">
+                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                      <p className="text-slate-500">Unidad principal del producto</p>
+                      <p className="font-semibold text-slate-800">
+                        {unidadPrincipalActual}
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Unidad base
+                        </label>
+                        <input
+                          type="text"
+                          value={otherUnitDraft.unidadAlterna}
+                          onChange={(e) =>
+                            updateOtherUnitDraft("unidadAlterna", e.target.value)
+                          }
+                          onInput={(e) =>
+                            updateOtherUnitDraft(
+                              "unidadAlterna",
+                              (e.currentTarget as HTMLInputElement).value,
+                            )
+                          }
+                          autoComplete="off"
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          placeholder="Ej: UNIDAD"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-slate-700">
+                          Cantidad por {unidadPrincipalActual}
+                        </label>
+                        <input
+                          type="number"
+                          min="2"
+                          step="1"
+                          value={otherUnitDraft.unidadesPorEmpaque}
+                          onChange={(e) =>
+                            updateOtherUnitDraft(
+                              "unidadesPorEmpaque",
+                              e.target.value,
+                            )
+                          }
+                          onInput={(e) =>
+                            updateOtherUnitDraft(
+                              "unidadesPorEmpaque",
+                              (e.currentTarget as HTMLInputElement).value,
+                            )
+                          }
+                          autoComplete="off"
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          placeholder="Ej: 20"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <p className="text-slate-500">Precio total ({unidadPrincipalActual})</p>
+                        <p className="font-semibold text-slate-800">
+                          Venta: {formatMoney(preVentaActual)} | Costo:{" "}
+                          {formatMoney(preCostoActual)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                        <p className="text-slate-500">Precio por {unidadBaseDraft}</p>
+                        <p className="font-semibold text-slate-800">
+                          Venta: {formatMoney(precioVentaUnitarioPreview)} |
+                          Costo: {formatMoney(precioCostoUnitarioPreview)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {otherUnitModalError ? (
+                      <p className="text-sm text-red-600">
+                        {otherUnitModalError}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={closeOtherUnitModal}
+                      className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700"
+                    >
+                      Guardar unidad
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
           {isImageModalOpen && modalImageSrc && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"

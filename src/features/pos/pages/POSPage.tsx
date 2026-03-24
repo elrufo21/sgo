@@ -23,15 +23,27 @@ import type { Product } from "@/types/product";
 import type { PosCartItem } from "@/types/pos";
 import { toast } from "@/shared/ui/toast";
 
-const columnHelper = createColumnHelper<Product>();
+type PosCatalogProduct = Product & {
+  catalogKey: string;
+  detalleId?: number;
+  isVariation?: boolean;
+  baseProductId?: number;
+};
+
+const columnHelper = createColumnHelper<PosCatalogProduct>();
 const PAGE_SIZE = 24;
 
 const priceLabel = (product: Product) =>
   Number(product.preVenta ?? product.preVentaB ?? 0).toFixed(2);
+const buildVariationDetailId = (baseId: number, index: number) =>
+  -1 * (baseId * 1000 + (index + 1));
+const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
+  Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
 
 const POSPage = () => {
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [searchTerm, setSearchTerm] = useState("");
+  const [includeVariations, setIncludeVariations] = useState(false);
   const [page, setPage] = useState(1);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
   const navigate = useNavigate();
@@ -134,7 +146,7 @@ const POSPage = () => {
             </p>
             <ul className="list-disc list-inside text-sm text-slate-800 max-h-40 overflow-auto">
               {outOfStockItems.map((item) => (
-                <li key={item.productId}>
+                <li key={getCartItemKey(item)}>
                   {item.nombre} — stock: {Math.max(item.stock ?? 0, 0)},
                   carrito: {item.cantidad}
                 </li>
@@ -167,7 +179,7 @@ const POSPage = () => {
     setMobileCartOpen(true);
   };
 
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = (product: PosCatalogProduct) => {
     const available = Number(product.cantidad ?? 0);
     if (!Number.isFinite(available) || available <= 0) {
       openDialog({
@@ -198,15 +210,53 @@ const POSPage = () => {
     focusSearchInput();
   };
 
+  const catalogProducts = useMemo<PosCatalogProduct[]>(() => {
+    if (!includeVariations) {
+      return products.map((product) => ({
+        ...product,
+        catalogKey: `base-${product.id}`,
+      }));
+    }
+
+    const expanded: PosCatalogProduct[] = [];
+    products.forEach((product) => {
+      expanded.push({
+        ...product,
+        catalogKey: `base-${product.id}`,
+      });
+
+      const variations = Array.isArray(product.unidadesAlternas)
+        ? product.unidadesAlternas
+        : [];
+      variations.forEach((variation, index) => {
+        expanded.push({
+          ...product,
+          detalleId: buildVariationDetailId(product.id, index),
+          isVariation: true,
+          baseProductId: product.id,
+          unidadMedida: variation.unidadMedida || product.unidadMedida,
+          cantidad: Number(variation.cantidad ?? 0),
+          preCosto: Number(variation.preCosto ?? product.preCosto ?? 0),
+          preVenta: Number(variation.preVenta ?? product.preVenta ?? 0),
+          preVentaB: Number(variation.preVentaB ?? product.preVentaB ?? 0),
+          catalogKey: `var-${product.id}-${index}`,
+        });
+      });
+    });
+
+    return expanded;
+  }, [includeVariations, products]);
+
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    if (term.length < 2) return products;
-    return products.filter(
+    if (term.length < 2) return catalogProducts;
+    return catalogProducts.filter(
       (p) =>
         p.codigo?.toLowerCase().includes(term) ||
-        p.nombre?.toLowerCase().includes(term),
+        p.nombre?.toLowerCase().includes(term) ||
+        p.unidadMedida?.toLowerCase().includes(term),
     );
-  }, [products, searchTerm]);
+  }, [catalogProducts, searchTerm]);
 
   const visibleProducts = useMemo(() => {
     if (viewMode !== "cards") return filteredProducts;
@@ -218,7 +268,7 @@ const POSPage = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, includeVariations]);
 
   useEffect(() => {
     if (!isCardsView || !hasMoreProducts) return;
@@ -252,29 +302,29 @@ const POSPage = () => {
 
   const handleQuantityChange = (item: PosCartItem, delta: number) => {
     const desired = Math.max(1, (item.cantidad ?? 0) + delta);
-    updateQuantity(item.productId, desired);
+    updateQuantity(getCartItemKey(item), desired);
   };
 
   const handleManualQuantity = (item: PosCartItem, value: string) => {
     if (value === "") {
-      updateQuantity(item.productId, 0);
+      updateQuantity(getCartItemKey(item), 0);
       return;
     }
     const parsed = Number(value);
     if (Number.isNaN(parsed)) return;
     const next = Math.max(1, parsed);
-    updateQuantity(item.productId, next);
+    updateQuantity(getCartItemKey(item), next);
   };
 
   const handlePriceChange = (item: PosCartItem, value: string) => {
     if (!/^\d*\.?\d*$/.test(value)) return;
 
     const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
-    setPriceDrafts((prev) => ({ ...prev, [item.productId]: value }));
+    setPriceDrafts((prev) => ({ ...prev, [getCartItemKey(item)]: value }));
 
     const parsed = Number(value);
     if (!Number.isNaN(parsed) && parsed >= minPrice) {
-      updatePrice(item.productId, parsed);
+      updatePrice(getCartItemKey(item), parsed);
     }
   };
 
@@ -291,9 +341,9 @@ const POSPage = () => {
     if (value.trim() === "") {
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: normalizedMinPrice,
+        [getCartItemKey(item)]: normalizedMinPrice,
       }));
-      updatePrice(item.productId, minPrice);
+      updatePrice(getCartItemKey(item), minPrice);
       return;
     }
 
@@ -301,7 +351,7 @@ const POSPage = () => {
     if (Number.isNaN(parsed)) {
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: String(item.precio ?? normalizedMinPrice),
+        [getCartItemKey(item)]: String(item.precio ?? normalizedMinPrice),
       }));
       return;
     }
@@ -310,9 +360,9 @@ const POSPage = () => {
       toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: normalizedMinPrice,
+        [getCartItemKey(item)]: normalizedMinPrice,
       }));
-      updatePrice(item.productId, minPrice);
+      updatePrice(getCartItemKey(item), minPrice);
       window.requestAnimationFrame(() => {
         if (!input || input.disabled) return;
         input.focus();
@@ -321,16 +371,19 @@ const POSPage = () => {
       return;
     }
 
-    setPriceDrafts((prev) => ({ ...prev, [item.productId]: String(parsed) }));
-    updatePrice(item.productId, parsed);
+    setPriceDrafts((prev) => ({
+      ...prev,
+      [getCartItemKey(item)]: String(parsed),
+    }));
+    updatePrice(getCartItemKey(item), parsed);
   };
 
   useEffect(() => {
     setPriceDrafts((prev) => {
       const next: Record<number, string> = {};
       items.forEach((item) => {
-        next[item.productId] =
-          prev[item.productId] ?? item.precio?.toString() ?? "";
+        const itemKey = getCartItemKey(item);
+        next[itemKey] = prev[itemKey] ?? item.precio?.toString() ?? "";
       });
       return next;
     });
@@ -356,6 +409,14 @@ const POSPage = () => {
     columnHelper.accessor("nombre", {
       header: "Nombre",
       cell: (info) => info.getValue(),
+    }),
+    columnHelper.display({
+      id: "unidad",
+      header: "U.M.",
+      cell: ({ row }) => {
+        const unit = row.original.unidadMedida ?? "UND";
+        return row.original.isVariation ? `${unit} (VAR)` : unit;
+      },
     }),
     columnHelper.display({
       id: "precio",
@@ -447,7 +508,7 @@ const POSPage = () => {
 
           return (
             <article
-              key={item.productId}
+              key={getCartItemKey(item)}
               className={`border rounded-lg p-3 hover:border-slate-300 transition-colors ${highlightClass}`}
             >
               <div className="flex justify-between gap-3">
@@ -482,7 +543,7 @@ const POSPage = () => {
                     <NavigableNumberInput
                       min={minPrice}
                       step="0.01"
-                      value={priceDrafts[item.productId] ?? item.precio}
+                      value={priceDrafts[getCartItemKey(item)] ?? item.precio}
                       onChange={(value) => handlePriceChange(item, value)}
                       onBlur={(event) =>
                         handlePriceBlur(
@@ -533,7 +594,7 @@ const POSPage = () => {
                   </div>
                   <button
                     className="p-2 rounded bg-red-50 text-red-600 hover:bg-red-100"
-                    onClick={() => removeItem(item.productId)}
+                    onClick={() => removeItem(getCartItemKey(item))}
                     title="Quitar"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -602,6 +663,15 @@ const POSPage = () => {
                   Tabla
                 </button>
               </div>
+              <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={includeVariations}
+                  onChange={(e) => setIncludeVariations(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-700 focus:ring-slate-400"
+                />
+                Traer variaciones
+              </label>
             </div>
             <button
               type="button"
@@ -662,7 +732,7 @@ const POSPage = () => {
 
                       return (
                         <article
-                          key={product.id}
+                          key={product.catalogKey}
                           className={`border rounded-xl p-3 hover:border-slate-300 transition-colors flex flex-col ${cardHighlight}`}
                         >
                           <div className="aspect-video rounded-lg overflow-hidden bg-white border flex items-center justify-center">
@@ -686,6 +756,11 @@ const POSPage = () => {
                             <h3 className="text-sm font-semibold text-slate-800 line-clamp-2">
                               {product.nombre}
                             </h3>
+                            {product.isVariation ? (
+                              <p className="text-xs font-medium text-blue-700">
+                                Variacion: {product.unidadMedida}
+                              </p>
+                            ) : null}
                             <div className="flex items-center justify-between text-sm text-gray-600">
                               <span
                                 className={
@@ -715,9 +790,9 @@ const POSPage = () => {
                   </div>
                 ) : (
                   <DataTable
-                    data={products}
+                    data={catalogProducts}
                     columns={productColumns}
-                    filterKeys={["codigo", "nombre"]}
+                    filterKeys={["codigo", "nombre", "unidadMedida"]}
                     onRowClick={handleAddProduct}
                     searchPlaceholder="Buscar por código o nombre"
                     globalFilterValue={searchTerm}

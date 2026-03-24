@@ -34,6 +34,8 @@ const ProductList = () => {
 
   const formatAmount = (value: number) =>
     amountFormatter.format(Number.isFinite(value) ? value : 0);
+  const formatCurrency = (value: number | string) =>
+    `S/ ${formatAmount(Number(value) || 0)}`;
 
   const isBienProduct = useCallback((product: Product) => {
     const type = String(product.aplicaINV ?? "")
@@ -102,7 +104,26 @@ const ProductList = () => {
       },
       tdClassName: "text-right",
     },
-    { key: "unidadMedida", header: "Unidad. M" },
+    {
+      key: "unidadMedida",
+      header: "Unidad. M",
+      render: (row: Product) => (
+        <div className="space-y-1">
+          <div className="font-medium text-slate-800">
+            {row.unidadMedida} <span className="text-xs text-slate-500">(Principal)</span>
+          </div>
+          {Array.isArray(row.unidadesAlternas) && row.unidadesAlternas.length > 0 ? (
+            <div className="space-y-0.5 text-xs text-slate-600">
+              {row.unidadesAlternas.map((um) => (
+                <div key={`${row.id}-${um.unidadMedida}`}>
+                  {um.unidadMedida}: Stock {um.cantidad} | Venta {formatCurrency(um.preVenta)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
     {
       key: "preVenta",
       header: "Precio",
@@ -134,7 +155,6 @@ const ProductList = () => {
       tdClassName: "text-right",
     },
   ];
-  console.log("products", products);
   return (
     <CrudList
       data={products}
