@@ -147,7 +147,7 @@ const parseOtherUnitDialogData = (
     unidadPrincipal: unidadPrincipal || "Unidad",
     unidadAlterna: toDialogString(
       source.unidadAlterna,
-      fallback?.unidadAlterna ?? "Unidad",
+      fallback?.unidadAlterna ?? "",
     ),
     unidadesPorEmpaque: toDialogString(
       source.unidadesPorEmpaque,
@@ -266,6 +266,16 @@ function OtherUnitDialogContent() {
     focusNextInput(event.target as HTMLElement);
   };
 
+  const handleNumberFieldKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault();
+      return;
+    }
+    handleFieldEnter(event);
+  };
+
   return (
     <div className="space-y-4 py-1">
       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
@@ -316,7 +326,7 @@ function OtherUnitDialogContent() {
           onBlur={handleFieldBlur("unidadesPorEmpaque")}
           onInput={handleFieldInput("unidadesPorEmpaque")}
           onCompositionEnd={handleFieldCompositionEnd("unidadesPorEmpaque")}
-          onKeyDown={handleFieldEnter}
+          onKeyDown={handleNumberFieldKeyDown}
           placeholder="Ej: 20"
           autoComplete="off"
           sx={{
@@ -352,7 +362,7 @@ function OtherUnitDialogContent() {
           onBlur={handleFieldBlur("preVentaUnidadAlterna")}
           onInput={handleFieldInput("preVentaUnidadAlterna")}
           onCompositionEnd={handleFieldCompositionEnd("preVentaUnidadAlterna")}
-          onKeyDown={handleFieldEnter}
+          onKeyDown={handleNumberFieldKeyDown}
           placeholder="Ej: 2.50"
           autoComplete="off"
           sx={{
@@ -788,8 +798,8 @@ export default function ProductFormBase({
       unidadAlterna &&
       unidadPrincipal &&
       unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase()
-        ? "Unidad"
-        : unidadAlterna || "Unidad";
+        ? ""
+        : unidadAlterna || "";
 
     const initialDialogData: OtherUnitDialogData = {
       unidadPrincipal: unidadPrincipal || "Unidad",
@@ -867,7 +877,7 @@ export default function ProductFormBase({
     const fallbackDialogData: Partial<OtherUnitDialogData> = {
       unidadPrincipal:
         normalizeUnitLabel(getValues("unidadMedida")) || "Unidad",
-      unidadAlterna: normalizeUnitLabel(getValues("unidadAlterna")) || "Unidad",
+      unidadAlterna: normalizeUnitLabel(getValues("unidadAlterna")) || "",
       unidadesPorEmpaque: toDialogString(getValues("unidadesPorEmpaque"), ""),
       preVentaUnidadAlterna: toDialogString(
         getValues("preVentaUnidadAlterna"),
