@@ -48,6 +48,13 @@ const clearManagedUppercaseStyle = (field: FormFieldElement) => {
   field.removeAttribute("data-uppercase-managed");
 };
 
+const isHistoryGuardDisabled = (field: FormFieldElement) => {
+  const attr = field.getAttribute("data-no-history-guard");
+  return attr === "true" || attr === "1";
+};
+const isInsideDialog = (field: FormFieldElement) =>
+  Boolean(field.closest('[role="dialog"]'));
+
 const setUppercaseStyle = (field: FormFieldElement) => {
   setAttr(field, "data-uppercase-managed", "true");
   field.style.setProperty("text-transform", "uppercase");
@@ -140,7 +147,18 @@ const hardenField = (
   options?: { skipReadonly?: boolean },
 ) => {
   if (!isTextLikeField(field)) return;
+
+  if (isHistoryGuardDisabled(field) || isInsideDialog(field)) {
+    clearManagedUppercaseStyle(field);
+    if (field.hasAttribute("data-history-managed-readonly")) {
+      field.removeAttribute("readonly");
+      field.removeAttribute("data-history-managed-readonly");
+    }
+    return;
+  }
+
   applyUppercaseBehavior(field);
+  const shouldSkipReadonly = Boolean(options?.skipReadonly);
 
   if (field instanceof HTMLInputElement) {
     const inputType = field.type.toLowerCase();
@@ -160,7 +178,7 @@ const hardenField = (
   setAttr(field, "data-bwignore", "true");
   setAttr(field, "data-form-type", "other");
 
-  if (options?.skipReadonly) {
+  if (shouldSkipReadonly) {
     if (field.hasAttribute("data-history-managed-readonly")) {
       field.removeAttribute("readonly");
     }
@@ -265,6 +283,14 @@ export function InputHistoryGuard() {
         return;
       }
 
+      if (isHistoryGuardDisabled(target) || isInsideDialog(target)) {
+        if (target.hasAttribute("data-history-managed-readonly")) {
+          target.removeAttribute("readonly");
+          target.removeAttribute("data-history-managed-readonly");
+        }
+        return;
+      }
+
       if (
         target.hasAttribute("data-history-managed-readonly") &&
         !target.disabled
@@ -283,6 +309,8 @@ export function InputHistoryGuard() {
       ) {
         return;
       }
+
+      if (isHistoryGuardDisabled(target) || isInsideDialog(target)) return;
 
       applyUppercaseBehavior(target);
       if (shouldSkipUppercase(target)) return;

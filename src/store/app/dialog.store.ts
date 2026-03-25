@@ -41,7 +41,7 @@ type DialogState = typeof defaults & {
   openDialog: (options: DialogOptions) => void;
   closeDialog: () => void;
   setLoading: (loading: boolean) => void;
-  setData: (data: unknown) => void;
+  setData: (data: unknown | ((prevData: unknown) => unknown)) => void;
   setMobileActions: (mobileActions: ReactNode | null) => void;
 };
 
@@ -50,6 +50,12 @@ export const useDialogStore = create<DialogState>((set) => ({
   openDialog: (options) => set({ ...defaults, ...options, open: true }),
   closeDialog: () => set(defaults),
   setLoading: (loading) => set({ loading }),
-  setData: (data) => set({ data }),
+  setData: (data) =>
+    set((state) => ({
+      data:
+        typeof data === "function"
+          ? (data as (prevData: unknown) => unknown)(state.data)
+          : data,
+    })),
   setMobileActions: (mobileActions) => set({ mobileActions }),
 }));

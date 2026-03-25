@@ -296,7 +296,14 @@ const buildProductDataString = (
     aplicaOtraUnidad?: boolean;
     unidadAlterna?: string;
     unidadesPorEmpaque?: number | null;
-    unidadesAlternas?: Array<{ unidad?: string; factor?: number }>;
+    preVentaUnidadAlterna?: number | null;
+    unidadesAlternas?: Array<{
+      unidad?: string;
+      unidadMedida?: string;
+      factor?: number;
+      valorUM?: number;
+      preVenta?: number;
+    }>;
   },
   payload: ApiProduct,
 ) => {
@@ -327,28 +334,40 @@ const buildProductDataString = (
   const fromArray = Array.isArray(product.unidadesAlternas)
     ? product.unidadesAlternas
         .map((row) => ({
-          unidad: normalizeSegment(row?.unidad ?? ""),
-          factor: toNumberValue(row?.factor, 0),
+          unidad: normalizeSegment(row?.unidad ?? row?.unidadMedida ?? ""),
+          factor: toNumberValue(row?.factor ?? row?.valorUM, 0),
+          preVenta: toNumberValue(row?.preVenta, 0),
         }))
         .filter((row) => row.unidad !== "" && row.factor > 0)
     : [];
 
   const fallbackUnidad = normalizeSegment(product.unidadAlterna ?? "");
   const fallbackFactor = toNumberValue(product.unidadesPorEmpaque, 0);
+  const fallbackPreVentaUnidadAlterna = toNumberValue(
+    product.preVentaUnidadAlterna,
+    0,
+  );
   const fallbackUnidadNormalizada = fallbackUnidad || "UNIDAD";
 
   const selectedUnit =
     fromArray[0] ??
     (fallbackFactor > 0
-      ? { unidad: fallbackUnidadNormalizada, factor: fallbackFactor }
+      ? {
+          unidad: fallbackUnidadNormalizada,
+          factor: fallbackFactor,
+          preVenta: fallbackPreVentaUnidadAlterna,
+        }
       : null);
 
   if (!product.aplicaOtraUnidad || !selectedUnit) {
     return header;
   }
 
-  // Align with current UI where base price is empaque and detail row is derived unit price.
-  const detailVenta = toNumberValue(payload.productoVenta, 0) / selectedUnit.factor;
+  // Detail row for UnidadMedida: precio de venta editable desde el modal.
+  const detailVenta =
+    toNumberValue(selectedUnit.preVenta, 0) > 0
+      ? toNumberValue(selectedUnit.preVenta, 0)
+      : toNumberValue(payload.productoVenta, 0) / selectedUnit.factor;
   const detailVentaB =
     toNumberValue(payload.productoVentaB, 0) / selectedUnit.factor;
   const detailCosto = toNumberValue(payload.productoCosto, 0) / selectedUnit.factor;
@@ -373,7 +392,14 @@ const buildProductFormData = (
     aplicaOtraUnidad?: boolean;
     unidadAlterna?: string;
     unidadesPorEmpaque?: number | null;
-    unidadesAlternas?: Array<{ unidad?: string; factor?: number }>;
+    preVentaUnidadAlterna?: number | null;
+    unidadesAlternas?: Array<{
+      unidad?: string;
+      unidadMedida?: string;
+      factor?: number;
+      valorUM?: number;
+      preVenta?: number;
+    }>;
   },
   idOverride?: number,
 ) => {
