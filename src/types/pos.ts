@@ -6,6 +6,7 @@ export interface PosCartItem {
   precio: number;
   precioMinimo?: number;
   cantidad: number;
+  valorUM?: number;
   stock?: number;
   detalleId?: number;
 }

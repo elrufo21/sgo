@@ -126,6 +126,10 @@ export const usePosStore = create<PosState>()(
             toNumber((product as any).preVenta ?? 0) ||
             toNumber((product as any).preVentaB ?? 0) ||
             0;
+          const reductionValue = (() => {
+            const raw = toNumber((product as any).valorUM, 1);
+            return Number.isFinite(raw) && raw > 0 ? raw : 1;
+          })();
           const productDetailId = toNumber((product as any).detalleId, 0);
           const normalizedDetailId =
             Number.isFinite(productDetailId) && productDetailId !== 0
@@ -167,6 +171,7 @@ export const usePosStore = create<PosState>()(
                       cantidad: nextQty,
                       precio: nextPrice,
                       precioMinimo: minPrice,
+                      valorUM: reductionValue,
                     }
                   : item
               )
@@ -181,6 +186,7 @@ export const usePosStore = create<PosState>()(
                   precio: Math.max(toNonNegative(basePrice), minPrice),
                   precioMinimo: minPrice,
                   cantidad: nextQty,
+                  valorUM: reductionValue,
                   stock: toNumber(
                     (product as any).cantidad ?? (product as any).stock ?? 0
                   ),

@@ -663,6 +663,9 @@ const PaymentPage = () => {
         detalle?.ProductoId ??
         0,
     );
+    const valorUM = Number(
+      detalle?.valorUM ?? detalle?.ValorUM ?? detalle?.factor ?? 1,
+    );
 
     return {
       productId: Number.isFinite(productId) ? productId : 0,
@@ -690,6 +693,7 @@ const PaymentPage = () => {
         ? Math.max(precioMinimo, 0)
         : 0,
       cantidad: Number.isFinite(cantidad) ? cantidad : 0,
+      valorUM: Number.isFinite(valorUM) && valorUM > 0 ? valorUM : 1,
       stock: Number(detalle?.stock ?? detalle?.cantidadSaldo ?? 0) || undefined,
       detalleId:
         Number.isFinite(detalleId) && detalleId > 0 ? detalleId : undefined,
@@ -727,7 +731,8 @@ const PaymentPage = () => {
         Number(curr.detalleCantidad ?? 0) !== Number(prev.cantidad ?? 0) ||
         Number(curr.detallePrecio ?? 0) !== Number(prev.precio ?? 0) ||
         safeTrim(curr.detalleDescripcion) !== safeTrim(prev.nombre) ||
-        safeTrim(curr.detalleUm) !== safeTrim(prev.unidadMedida ?? "UND")
+        safeTrim(curr.detalleUm) !== safeTrim(prev.unidadMedida ?? "UND") ||
+        Number(curr.valorUM ?? 1) !== Number(prev.valorUM ?? 1)
       );
     };
 
@@ -776,7 +781,10 @@ const PaymentPage = () => {
         costo: item.precio,
         precio: item.precio,
         importe,
-        valorUM: 1,
+        valorUM:
+          Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
+            ? Number(item.valorUM)
+            : 1,
         DetalleEstado: "PENDIENTE",
         action: "delete",
       });
@@ -1663,7 +1671,10 @@ const PaymentPage = () => {
         detalleImporte: Number((item.precio * item.cantidad).toFixed(2)),
         detalleEstado: "PENDIENTE",
         cantidadSaldo: 0,
-        valorUM: 1,
+        valorUM:
+          Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
+            ? Number(item.valorUM)
+            : 1,
       })),
     };
   }, [

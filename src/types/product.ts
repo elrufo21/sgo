@@ -4,6 +4,8 @@ export interface ProductUnitOption {
   preCosto: number;
   preVenta: number;
   preVentaB: number | string;
+  factor?: number;
+  valorUM?: number;
 }
 
 export interface Product {

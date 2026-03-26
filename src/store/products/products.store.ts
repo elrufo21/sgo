@@ -51,7 +51,38 @@ interface ProductsState {
 }
 
 const toNumberValue = (value: unknown, fallback = 0) => {
-  const parsed = Number(value);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+
+  // Soporta formatos "1234.56", "1,234.56" y "1.234,56".
+  const cleaned = raw.replace(/[^\d,.-]/g, "");
+  if (!cleaned) return fallback;
+
+  const hasComma = cleaned.includes(",");
+  const hasDot = cleaned.includes(".");
+
+  let normalized = cleaned;
+  if (hasComma && hasDot) {
+    const lastComma = cleaned.lastIndexOf(",");
+    const lastDot = cleaned.lastIndexOf(".");
+    normalized =
+      lastComma > lastDot
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned.replace(/,/g, "");
+  } else if (hasComma) {
+    const parts = cleaned.split(",");
+    if (parts.length === 2 && parts[1].length <= 2) {
+      normalized = `${parts[0].replace(/\./g, "")}.${parts[1]}`;
+    } else {
+      normalized = cleaned.replace(/,/g, "");
+    }
+  }
+
+  const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
@@ -197,13 +228,23 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
   preVentaB: 0,
 });
 
-const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => ({
-  unidadMedida: (item.productoUM ?? "").trim(),
-  cantidad: toNumberValue(item.productoCantidad, 0),
-  preCosto: toNumberValue(item.productoCosto, 0),
-  preVenta: toNumberValue(item.productoVenta, 0),
-  preVentaB: 0,
-});
+const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => {
+  const rawItem = item as Record<string, unknown>;
+  const factorValue = toNumberValue(
+    rawItem.valorUM ?? rawItem.factor ?? rawItem.ValorUM ?? rawItem.Factor,
+    0,
+  );
+
+  return {
+    unidadMedida: (item.productoUM ?? "").trim(),
+    cantidad: toNumberValue(item.productoCantidad, 0),
+    preCosto: toNumberValue(item.productoCosto, 0),
+    preVenta: toNumberValue(item.productoVenta, 0),
+    preVentaB: 0,
+    factor: factorValue > 0 ? factorValue : undefined,
+    valorUM: factorValue > 0 ? factorValue : undefined,
+  };
+};
 
 const groupProductsByHeader = (items: ApiProduct[]): Product[] => {
   if (!items.length) return [];
@@ -300,6 +341,7 @@ const buildProductDataString = (
     unidadAlterna?: string;
     unidadesPorEmpaque?: number | null;
     preVentaUnidadAlterna?: number | null;
+    valorUMUnidadAlterna?: number | null;
     unidadesAlternas?: Array<{
       unidad?: string;
       unidadMedida?: string;
@@ -345,12 +387,19 @@ const buildProductDataString = (
     : [];
 
   const fallbackUnidad = normalizeUpperSegment(product.unidadAlterna ?? "");
-  const fallbackFactor = toNumberValue(product.unidadesPorEmpaque, 0);
+  const fallbackFactor = toNumberValue(product.valorUMUnidadAlterna, 0);
+  const fallbackUnitsPerPackage = toNumberValue(product.unidadesPorEmpaque, 0);
   const fallbackPreVentaUnidadAlterna = toNumberValue(
     product.preVentaUnidadAlterna,
     0,
   );
   const fallbackUnidadNormalizada = fallbackUnidad || "UNIDAD";
+  const resolveDivisor = (factor: number, explicitUnitsPerPackage = 0) => {
+    if (explicitUnitsPerPackage > 0) return explicitUnitsPerPackage;
+    if (factor > 1) return factor;
+    if (factor > 0 && factor < 1) return 1 / factor;
+    return 1;
+  };
 
   const selectedUnit =
     fromArray[0] ??
@@ -358,6 +407,7 @@ const buildProductDataString = (
       ? {
           unidad: fallbackUnidadNormalizada,
           factor: fallbackFactor,
+          divisor: resolveDivisor(fallbackFactor, fallbackUnitsPerPackage),
           preVenta: fallbackPreVentaUnidadAlterna,
         }
       : null);
@@ -367,13 +417,16 @@ const buildProductDataString = (
   }
 
   // Detail row for UnidadMedida: precio de venta editable desde el modal.
+  const unitDivisor = resolveDivisor(
+    toNumberValue(selectedUnit.factor, 0),
+    toNumberValue((selectedUnit as { divisor?: unknown }).divisor, 0),
+  );
   const detailVenta =
     toNumberValue(selectedUnit.preVenta, 0) > 0
       ? toNumberValue(selectedUnit.preVenta, 0)
-      : toNumberValue(payload.productoVenta, 0) / selectedUnit.factor;
-  const detailVentaB =
-    toNumberValue(payload.productoVentaB, 0) / selectedUnit.factor;
-  const detailCosto = toNumberValue(payload.productoCosto, 0) / selectedUnit.factor;
+      : toNumberValue(payload.productoVenta, 0) / unitDivisor;
+  const detailVentaB = toNumberValue(payload.productoVentaB, 0) / unitDivisor;
+  const detailCosto = toNumberValue(payload.productoCosto, 0) / unitDivisor;
 
   const detail = [
     selectedUnit.unidad,
@@ -396,6 +449,7 @@ const buildProductFormData = (
     unidadAlterna?: string;
     unidadesPorEmpaque?: number | null;
     preVentaUnidadAlterna?: number | null;
+    valorUMUnidadAlterna?: number | null;
     unidadesAlternas?: Array<{
       unidad?: string;
       unidadMedida?: string;

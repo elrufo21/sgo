@@ -6,7 +6,11 @@ import type { BoletaSummaryDocument } from "@/types/boletasSummary";
 interface BoletasSummaryState {
   documents: BoletaSummaryDocument[];
   loading: boolean;
+  sequenceLoading: boolean;
   fetchDocuments: (dataOverride?: string | number) => Promise<void>;
+  fetchNextSummarySequence: (
+    companyIdOverride?: string | number,
+  ) => Promise<string | null>;
 }
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -148,9 +152,37 @@ const parseDocumentsResponse = (payload: unknown): BoletaSummaryDocument[] => {
   return [];
 };
 
+const parseSummarySequenceResponse = (payload: unknown): string | null => {
+  if (!payload) return null;
+
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    if (!trimmed) return null;
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      const fromJson = normalizeText(
+        parsed.secuencia ?? parsed.Secuencia ?? "",
+        "",
+      );
+      return fromJson || trimmed;
+    } catch {
+      return trimmed;
+    }
+  }
+
+  if (typeof payload === "object") {
+    const row = payload as Record<string, unknown>;
+    const sequence = normalizeText(row.secuencia ?? row.Secuencia ?? "", "");
+    if (sequence) return sequence;
+  }
+
+  return null;
+};
+
 export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
   documents: [],
   loading: false,
+  sequenceLoading: false,
   fetchDocuments: async (dataOverride) => {
     const fallbackCompanyId = resolveCompanyId();
     const payloadData =
@@ -180,6 +212,27 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
     } catch (error) {
       console.error("Error al listar boletas", error);
       set({ loading: false });
+    }
+  },
+  fetchNextSummarySequence: async (companyIdOverride) => {
+    const fallbackCompanyId = resolveCompanyId();
+    const companyIdNum = toPositiveInt(companyIdOverride, fallbackCompanyId);
+    const safeCompanyId = companyIdNum > 0 ? companyIdNum : fallbackCompanyId;
+
+    set({ sequenceLoading: true });
+    try {
+      const response = await apiRequest<unknown>({
+        url: `${API_BASE_URL}/Nota/resumen/secuencia/${safeCompanyId}`,
+        method: "GET",
+        fallback: null,
+      });
+
+      return parseSummarySequenceResponse(response);
+    } catch (error) {
+      console.error("Error al obtener secuencia del resumen", error);
+      return null;
+    } finally {
+      set({ sequenceLoading: false });
     }
   },
 }));

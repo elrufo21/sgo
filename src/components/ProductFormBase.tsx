@@ -5,15 +5,7 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import {
-  Save,
-  Plus,
-  Trash2,
-  X,
-  Camera,
-  Upload,
-  PlusIcon,
-} from "lucide-react";
+import { Save, Plus, Trash2, X, Camera, Upload, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import TextField from "@mui/material/TextField";
 import { API_BASE_URL } from "@/config";
@@ -113,6 +105,7 @@ type ProductFormValues = Omit<Product, "id"> & {
   unidadAlterna?: string;
   unidadesPorEmpaque?: number | null;
   preVentaUnidadAlterna?: number | null;
+  valorUMUnidadAlterna?: number | null;
 };
 
 type OtherUnitDialogData = {
@@ -120,6 +113,7 @@ type OtherUnitDialogData = {
   unidadAlterna: string;
   unidadesPorEmpaque: string;
   preVentaUnidadAlterna: string;
+  valorUM: string;
   preVenta: number;
   preCosto: number;
   error: string;
@@ -167,6 +161,7 @@ const parseOtherUnitDialogData = (
       source.preVentaUnidadAlterna,
       fallback?.preVentaUnidadAlterna ?? "",
     ),
+    valorUM: toDialogString(source.valorUM, fallback?.valorUM ?? ""),
     preVenta: toSafePositiveNumber(source.preVenta ?? fallback?.preVenta ?? 0),
     preCosto: toSafePositiveNumber(source.preCosto ?? fallback?.preCosto ?? 0),
     error: toDialogString(source.error, fallback?.error ?? ""),
@@ -179,7 +174,9 @@ const toTwoDecimals = (value: number) =>
 const isAxiosLikeError = (value: unknown): boolean => {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
-  return Boolean(record.isAxiosError) || ("response" in record && "config" in record);
+  return (
+    Boolean(record.isAxiosError) || ("response" in record && "config" in record)
+  );
 };
 
 const sharedDialogInputSx = {
@@ -214,6 +211,9 @@ function OtherUnitDialogContent() {
   const precioVentaUnitarioDraft = toSafePositiveNumber(
     dialogData.preVentaUnidadAlterna,
   );
+  const valorUMDraft = parseUnitsPerPackage(dialogData.valorUM);
+  const valorUMSugerido =
+    unidadesPorEmpaqueDraft > 0 ? 1 / unidadesPorEmpaqueDraft : 0;
   const precioVentaUnitarioSugerido =
     unidadesPorEmpaqueDraft > 0
       ? dialogData.preVenta / unidadesPorEmpaqueDraft
@@ -224,14 +224,18 @@ function OtherUnitDialogContent() {
       : 0;
 
   const updateField = (
-    field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna",
+    field:
+      | "unidadAlterna"
+      | "unidadesPorEmpaque"
+      | "preVentaUnidadAlterna"
+      | "valorUM",
     value: string,
   ) => {
     const normalizedValue =
       field === "unidadAlterna"
         ? String(value ?? "").toLocaleUpperCase("es-PE")
         : value;
-    setDialogData((prevData) => {
+    setDialogData((prevData: unknown) => {
       const latestDialogData = parseOtherUnitDialogData(prevData);
       return {
         ...latestDialogData,
@@ -259,21 +263,39 @@ function OtherUnitDialogContent() {
   }, []);
 
   const handleFieldBlur =
-    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
+    (
+      field:
+        | "unidadAlterna"
+        | "unidadesPorEmpaque"
+        | "preVentaUnidadAlterna"
+        | "valorUM",
+    ) =>
     (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
     };
 
   const handleFieldCompositionEnd =
-    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
+    (
+      field:
+        | "unidadAlterna"
+        | "unidadesPorEmpaque"
+        | "preVentaUnidadAlterna"
+        | "valorUM",
+    ) =>
     (event: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
     };
 
   const handleFieldInput =
-    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
+    (
+      field:
+        | "unidadAlterna"
+        | "unidadesPorEmpaque"
+        | "preVentaUnidadAlterna"
+        | "valorUM",
+    ) =>
     (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
@@ -304,7 +326,7 @@ function OtherUnitDialogContent() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
         <TextField
           fullWidth
           autoFocus
@@ -373,6 +395,41 @@ function OtherUnitDialogContent() {
           fullWidth
           size="small"
           type="number"
+          label={`Valor por ${unidadBaseDraft}`}
+          value={dialogData.valorUM}
+          onChange={(event) => {
+            updateField("valorUM", event.target.value);
+          }}
+          onBlur={handleFieldBlur("valorUM")}
+          onInput={handleFieldInput("valorUM")}
+          onCompositionEnd={handleFieldCompositionEnd("valorUM")}
+          onKeyDown={handleNumberFieldKeyDown}
+          placeholder="Ej: 0.05"
+          autoComplete="off"
+          sx={{
+            ...sharedDialogInputSx,
+            "& input[type=number]": {
+              MozAppearance: "textfield",
+            },
+            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+              {
+                WebkitAppearance: "none",
+                margin: 0,
+              },
+          }}
+          inputProps={{
+            min: 0.0001,
+            step: 0.0001,
+            "data-auto-next": "true",
+            "data-no-history-guard": "true",
+            autoComplete: "new-password",
+          }}
+        />
+
+        <TextField
+          fullWidth
+          size="small"
+          type="number"
           label={`Precio venta por ${unidadBaseDraft}`}
           value={dialogData.preVentaUnidadAlterna}
           onChange={(event) => {
@@ -423,6 +480,13 @@ function OtherUnitDialogContent() {
           <p className="font-semibold text-slate-800">
             Venta: {formatMoney(precioVentaUnitarioDraft)} | Costo:{" "}
             {formatMoney(precioCostoUnitarioPreview)}
+          </p>
+          <p className="text-xs text-slate-500">
+            Valor por {unidadBaseDraft} actual:{" "}
+            {Number.isFinite(valorUMDraft) && valorUMDraft > 0
+              ? Number(valorUMDraft.toFixed(6))
+              : 0}{" "}
+            | Sugerido: {Number(valorUMSugerido.toFixed(6))}
           </p>
         </div>
       </div>
@@ -552,9 +616,18 @@ export default function ProductFormBase({
     const explicitPreVentaUnidadAlterna = toSafePositiveNumber(
       (initialData as any)?.preVentaUnidadAlterna,
     );
+    const explicitValorUMUnidadAlterna = toSafePositiveNumber(
+      (initialData as any)?.valorUMUnidadAlterna ??
+        firstAltRow?.factor ??
+        firstAltRow?.valorUM,
+    );
     const derivedPreVentaUnidadAlterna = toSafePositiveNumber(
       firstAltRow?.preVenta,
     );
+    const derivedValorUMUnidadAlterna =
+      derivedUnidadesPorEmpaque && derivedUnidadesPorEmpaque > 0
+        ? Number((1 / derivedUnidadesPorEmpaque).toFixed(6))
+        : 0;
     const explicitFromFields = Boolean(
       explicitUnidadAlterna && explicitUnidadesPorEmpaque > 1,
     );
@@ -598,6 +671,12 @@ export default function ProductFormBase({
           ? explicitPreVentaUnidadAlterna
           : derivedPreVentaUnidadAlterna > 0
             ? derivedPreVentaUnidadAlterna
+            : null,
+      valorUMUnidadAlterna:
+        explicitValorUMUnidadAlterna > 0
+          ? explicitValorUMUnidadAlterna
+          : derivedValorUMUnidadAlterna > 0
+            ? derivedValorUMUnidadAlterna
             : null,
     };
   }, [initialData, mode, fallbackUser, generateCode]);
@@ -803,14 +882,25 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       getValues("preVentaUnidadAlterna"),
     );
+    const valorUMUnidadAlterna = parseUnitsPerPackage(
+      getValues("valorUMUnidadAlterna"),
+    );
     const preVentaUnidadAlternaSugerida =
       Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
         ? preVentaActual / unidadesPorEmpaqueDraft
         : 0;
+    const valorUMSugerido =
+      Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
+        ? 1 / unidadesPorEmpaqueDraft
+        : 1;
     const preVentaUnidadAlternaInicial =
       preVentaUnidadAlterna > 0
         ? preVentaUnidadAlterna
         : preVentaUnidadAlternaSugerida;
+    const valorUMInicial =
+      Number.isFinite(valorUMUnidadAlterna) && valorUMUnidadAlterna > 0
+        ? valorUMUnidadAlterna
+        : valorUMSugerido;
     const unidadBaseDefault =
       unidadAlterna &&
       unidadPrincipal &&
@@ -829,6 +919,8 @@ export default function ProductFormBase({
         preVentaUnidadAlternaInicial > 0
           ? String(Number(preVentaUnidadAlternaInicial.toFixed(2)))
           : "",
+      valorUM:
+        valorUMInicial > 0 ? String(Number(valorUMInicial.toFixed(6))) : "1",
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: typeof modalError === "string" ? modalError : "",
@@ -866,6 +958,10 @@ export default function ProductFormBase({
       shouldDirty: true,
       shouldValidate: true,
     });
+    setValue("valorUMUnidadAlterna", null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const handleOtherUnitDialogCancel = () => {
@@ -878,12 +974,17 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       getValues("preVentaUnidadAlterna"),
     );
+    const valorUMUnidadAlterna = parseUnitsPerPackage(
+      getValues("valorUMUnidadAlterna"),
+    );
     const hasValidConfig =
       !!unidadBase &&
       Number.isFinite(unidadesPorEmpaque) &&
       unidadesPorEmpaque > 1 &&
       unidadBase.toLowerCase() !== unidadPrincipal.toLowerCase() &&
-      preVentaUnidadAlterna > 0;
+      preVentaUnidadAlterna > 0 &&
+      Number.isFinite(valorUMUnidadAlterna) &&
+      valorUMUnidadAlterna > 0;
 
     if (appliesOtherUnit && !hasValidConfig) {
       clearOtherUnitConfiguration();
@@ -900,6 +1001,7 @@ export default function ProductFormBase({
         getValues("preVentaUnidadAlterna"),
         "",
       ),
+      valorUM: toDialogString(getValues("valorUMUnidadAlterna"), ""),
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: "",
@@ -916,6 +1018,7 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       dialogData.preVentaUnidadAlterna,
     );
+    const valorUM = parseUnitsPerPackage(dialogData.valorUM);
 
     if (!unidadPrincipal) {
       setDialogData({
@@ -957,6 +1060,14 @@ export default function ProductFormBase({
       return false;
     }
 
+    if (!Number.isFinite(valorUM) || valorUM <= 0) {
+      setDialogData({
+        ...dialogData,
+        error: `Ingresa un valor por ${unidadAlterna} valido y mayor a 0.`,
+      });
+      return false;
+    }
+
     if (mode === "edit") {
       if (!Number.isFinite(editProductId) || editProductId <= 0) {
         setDialogData({
@@ -972,7 +1083,7 @@ export default function ProductFormBase({
       const unidadPayload: UnidadMedidaUpsertPayload = {
         idProducto: editProductId,
         umDescripcion: normalizedUnidadAlterna,
-        valorUM: toTwoDecimals(unidadesPorEmpaque),
+        valorUM: Number(valorUM.toFixed(6)),
         precioVenta: toTwoDecimals(preVentaUnidadAlterna),
         precioVentaB: 0,
         precioCosto: toTwoDecimals(precioCostoUnitario),
@@ -1035,6 +1146,10 @@ export default function ProductFormBase({
       shouldValidate: true,
     });
     setValue("preVentaUnidadAlterna", preVentaUnidadAlterna, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("valorUMUnidadAlterna", valorUM, {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -1132,12 +1247,14 @@ export default function ProductFormBase({
 
     const appliesOtherUnit = Boolean(values.aplicaOtraUnidad);
     const unidadAlterna = String(values.unidadAlterna ?? "").trim();
-    const unidadPrincipal = normalizeUnitLabel(values.unidadMedida)
-      .toLocaleUpperCase("es-PE");
+    const unidadPrincipal = normalizeUnitLabel(
+      values.unidadMedida,
+    ).toLocaleUpperCase("es-PE");
     const unidadesPorEmpaque = parseUnitsPerPackage(values.unidadesPorEmpaque);
     const preVentaUnidadAlterna = toSafePositiveNumber(
       values.preVentaUnidadAlterna,
     );
+    const valorUMUnidadAlterna = parseUnitsPerPackage(values.valorUMUnidadAlterna);
 
     if (
       appliesOtherUnit &&
@@ -1146,10 +1263,12 @@ export default function ProductFormBase({
         unidadesPorEmpaque <= 1 ||
         unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase() ||
         !Number.isFinite(preVentaUnidadAlterna) ||
-        preVentaUnidadAlterna <= 0)
+        preVentaUnidadAlterna <= 0 ||
+        !Number.isFinite(valorUMUnidadAlterna) ||
+        valorUMUnidadAlterna <= 0)
     ) {
       openOtherUnitModal(
-        "Configura una unidad base valida, cuantas unidades contiene la unidad principal y su precio de venta antes de guardar.",
+        "Configura una unidad base valida, cuantas unidades contiene la unidad principal, su precio de venta y su valor por unidad base antes de guardar.",
       );
       return;
     }
@@ -1167,6 +1286,7 @@ export default function ProductFormBase({
       unidadAlterna: appliesOtherUnit ? unidadAlterna : "",
       unidadesPorEmpaque: appliesOtherUnit ? unidadesPorEmpaque : null,
       preVentaUnidadAlterna: appliesOtherUnit ? preVentaUnidadAlterna : null,
+      valorUMUnidadAlterna: appliesOtherUnit ? valorUMUnidadAlterna : null,
     };
     const saved = await Promise.resolve(onSave(payload));
     if (saved === false) return;

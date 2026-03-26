@@ -20,6 +20,7 @@ import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { useDialogStore } from "@/store/app/dialog.store";
 import { usePosCartDraftPersistence } from "@/features/pos/hooks/usePosCartDraftPersistence";
 import type { Product } from "@/types/product";
+import type { ProductUnitOption } from "@/types/product";
 import type { PosCartItem } from "@/types/pos";
 import { toast } from "@/shared/ui/toast";
 
@@ -28,6 +29,7 @@ type PosCatalogProduct = Product & {
   detalleId?: number;
   isVariation?: boolean;
   baseProductId?: number;
+  valorUM?: number;
 };
 
 const columnHelper = createColumnHelper<PosCatalogProduct>();
@@ -39,6 +41,85 @@ const buildVariationDetailId = (baseId: number, index: number) =>
   -1 * (baseId * 1000 + (index + 1));
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
   Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
+const normalizeUnitLabel = (value: unknown) =>
+  String(value ?? "").trim().toUpperCase();
+const canonicalUnit = (value: unknown) => {
+  const unit = normalizeUnitLabel(value);
+  if (["L", "LT", "LTS", "LITRO", "LITROS"].includes(unit)) return "LITRO";
+  if (["ML", "MILILITRO", "MILILITROS"].includes(unit)) return "ML";
+  if (["KG", "KGS", "KILO", "KILOS", "KILOGRAMO", "KILOGRAMOS"].includes(unit))
+    return "KG";
+  if (["G", "GR", "GRAMO", "GRAMOS"].includes(unit)) return "G";
+  return unit;
+};
+const getKnownUnitRatio = (fromUnit: unknown, toUnit: unknown): number => {
+  const from = canonicalUnit(fromUnit);
+  const to = canonicalUnit(toUnit);
+  if (!from || !to || from === to) return 1;
+  const key = `${from}>${to}`;
+  const ratioMap: Record<string, number> = {
+    "LITRO>ML": 1000,
+    "ML>LITRO": 0.001,
+    "KG>G": 1000,
+    "G>KG": 0.001,
+  };
+  return ratioMap[key] ?? 0;
+};
+const deriveVariationReductionValue = (
+  baseUnit: unknown,
+  variation: ProductUnitOption,
+) => {
+  const rawFactor = Number(variation.valorUM ?? variation.factor ?? 0);
+  if (Number.isFinite(rawFactor) && rawFactor > 0) {
+    return Number(rawFactor.toFixed(6));
+  }
+
+  // Fallback por unidades conocidas: convertir de unidad alterna a unidad principal.
+  const knownRatio = getKnownUnitRatio(variation.unidadMedida, baseUnit);
+  if (knownRatio > 0) {
+    return Number(knownRatio.toFixed(6));
+  }
+
+  return 1;
+};
+const deriveVariationStock = (
+  baseStockRaw: unknown,
+  baseUnit: unknown,
+  variation: ProductUnitOption,
+) => {
+  const baseStock = Number(baseStockRaw);
+  const safeBaseStock =
+    Number.isFinite(baseStock) && baseStock >= 0 ? baseStock : 0;
+  const reportedVariationStock = Number(variation.cantidad ?? 0);
+  const safeReportedStock =
+    Number.isFinite(reportedVariationStock) && reportedVariationStock >= 0
+      ? reportedVariationStock
+      : 0;
+  const variationUnit = normalizeUnitLabel(variation.unidadMedida);
+  const principalUnit = normalizeUnitLabel(baseUnit);
+  const hasDifferentUnit =
+    variationUnit !== "" &&
+    principalUnit !== "" &&
+    variationUnit !== principalUnit;
+  const stockLooksUnconverted =
+    hasDifferentUnit &&
+    Math.abs(safeReportedStock - safeBaseStock) < 0.000001 &&
+    safeBaseStock > 0;
+  const reductionValue = deriveVariationReductionValue(baseUnit, variation);
+
+  if (!stockLooksUnconverted && safeReportedStock > 0) {
+    return safeReportedStock;
+  }
+
+  if (Number.isFinite(reductionValue) && reductionValue > 0) {
+    const converted = safeBaseStock / reductionValue;
+    if (Number.isFinite(converted) && converted >= 0) {
+      return Number(converted.toFixed(6));
+    }
+  }
+
+  return safeReportedStock;
+};
 
 const POSPage = () => {
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
@@ -214,6 +295,7 @@ const POSPage = () => {
     products.forEach((product) => {
       expanded.push({
         ...product,
+        valorUM: 1,
         catalogKey: `base-${product.id}`,
       });
 
@@ -221,13 +303,23 @@ const POSPage = () => {
         ? product.unidadesAlternas
         : [];
       variations.forEach((variation, index) => {
+        const variationReductionValue = deriveVariationReductionValue(
+          product.unidadMedida,
+          variation,
+        );
+        const variationStock = deriveVariationStock(
+          product.cantidad,
+          product.unidadMedida,
+          variation,
+        );
         expanded.push({
           ...product,
           detalleId: buildVariationDetailId(product.id, index),
           isVariation: true,
           baseProductId: product.id,
           unidadMedida: variation.unidadMedida || product.unidadMedida,
-          cantidad: Number(variation.cantidad ?? 0),
+          valorUM: variationReductionValue,
+          cantidad: variationStock,
           preCosto: Number(variation.preCosto ?? product.preCosto ?? 0),
           preVenta: Number(variation.preVenta ?? product.preVenta ?? 0),
           preVentaB: Number(variation.preVentaB ?? product.preVentaB ?? 0),

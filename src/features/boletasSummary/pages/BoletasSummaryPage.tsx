@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   buildBoletasCsv,
   calculateBoletaTotals,
+  parseAmount,
 } from "../boletasSummary.utils";
 
 const columnHelper = createColumnHelper<BoletaSummaryDocument>();
@@ -24,8 +25,50 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const safeTrim = (value: unknown) => String(value ?? "").trim();
+
+const pad2 = (value: number) => String(value).padStart(2, "0");
+
+const toLocalIsoDate = (date: Date) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const toDateOnly = (value: string) => {
+  const raw = safeTrim(value);
+  if (!raw) return "";
+  const slashMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (slashMatch) {
+    const [, dd, mm, yyyy] = slashMatch;
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return raw;
+  return "";
+};
+
+const compactSerie = (serie: string) => {
+  const compact = serie.replace(/0/g, "");
+  return compact || serie;
+};
+
+const normalizeSerieNumero = (value: string) => {
+  const raw = safeTrim(value);
+  if (!raw) return raw;
+  const [serieRaw = "", numeroRaw = ""] = raw.split("-");
+  const serie = compactSerie(safeTrim(serieRaw));
+  const numero = String(Number(safeTrim(numeroRaw))).replace(/^NaN$/, "");
+  if (!serie && !numero) return raw;
+  if (!numero) return serie || raw;
+  return `${serie || serieRaw}-${numero}`;
+};
+
 export default function BoletasSummaryPage() {
-  const { documents, fetchDocuments, loading } = useBoletasSummaryStore();
+  const {
+    documents,
+    fetchDocuments,
+    loading,
+    sequenceLoading,
+    fetchNextSummarySequence,
+  } = useBoletasSummaryStore();
   const [filteredRows, setFilteredRows] = useState<BoletaSummaryDocument[]>([]);
 
   useEffect(() => {
@@ -49,14 +92,132 @@ export default function BoletasSummaryPage() {
     void fetchDocuments();
   }, [fetchDocuments]);
 
-  const handleSendSummary = useCallback(() => {
+  const handleSendSummary = useCallback(async () => {
     if (!filteredRows.length) {
       toast.info("No hay boletas pendientes para enviar.");
       return;
     }
 
-    toast.info("Procesando");
-  }, [filteredRows.length]);
+    const nextSequence = await fetchNextSummarySequence();
+    if (!nextSequence) {
+      toast.error("No se pudo obtener la secuencia del resumen.");
+      return;
+    }
+
+    let parsedSession: any = null;
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem("sgo.auth.session");
+        parsedSession = raw ? JSON.parse(raw) : null;
+      } catch {
+        parsedSession = null;
+      }
+    }
+
+    const user = parsedSession?.user ?? {};
+    const loginPayload = parsedSession?.loginPayload ?? {};
+    const companyId = Number(
+      user.companyId ??
+        parsedSession?.companiaId ??
+        loginPayload.companiaId ??
+        (typeof window !== "undefined"
+          ? window.localStorage.getItem("companiaId")
+          : 1) ??
+        1,
+    );
+    const now = new Date();
+    const todayIso = toLocalIsoDate(now);
+    const serieResumen = todayIso.replaceAll("-", "");
+    const referenceDateIso =
+      toDateOnly(referenceDate) ||
+      toDateOnly(filteredRows[0]?.fechaEmision ?? "") ||
+      todayIso;
+
+    const firstSerieNumero = safeTrim(filteredRows[0]?.serieNumero);
+    const lastSerieNumero = safeTrim(
+      filteredRows[filteredRows.length - 1]?.serieNumero,
+    );
+    const rangoNumeros =
+      firstSerieNumero && lastSerieNumero
+        ? `${normalizeSerieNumero(firstSerieNumero)} al ${normalizeSerieNumero(lastSerieNumero)}`
+        : "";
+
+    const detalle = filteredRows.map((row, index) => {
+      const dni = safeTrim(row.clienteDni);
+      return {
+        item: index + 1,
+        tipoComprobante: "03",
+        nroComprobante: safeTrim(row.serieNumero),
+        tipoDocumento: "1",
+        nroDocumento: dni || "00000000",
+        tipoComprobanteRef: "",
+        nroComprobanteRef: "",
+        statu: "1",
+        codMoneda: "PEN",
+        total: Number(parseAmount(row.total).toFixed(2)),
+        icbper: Number(parseAmount(row.icbper).toFixed(2)),
+        gravada: Number(parseAmount(row.subTotal).toFixed(2)),
+        isc: 0,
+        igv: Number(parseAmount(row.igv).toFixed(2)),
+        otros: 0,
+        cargoXAsignacion: 1,
+        montoCargoXAsig: 0,
+        exonerado: 0,
+        inafecto: 0,
+        exportacion: 0,
+        gratuitas: 0,
+        docuId: row.docuId,
+        notaId: row.notaId,
+      };
+    });
+
+    const payloadResumen = {
+      NRO_DOCUMENTO_EMPRESA: safeTrim(
+        user.companyRuc ?? parsedSession?.companiaRuc ?? loginPayload.companiaRuc,
+      ),
+      RAZON_SOCIAL: safeTrim(
+        user.companyName ?? parsedSession?.razonSocial ?? loginPayload.razonSocial,
+      ),
+      TIPO_DOCUMENTO: "6",
+      CODIGO: "RC",
+      SERIE: serieResumen,
+      SECUENCIA: String(nextSequence),
+      FECHA_REFERENCIA: referenceDateIso,
+      FECHA_DOCUMENTO: todayIso,
+      TIPO_PROCESO: safeTrim(user.entorno ?? loginPayload.entorno ?? "3"),
+      CONTRA_FIRMA: safeTrim(
+        user.claveCertificado ?? loginPayload.claveCertificado,
+      ),
+      USUARIO_SOL_EMPRESA: safeTrim(user.usuarioSol ?? loginPayload.usuarioSol),
+      PASS_SOL_EMPRESA: safeTrim(user.claveSol ?? loginPayload.claveSol),
+      RUTA_PFX: safeTrim(
+        user.certificadoBase64 ?? loginPayload.certificadoBase64,
+      ),
+      COMPANIA_ID: Number.isFinite(companyId) && companyId > 0 ? companyId : 1,
+      RANGO_NUMEROS: rangoNumeros,
+      SUBTOTAL: Number(totals.subTotal.toFixed(2)),
+      IGV: Number(totals.igv.toFixed(2)),
+      ICBPER: Number(totals.icbper.toFixed(2)),
+      TOTAL: Number(totals.total.toFixed(2)),
+      detalle,
+    };
+
+    console.log("Resumen de boletas payload (objeto):", payloadResumen);
+    console.log(
+      "Resumen de boletas payload (json):",
+      JSON.stringify(payloadResumen, null, 2),
+    );
+    toast.success(`Secuencia de resumen obtenida: ${nextSequence}`);
+    toast.info("Payload armado e impreso en consola.");
+  }, [
+    fetchNextSummarySequence,
+    filteredRows,
+    referenceDate,
+    totals.icbper,
+    totals.igv,
+    totals.subTotal,
+    totals.total,
+  ]);
 
   const handleExportCsv = useCallback(() => {
     if (!filteredRows.length) {
@@ -202,9 +363,14 @@ export default function BoletasSummaryPage() {
                   type="button"
                   className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 text-sm font-medium text-[#B23636] hover:bg-[#B23636]/15 sm:w-auto"
                   onClick={handleSendSummary}
+                  disabled={sequenceLoading}
                 >
-                  <SendHorizonal className="h-4 w-4" />
-                  Enviar Resumen
+                  {sequenceLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <SendHorizonal className="h-4 w-4" />
+                  )}
+                  {sequenceLoading ? "Obteniendo..." : "Enviar Resumen"}
                 </button>
               </div>
             </div>
