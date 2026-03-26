@@ -35,7 +35,7 @@ const ProductList = () => {
   const formatAmount = (value: number) =>
     amountFormatter.format(Number.isFinite(value) ? value : 0);
   const formatCurrency = (value: number | string) =>
-    `S/ ${formatAmount(Number(value) || 0)}`;
+    ` ${formatAmount(Number(value) || 0)}`;
 
   const isBienProduct = useCallback((product: Product) => {
     const type = String(product.aplicaINV ?? "")
@@ -133,34 +133,34 @@ const ProductList = () => {
     {
       key: "preVenta",
       header: "Precio",
-      render: (row: Product) => `S/ ${Number(row.preVenta).toFixed(2)}`,
+      render: (row: Product) => ` ${Number(row.preVenta).toFixed(2)}`,
       tdClassName: "text-right",
     },
     {
       key: "preCosto",
       header: "Costo",
-      render: (row: Product) => `S/ ${Number(row.preCosto).toFixed(2)}`,
+      render: (row: Product) => ` ${Number(row.preCosto).toFixed(2)}`,
       tdClassName: "text-right",
     },
     {
       id: "inversion",
       header: "Inversión",
       render: (row: Product) =>
-        `S/ ${formatAmount(getRowProfitValues(row).inversion)}`,
+        ` ${formatAmount(getRowProfitValues(row).inversion)}`,
       tdClassName: "text-right",
     },
     {
       id: "ventaNeta",
       header: "V. Neta",
       render: (row: Product) =>
-        `S/ ${formatAmount(getRowProfitValues(row).ventaNeta)}`,
+        ` ${formatAmount(getRowProfitValues(row).ventaNeta)}`,
       tdClassName: "text-right",
     },
     {
       id: "ganancia",
       header: "Ganancia",
       render: (row: Product) =>
-        `S/ ${formatAmount(getRowProfitValues(row).ganancia)}`,
+        ` ${formatAmount(getRowProfitValues(row).ganancia)}`,
       tdClassName: "text-right",
     },
   ];
