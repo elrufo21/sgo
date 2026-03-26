@@ -10,7 +10,6 @@ import {
   Plus,
   Trash2,
   X,
-  FileEdit,
   Camera,
   Upload,
   PlusIcon,
@@ -425,7 +424,6 @@ export default function ProductFormBase({
 }: ProductFormBaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const categoryFieldRef = useRef<HTMLDivElement>(null);
-  const [codeEditable, setCodeEditable] = useState(false);
   const authUser = useAuthStore((s) => s.user);
   const { categories, fetchCategories, addCategory, updateCategory } =
     useMaintenanceStore();
@@ -553,7 +551,7 @@ export default function ProductFormBase({
       valorCritico: initialData?.valorCritico ?? 0,
       preCosto: initialData?.preCosto ?? null,
       preVenta: initialData?.preVenta ?? null,
-      preVentaB: (initialData as any)?.preVentaB ?? null,
+      preVentaB: 0,
       aplicaINV:
         initialData?.aplicaINV === "N" || initialData?.aplicaINV === "S"
           ? initialData.aplicaINV
@@ -668,7 +666,6 @@ export default function ProductFormBase({
   useEffect(() => {
     if (mode !== "create") return;
     if (productsLoading) return;
-    if (codeEditable) return;
     if (dirtyFields.codigo) return;
 
     const nextCode = generateCode();
@@ -683,7 +680,6 @@ export default function ProductFormBase({
     mode,
     products,
     productsLoading,
-    codeEditable,
     dirtyFields.codigo,
     generateCode,
     getValues,
@@ -1034,7 +1030,6 @@ export default function ProductFormBase({
     } else {
       reset(defaults);
     }
-    setCodeEditable(false);
     focusCategoryField();
   };
 
@@ -1051,7 +1046,8 @@ export default function ProductFormBase({
 
     const appliesOtherUnit = Boolean(values.aplicaOtraUnidad);
     const unidadAlterna = String(values.unidadAlterna ?? "").trim();
-    const unidadPrincipal = normalizeUnitLabel(values.unidadMedida);
+    const unidadPrincipal = normalizeUnitLabel(values.unidadMedida)
+      .toLocaleUpperCase("es-PE");
     const unidadesPorEmpaque = parseUnitsPerPackage(values.unidadesPorEmpaque);
     const preVentaUnidadAlterna = toSafePositiveNumber(
       values.preVentaUnidadAlterna,
@@ -1077,8 +1073,10 @@ export default function ProductFormBase({
       codigo: trimmedCode,
       aplicaINV: values.aplicaINV ?? "S",
       valorCritico: 0,
+      preVentaB: 0,
       cantidad: values.aplicaINV === "N" ? 0 : values.cantidad,
       nombre: values.nombre?.toUpperCase() ?? "",
+      unidadMedida: unidadPrincipal || "UNIDAD",
       aplicaOtraUnidad: appliesOtherUnit,
       unidadAlterna: appliesOtherUnit ? unidadAlterna : "",
       unidadesPorEmpaque: appliesOtherUnit ? unidadesPorEmpaque : null,
@@ -1099,7 +1097,6 @@ export default function ProductFormBase({
         ...defaults,
         codigo: nextCode,
       });
-      setCodeEditable(false);
       focusCategoryField();
     } else {
       focusCategoryField();
@@ -1374,48 +1371,30 @@ export default function ProductFormBase({
                   </div>
 
                   <div className="space-y-2 mt-3">
-                    <div className="flex items-end gap-2">
-                      <div className="flex-1">
-                        <HookFormInput<ProductFormValues>
-                          name="codigo"
-                          label="Codigo del Producto"
-                          placeholder="AUTO-GENERADO"
-                          disabled={!codeEditable}
-                          onKeyDown={(e) => {
-                            if (e.key === " ") e.preventDefault();
-                          }}
-                          onPaste={(e) => {
-                            e.preventDefault();
-                            const pasted =
-                              e.clipboardData?.getData("text") ?? "";
-                            const cleaned = pasted.replace(/\s+/g, "");
-                            e.currentTarget.value = cleaned;
-                            setValue("codigo", cleaned, {
-                              shouldValidate: true,
-                              shouldDirty: true,
-                            });
-                          }}
-                          rules={{
-                            required: "El codigo es obligatorio",
-                            validate: (v) =>
-                              (v?.toString().trim?.() ?? "").length > 0 ||
-                              "El codigo es obligatorio",
-                          }}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setCodeEditable(!codeEditable)}
-                        className={`p-2 rounded-md border text-sm transition-all ${
-                          codeEditable
-                            ? "bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200 border-gray-200"
-                        }`}
-                        title="Editar codigo"
-                      >
-                        <FileEdit className="w-5 h-5" />
-                      </button>
-                    </div>
+                    <HookFormInput<ProductFormValues>
+                      name="codigo"
+                      label="Codigo del Producto"
+                      placeholder="AUTO-GENERADO"
+                      onKeyDown={(e) => {
+                        if (e.key === " ") e.preventDefault();
+                      }}
+                      onPaste={(e) => {
+                        e.preventDefault();
+                        const pasted = e.clipboardData?.getData("text") ?? "";
+                        const cleaned = pasted.replace(/\s+/g, "");
+                        e.currentTarget.value = cleaned;
+                        setValue("codigo", cleaned, {
+                          shouldValidate: true,
+                          shouldDirty: true,
+                        });
+                      }}
+                      rules={{
+                        required: "El codigo es obligatorio",
+                        validate: (v) =>
+                          (v?.toString().trim?.() ?? "").length > 0 ||
+                          "El codigo es obligatorio",
+                      }}
+                    />
                   </div>
 
                   <div className="space-y-2 md:col-span-2">
@@ -1480,24 +1459,6 @@ export default function ProductFormBase({
                   <HookFormInput<ProductFormValues>
                     name="preVenta"
                     label="Precio de Venta"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    rules={{
-                      valueAsNumber: true,
-                      required: "El precio de venta es obligatorio",
-                      validate: (v) =>
-                        v !== undefined &&
-                        v !== null &&
-                        !Number.isNaN(v) &&
-                        v > 0
-                          ? true
-                          : "El precio de venta debe ser mayor a 0",
-                    }}
-                  />
-                  <HookFormInput<ProductFormValues>
-                    name="preVentaB"
-                    label="Precio de Venta B"
                     type="number"
                     step="0.01"
                     min="0.01"

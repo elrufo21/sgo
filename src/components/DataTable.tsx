@@ -108,6 +108,15 @@ const getSearchableText = (value: unknown): string => {
   return normalizeSearchText(value);
 };
 
+const PAGE_SIZE_STORAGE_PREFIX = "sgo:datatable:pageSize:";
+
+const toValidPageSize = (value: unknown): number | null => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  const normalized = Math.floor(parsed);
+  return normalized > 0 ? normalized : null;
+};
+
 export default function DataTable<T extends RowData>({
   columns,
   data,
@@ -136,6 +145,7 @@ export default function DataTable<T extends RowData>({
   const searchRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
   const previousDataLength = useRef(data?.length ?? 0);
+  const previousFilteredRowsRef = useRef<T[] | null>(null);
   const dialogOpen = useDialogStore((s) => s.open);
   const previousDialogOpen = useRef(dialogOpen);
   const isGlobalFilterControlled = globalFilterValue !== undefined;
@@ -175,7 +185,18 @@ export default function DataTable<T extends RowData>({
   }, [data, filterKeys, globalFilter]);
 
   useEffect(() => {
-    onFilteredDataChange?.(filteredData);
+    if (!onFilteredDataChange) return;
+
+    const previousRows = previousFilteredRowsRef.current;
+    const sameRows =
+      previousRows !== null &&
+      previousRows.length === filteredData.length &&
+      previousRows.every((row, index) => Object.is(row, filteredData[index]));
+
+    if (sameRows) return;
+
+    previousFilteredRowsRef.current = filteredData;
+    onFilteredDataChange(filteredData);
   }, [filteredData, onFilteredDataChange]);
 
   const normalizedPageSizeOptions = Array.from(
@@ -186,8 +207,29 @@ export default function DataTable<T extends RowData>({
     ),
   ).sort((a, b) => a - b);
 
+  const pageSizeStorageKey = `${PAGE_SIZE_STORAGE_PREFIX}${location.pathname}`;
+  const persistedPageSize = useMemo(() => {
+    if (typeof window === "undefined") return null;
+
+    try {
+      const stored = window.localStorage.getItem(pageSizeStorageKey);
+      return toValidPageSize(stored);
+    } catch {
+      return null;
+    }
+  }, [pageSizeStorageKey]);
+
+  const safeInitialPageSize = Math.max(1, Math.floor(initialPageSize));
+  const fallbackPageSize = normalizedPageSizeOptions.includes(
+    safeInitialPageSize,
+  )
+    ? safeInitialPageSize
+    : (normalizedPageSizeOptions[0] ?? safeInitialPageSize);
   const safePageSize =
-    normalizedPageSizeOptions[0] ?? Math.max(1, Math.floor(initialPageSize));
+    persistedPageSize !== null &&
+    normalizedPageSizeOptions.includes(persistedPageSize)
+      ? persistedPageSize
+      : fallbackPageSize;
 
   const focusSearch = () => {
     const input = searchRef.current;
@@ -246,6 +288,15 @@ export default function DataTable<T extends RowData>({
   const pageSize = table.getState().pagination.pageSize;
   const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const end = Math.min(currentPage * pageSize, totalCount);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(pageSizeStorageKey, String(pageSize));
+    } catch {
+      // ignore storage errors
+    }
+  }, [pageSize, pageSizeStorageKey]);
 
   return (
     <section className="w-full rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)]">

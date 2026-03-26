@@ -6,13 +6,13 @@ import type { Product } from "@/types/product";
 const ProductList = () => {
   const { products, fetchProducts, deleteProduct } = useProductsStore();
   const [estadoFilter, setEstadoFilter] = useState<"ACTIVO" | "INACTIVO">(
-    "ACTIVO"
+    "ACTIVO",
   );
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
 
   const fetchFiltered = useCallback(
     () => fetchProducts(estadoFilter),
-    [fetchProducts, estadoFilter]
+    [fetchProducts, estadoFilter],
   );
 
   useEffect(() => {
@@ -29,7 +29,7 @@ const ProductList = () => {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }),
-    []
+    [],
   );
 
   const formatAmount = (value: number) =>
@@ -67,22 +67,25 @@ const ProductList = () => {
       const ganancia = ventaNeta - inversion;
       return { inversion, ventaNeta, ganancia };
     },
-    [isBienProduct]
+    [isBienProduct],
   );
 
   const profitTotals = useMemo(() => {
-    return filteredProducts
-      .reduce(
-        (acc, product) => {
-          const values = getRowProfitValues(product);
-          acc.inversion += values.inversion;
-          acc.ventaNeta += values.ventaNeta;
-          acc.ganancia += values.ganancia;
-          return acc;
-        },
-        { inversion: 0, ventaNeta: 0, ganancia: 0 }
-      );
+    return filteredProducts.reduce(
+      (acc, product) => {
+        const values = getRowProfitValues(product);
+        acc.inversion += values.inversion;
+        acc.ventaNeta += values.ventaNeta;
+        acc.ganancia += values.ganancia;
+        return acc;
+      },
+      { inversion: 0, ventaNeta: 0, ganancia: 0 },
+    );
   }, [filteredProducts, getRowProfitValues]);
+  const filterKeys = useMemo<(keyof Product & string)[]>(
+    () => ["codigo", "nombre", "cantidad", "preVenta"],
+    [],
+  );
 
   const productColumns = [
     { key: "codigo", header: "Código" },
@@ -98,8 +101,8 @@ const ProductList = () => {
           stock <= 0
             ? "text-red-600 font-bold"
             : stock <= critico
-            ? "text-blue-600 font-bold"
-            : "";
+              ? "text-blue-600 font-bold"
+              : "";
         return <span className={`${color} text-right w-full`}>{stock}</span>;
       },
       tdClassName: "text-right",
@@ -110,13 +113,16 @@ const ProductList = () => {
       render: (row: Product) => (
         <div className="space-y-1">
           <div className="font-medium text-slate-800">
-            {row.unidadMedida} <span className="text-xs text-slate-500">(Principal)</span>
+            {row.unidadMedida}{" "}
+            <span className="text-xs text-slate-500">(Principal)</span>
           </div>
-          {Array.isArray(row.unidadesAlternas) && row.unidadesAlternas.length > 0 ? (
+          {Array.isArray(row.unidadesAlternas) &&
+          row.unidadesAlternas.length > 0 ? (
             <div className="space-y-0.5 text-xs text-slate-600">
               {row.unidadesAlternas.map((um) => (
                 <div key={`${row.id}-${um.unidadMedida}`}>
-                  {um.unidadMedida}: Stock {um.cantidad} | Venta {formatCurrency(um.preVenta)}
+                  {um.unidadMedida}: Stock {um.cantidad} | Venta{" "}
+                  {formatCurrency(um.preVenta)}
                 </div>
               ))}
             </div>
@@ -139,19 +145,22 @@ const ProductList = () => {
     {
       id: "inversion",
       header: "Inversión",
-      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).inversion)}`,
+      render: (row: Product) =>
+        `S/ ${formatAmount(getRowProfitValues(row).inversion)}`,
       tdClassName: "text-right",
     },
     {
       id: "ventaNeta",
       header: "V. Neta",
-      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).ventaNeta)}`,
+      render: (row: Product) =>
+        `S/ ${formatAmount(getRowProfitValues(row).ventaNeta)}`,
       tdClassName: "text-right",
     },
     {
       id: "ganancia",
       header: "Ganancia",
-      render: (row: Product) => `S/ ${formatAmount(getRowProfitValues(row).ganancia)}`,
+      render: (row: Product) =>
+        `S/ ${formatAmount(getRowProfitValues(row).ganancia)}`,
       tdClassName: "text-right",
     },
   ];
@@ -161,7 +170,7 @@ const ProductList = () => {
       fetchData={fetchFiltered}
       deleteItem={deleteProduct}
       columns={productColumns}
-      filterKeys={["codigo", "nombre", "cantidad", "preVenta"]}
+      filterKeys={filterKeys}
       basePath="/products"
       createLabel="Añadir producto"
       deleteMessage="¿Estás seguro de eliminar este producto?"

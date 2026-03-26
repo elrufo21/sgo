@@ -59,6 +59,8 @@ const normalizeSegment = (value: unknown) =>
   String(value ?? "")
     .replace(/[|;\[\]\r\n]/g, " ")
     .trim();
+const normalizeUpperSegment = (value: unknown) =>
+  normalizeSegment(value).toLocaleUpperCase("es-PE");
 
 const formatDecimal = (value: unknown, decimals: number) =>
   toNumberValue(value, 0).toFixed(decimals);
@@ -192,7 +194,7 @@ const mapApiToProduct = (item: ApiProduct): Product => ({
   estado: normalizeEstado(item.productoEstado),
   images: item.productoImagen ? [item.productoImagen] : [],
   idSubLinea: item.idSubLinea,
-  preVentaB: item.productoVentaB,
+  preVentaB: 0,
 });
 
 const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => ({
@@ -200,7 +202,7 @@ const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => ({
   cantidad: toNumberValue(item.productoCantidad, 0),
   preCosto: toNumberValue(item.productoCosto, 0),
   preVenta: toNumberValue(item.productoVenta, 0),
-  preVentaB: toNumberValue(item.productoVentaB, 0),
+  preVentaB: 0,
 });
 
 const groupProductsByHeader = (items: ApiProduct[]): Product[] => {
@@ -267,11 +269,12 @@ const mapProductToApi = (
       : Number(product.idSubLinea),
   productoCodigo: product.codigo ?? "",
   productoNombre: product.nombre ?? "",
-  productoUM: product.unidadMedida ?? "",
+  productoUM: normalizeUpperSegment(product.unidadMedida ?? ""),
   valorCritico: product.valorCritico ?? 0,
   productoCosto: product.preCosto ?? 0,
   productoVenta: product.preVenta ?? 0,
-  productoVentaB: product.preVentaB ?? 0,
+  // Precio de venta B deshabilitado en frontend; se fuerza 0 en todos los envios.
+  productoVentaB: 0,
   productoCantidad: product.cantidad ?? 0,
   productoObs: "",
   productoEstado: product.estado ?? "BUENO",
@@ -334,14 +337,14 @@ const buildProductDataString = (
   const fromArray = Array.isArray(product.unidadesAlternas)
     ? product.unidadesAlternas
         .map((row) => ({
-          unidad: normalizeSegment(row?.unidad ?? row?.unidadMedida ?? ""),
+          unidad: normalizeUpperSegment(row?.unidad ?? row?.unidadMedida ?? ""),
           factor: toNumberValue(row?.factor ?? row?.valorUM, 0),
           preVenta: toNumberValue(row?.preVenta, 0),
         }))
         .filter((row) => row.unidad !== "" && row.factor > 0)
     : [];
 
-  const fallbackUnidad = normalizeSegment(product.unidadAlterna ?? "");
+  const fallbackUnidad = normalizeUpperSegment(product.unidadAlterna ?? "");
   const fallbackFactor = toNumberValue(product.unidadesPorEmpaque, 0);
   const fallbackPreVentaUnidadAlterna = toNumberValue(
     product.preVentaUnidadAlterna,
