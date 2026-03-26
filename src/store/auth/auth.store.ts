@@ -18,6 +18,7 @@ export interface AuthUser {
   companyUbigeoName: string;
   companyCommercialName: string;
   companySunatAddress: string;
+  companyPhone: string;
   usuarioSol: string;
   claveSol: string;
   certificadoBase64: string;
@@ -66,6 +67,7 @@ interface LoginResponse {
   companiaNomUbg?: string | null;
   companiaComercial?: string | null;
   companiaDirecSunat?: string | null;
+  companiaTelefono?: string | null;
   usuarioSol?: string | null;
   claveSol?: string | null;
   certificadoBase64?: string | null;
@@ -187,6 +189,9 @@ const normalizeAuthUser = (user: AuthUser): AuthUser => ({
   ),
   companySunatAddress: normalizeText(
     (user as AuthUser & { companySunatAddress?: unknown }).companySunatAddress,
+  ),
+  companyPhone: normalizeText(
+    (user as AuthUser & { companyPhone?: unknown }).companyPhone,
   ),
   usuarioSol: normalizeText(
     (user as AuthUser & { usuarioSol?: unknown }).usuarioSol,
@@ -338,6 +343,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           companyUbigeoName: normalizeText(parsed.companiaNomUbg),
           companyCommercialName: normalizeText(parsed.companiaComercial),
           companySunatAddress: normalizeText(parsed.companiaDirecSunat),
+          companyPhone: normalizeText(parsed.companiaTelefono),
           usuarioSol: normalizeText(parsed.usuarioSol),
           claveSol: normalizeText(parsed.claveSol),
           certificadoBase64: normalizeText(parsed.certificadoBase64),
@@ -351,6 +357,7 @@ export const useAuthStore = create<AuthState>((set, get) => {
           companiaNomUbg: normalizeText(parsed.companiaNomUbg),
           companiaComercial: normalizeText(parsed.companiaComercial),
           companiaDirecSunat: normalizeText(parsed.companiaDirecSunat),
+          companiaTelefono: normalizeText(parsed.companiaTelefono),
           usuarioSol: normalizeText(parsed.usuarioSol),
           claveSol: normalizeText(parsed.claveSol),
           certificadoBase64: normalizeText(parsed.certificadoBase64),

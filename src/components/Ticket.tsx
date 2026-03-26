@@ -36,6 +36,48 @@ type TicketDocumentProps = {
   preGeneratedQrBase64?: string;
 };
 
+const AUTH_STORAGE_KEY = "sgo.auth.session";
+
+const normalizePhoneLine = (value: unknown): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const lowerRaw = raw.toLowerCase();
+  const telefIndex = lowerRaw.indexOf("telef:");
+  if (telefIndex >= 0) {
+    return raw.slice(telefIndex).trim();
+  }
+
+  const telIndex = lowerRaw.indexOf("tel:");
+  if (telIndex >= 0) {
+    return raw.slice(telIndex).trim();
+  }
+
+  return raw;
+};
+
+const readCompanyPhoneFromStorage = (): string => {
+  if (typeof window === "undefined") return "";
+
+  try {
+    const rawSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!rawSession) return "";
+
+    const parsed = JSON.parse(rawSession) as
+      | {
+          user?: { companyPhone?: unknown } | null;
+          loginPayload?: { companiaTelefono?: unknown } | null;
+        }
+      | null;
+
+    const rawPhone =
+      parsed?.user?.companyPhone ?? parsed?.loginPayload?.companiaTelefono;
+    return normalizePhoneLine(rawPhone);
+  } catch {
+    return "";
+  }
+};
+
 const UNITS = [
   "",
   "UNO",
@@ -343,6 +385,7 @@ const TicketDocument = ({
   preGeneratedQrBase64,
 }: TicketDocumentProps) => {
   const [generatedQrBase64, setGeneratedQrBase64] = useState("");
+  const companyPhoneFromStorage = useMemo(() => readCompanyPhoneFromStorage(), []);
 
   const ticketData = useMemo(() => {
     const hasItems = Boolean(items?.length);
@@ -413,7 +456,9 @@ const TicketDocument = ({
       ruc: companyRuc?.trim() || "20601070155",
       address: companyAddress?.trim() || "Calle 2 Mz B Lote 1",
       district: companyDistrict?.trim() || "LIMA",
-      phones: "Telef: 607-1883 / 943-296-081 / 944-284-915",
+      phones:
+        companyPhoneFromStorage ||
+        "Telef: 607-1883 / 943-296-081 / 944-284-915",
       documentType:
         docType === "factura"
           ? "FACTURA ELECTRONICA"
@@ -471,6 +516,7 @@ const TicketDocument = ({
     companyRuc,
     companyAddress,
     companyDistrict,
+    companyPhoneFromStorage,
     summary,
   ]);
 

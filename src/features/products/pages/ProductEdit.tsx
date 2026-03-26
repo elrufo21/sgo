@@ -13,7 +13,7 @@ export default function ProductEdit() {
   const { products, fetchProducts, updateProduct, deleteProduct } =
     useProductsStore();
 
-  const [form, setForm] = useState<Omit<Product, "id"> | null>(null);
+  const [form, setForm] = useState<Product | null>(null);
 
   useEffect(() => {
     if (products.length === 0) fetchProducts();
@@ -21,10 +21,8 @@ export default function ProductEdit() {
 
   useEffect(() => {
     const prod = products.find((p) => p.id === Number(id));
-    console.log("prod", prod, products);
     if (prod) {
-      const { ...rest } = prod;
-      setForm({ ...rest, images: prod.images || [] });
+      setForm({ ...prod, images: prod.images || [] });
     }
   }, [products, id]);
 

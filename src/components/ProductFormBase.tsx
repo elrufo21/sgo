@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import TextField from "@mui/material/TextField";
+import { API_BASE_URL } from "@/config";
 import type { Product } from "@/types/product";
+import { apiRequest } from "@/shared/helpers/apiRequest";
 import { focusFirstInput } from "@/shared/helpers/focusFirstInput";
 import { focusNextInput } from "@/shared/helpers/focusNextInput";
 import { useMaintenanceStore } from "@/store/maintenance/maintenance.store";
@@ -123,6 +125,15 @@ type OtherUnitDialogData = {
   error: string;
 };
 
+type UnidadMedidaUpsertPayload = {
+  idProducto: number;
+  umDescripcion: string;
+  valorUM: number;
+  precioVenta: number;
+  precioVentaB: number;
+  precioCosto: number;
+};
+
 const toDialogString = (value: unknown, fallback = "") => {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return fallback;
@@ -160,6 +171,15 @@ const parseOtherUnitDialogData = (
     preCosto: toSafePositiveNumber(source.preCosto ?? fallback?.preCosto ?? 0),
     error: toDialogString(source.error, fallback?.error ?? ""),
   };
+};
+
+const toTwoDecimals = (value: number) =>
+  Number.isFinite(value) ? Number(value.toFixed(2)) : 0;
+
+const isAxiosLikeError = (value: unknown): boolean => {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return Boolean(record.isAxiosError) || ("response" in record && "config" in record);
 };
 
 const sharedDialogInputSx = {
@@ -435,6 +455,7 @@ export default function ProductFormBase({
   const productsLoading = useProductsStore((s) => s.loading);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [takingPhoto, setTakingPhoto] = useState(false);
+  const editProductId = toSafePositiveNumber(initialData?.id);
 
   const generateCode = useCallback(() => {
     const latestProducts = useProductsStore.getState().products ?? [];
@@ -869,7 +890,7 @@ export default function ProductFormBase({
     }
   };
 
-  const confirmOtherUnit = (rawDialogData?: unknown) => {
+  const confirmOtherUnit = async (rawDialogData?: unknown) => {
     const fallbackDialogData: Partial<OtherUnitDialogData> = {
       unidadPrincipal:
         normalizeUnitLabel(getValues("unidadMedida")) || "Unidad",
@@ -934,6 +955,71 @@ export default function ProductFormBase({
         error: `Ingresa un precio de venta valido para ${unidadAlterna}.`,
       });
       return false;
+    }
+
+    if (mode === "edit") {
+      if (!Number.isFinite(editProductId) || editProductId <= 0) {
+        setDialogData({
+          ...dialogData,
+          error: "No se pudo identificar el producto para guardar la unidad.",
+        });
+        return false;
+      }
+
+      const normalizedUnidadAlterna = unidadAlterna.toLocaleUpperCase("es-PE");
+      const precioCostoUnitario =
+        unidadesPorEmpaque > 0 ? dialogData.preCosto / unidadesPorEmpaque : 0;
+      const unidadPayload: UnidadMedidaUpsertPayload = {
+        idProducto: editProductId,
+        umDescripcion: normalizedUnidadAlterna,
+        valorUM: toTwoDecimals(unidadesPorEmpaque),
+        precioVenta: toTwoDecimals(preVentaUnidadAlterna),
+        precioVentaB: 0,
+        precioCosto: toTwoDecimals(precioCostoUnitario),
+      };
+
+      const upsertResponse = await apiRequest<
+        { idUm?: number } | null,
+        UnidadMedidaUpsertPayload,
+        null
+      >({
+        url: `${API_BASE_URL}/Productos/unidad-medida`,
+        method: "POST",
+        data: unidadPayload,
+        config: {
+          headers: { "Content-Type": "application/json" },
+        },
+        fallback: null,
+      });
+
+      if (isAxiosLikeError(upsertResponse)) {
+        const status = Number(
+          (upsertResponse as { response?: { status?: number } })?.response
+            ?.status ?? 0,
+        );
+        const errorMessage =
+          status === 401
+            ? "No autorizado. Inicia sesion nuevamente."
+            : status === 400
+              ? "Datos invalidos para guardar la unidad."
+              : "No se pudo guardar la unidad en el servidor.";
+        setDialogData({
+          ...dialogData,
+          error: errorMessage,
+        });
+        return false;
+      }
+
+      const idUm = Number(
+        (upsertResponse as { idUm?: unknown } | null)?.idUm ?? 0,
+      );
+      if (!Number.isFinite(idUm) || idUm <= 0) {
+        setDialogData({
+          ...dialogData,
+          error: "No se obtuvo un idUm valido al guardar la unidad.",
+        });
+        return false;
+      }
     }
 
     setValue("aplicaOtraUnidad", true, {

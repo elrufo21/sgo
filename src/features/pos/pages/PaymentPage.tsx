@@ -1049,7 +1049,7 @@ const PaymentPage = () => {
   }, [applyDiscount, discountInput, clampDiscount, setValue]);
 
   useEffect(() => {
-    // Solo resetea en flujo nuevo; en edici�n o con cliente cargado no limpiar
+    // Solo resetea en flujo nuevo; en edicion o con cliente cargado no limpiar
     if (!dirtyFields?.docTypeCode) {
       lastDocTypeRef.current = docTypeCode;
       return;
@@ -1058,18 +1058,17 @@ const PaymentPage = () => {
     const previousDocType = lastDocTypeRef.current;
     lastDocTypeRef.current = docTypeCode;
 
-    // Solo limpiar al cambiar a Factura (RUC) para forzar nuevo documento
+    // Al cambiar a Factura, no autoseleccionar cliente: limpiar seleccion previa.
     if (docTypeCode !== "01" || previousDocType === docTypeCode) return;
     if (notaId || isEditingMode || hasLoadedNotaMeta) return;
-    if (Number(clienteId) > 0) return;
-    if (!safeTrim(customerId)) return;
 
+    setValue("clienteId", null, { shouldDirty: false });
+    setValue("customerName", "", { shouldDirty: false });
     setValue("customerId", "", { shouldDirty: false });
+    hasInvalidCustomerSelectionRef.current = false;
   }, [
     docTypeCode,
     dirtyFields?.docTypeCode,
-    clienteId,
-    customerId,
     notaId,
     isEditingMode,
     hasLoadedNotaMeta,
@@ -1236,6 +1235,14 @@ const PaymentPage = () => {
     [uniqueClients],
   );
 
+  const facturaClientOptions = useMemo(
+    () =>
+      clientOptions.filter(
+        (client) => safeTrim(client.label).toUpperCase() !== "VARIOS",
+      ),
+    [clientOptions],
+  );
+
   const dniOptions = useMemo(
     () =>
       uniqueClients
@@ -1264,6 +1271,14 @@ const PaymentPage = () => {
     [uniqueClients],
   );
 
+  const facturaRucOptions = useMemo(
+    () =>
+      rucOptions.filter(
+        (option) => safeTrim(option.nombreRazon).toUpperCase() !== "VARIOS",
+      ),
+    [rucOptions],
+  );
+
   const selectedDocument = useMemo(() => {
     const source = docTypeCode === "01" ? rucOptions : dniOptions;
     const match = source.find(
@@ -1288,7 +1303,9 @@ const PaymentPage = () => {
       }
 
       const typedNameNormalized = typedName.toLowerCase();
-      const matchedOption = clientOptions.find(
+      const availableClients =
+        docTypeCode === "01" ? facturaClientOptions : clientOptions;
+      const matchedOption = availableClients.find(
         (opt) => safeTrim(opt.label).toLowerCase() === typedNameNormalized,
       );
 
@@ -1321,6 +1338,7 @@ const PaymentPage = () => {
     [
       formLocked,
       clientOptions,
+      facturaClientOptions,
       docTypeCode,
       getValues,
       setValue,
@@ -1416,8 +1434,18 @@ const PaymentPage = () => {
     const resolvedRuc = resolveDocumentValue(getValues("customerId"), "ruc");
     const ruc = safeTrim(resolvedRuc);
 
-    if (!selectedName || selectedClientId <= 0) {
-      toast.error("Para Factura debes seleccionar un cliente.");
+    if (!selectedName || selectedName.toUpperCase() === "VARIOS") {
+      toast.error(
+        "Para Factura el nombre del cliente es obligatorio y no puede ser VARIOS.",
+      );
+      window.requestAnimationFrame(() => {
+        setFocus("customerName");
+      });
+      return false;
+    }
+
+    if (selectedClientId <= 0) {
+      toast.error("Para Factura debes seleccionar un cliente valido.");
       window.requestAnimationFrame(() => {
         setFocus("customerName");
       });
@@ -2632,6 +2660,11 @@ const PaymentPage = () => {
           name="paymentMethod"
           label="Forma de pago"
           disabled={formLocked}
+          onChange={() => {
+            window.requestAnimationFrame(() => {
+              setFocus("customerName");
+            });
+          }}
           options={[
             { value: "EFECTIVO", label: "Efectivo" },
             { value: "TARJETA", label: "Tarjeta" },
@@ -2643,14 +2676,18 @@ const PaymentPage = () => {
           name="customerName"
           label="Nombre del cliente"
           placeholder="Seleccionar cliente"
-          options={clientOptions}
+          options={docTypeCode === "01" ? facturaClientOptions : clientOptions}
           rules={{
             validate: (value: any) => {
               if (docTypeCode !== "01") return true;
               const normalized = safeTrim(value);
-              return normalized
-                ? true
-                : "Nombre de cliente obligatorio para Factura";
+              if (!normalized) {
+                return "Nombre de cliente obligatorio para Factura";
+              }
+              if (normalized.toUpperCase() === "VARIOS") {
+                return "Para Factura el cliente no puede ser VARIOS";
+              }
+              return true;
             },
           }}
           syncInputToValue
@@ -2681,7 +2718,7 @@ const PaymentPage = () => {
             name="customerId"
             label="RUC"
             placeholder="Número de RUC"
-            options={rucOptions}
+            options={facturaRucOptions}
             rules={{ validate: validateRucLength }}
             disableClearable={formLocked}
             disabled={formLocked}

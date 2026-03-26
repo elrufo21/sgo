@@ -83,6 +83,17 @@ const normalizeSearchText = (value: unknown) =>
     .toLowerCase()
     .trim();
 
+const SEARCH_STORAGE_PREFIX = "sgo:datatable:search:";
+
+const resolveSearchScope = (pathname: string): string => {
+  const segments = pathname.split("/").filter(Boolean);
+  if (!segments.length) return "root";
+  if (segments[0] === "maintenance" && segments[1]) {
+    return `${segments[0]}/${segments[1]}`;
+  }
+  return segments[0];
+};
+
 const getSearchableText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (
@@ -139,16 +150,40 @@ export default function DataTable<T extends RowData>({
   footerContent,
   onFilteredDataChange,
 }: DataTableProps<T>) {
-  const [globalFilter, setGlobalFilter] = useState(() =>
-    String(globalFilterValue ?? ""),
-  );
-  const searchRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
+  const searchScope = useMemo(
+    () => resolveSearchScope(location.pathname),
+    [location.pathname],
+  );
+  const globalFilterStorageKey = `${SEARCH_STORAGE_PREFIX}${searchScope}`;
+  const [globalFilter, setGlobalFilter] = useState(() => {
+    if (globalFilterValue !== undefined) return String(globalFilterValue ?? "");
+    if (typeof window === "undefined") return "";
+    try {
+      return String(window.sessionStorage.getItem(globalFilterStorageKey) ?? "");
+    } catch {
+      return "";
+    }
+  });
+  const searchRef = useRef<HTMLInputElement>(null);
   const previousDataLength = useRef(data?.length ?? 0);
   const previousFilteredRowsRef = useRef<T[] | null>(null);
   const dialogOpen = useDialogStore((s) => s.open);
   const previousDialogOpen = useRef(dialogOpen);
   const isGlobalFilterControlled = globalFilterValue !== undefined;
+
+  useEffect(() => {
+    if (isGlobalFilterControlled) return;
+    if (typeof window === "undefined") return;
+
+    try {
+      const storedValue = window.sessionStorage.getItem(globalFilterStorageKey);
+      const nextValue = String(storedValue ?? "");
+      setGlobalFilter((previous) => (previous === nextValue ? previous : nextValue));
+    } catch {
+      // ignore storage errors
+    }
+  }, [globalFilterStorageKey, isGlobalFilterControlled]);
 
   const handleGlobalFilterChange = (value: string) => {
     setGlobalFilter(value);
@@ -166,6 +201,20 @@ export default function DataTable<T extends RowData>({
       previous === nextValue ? previous : nextValue,
     );
   }, [globalFilterValue, isGlobalFilterControlled]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const value = String(globalFilter ?? "");
+      if (value.trim()) {
+        window.sessionStorage.setItem(globalFilterStorageKey, value);
+      } else {
+        window.sessionStorage.removeItem(globalFilterStorageKey);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [globalFilter, globalFilterStorageKey]);
 
   const filteredData = useMemo(() => {
     const term = normalizeSearchText(globalFilter);
