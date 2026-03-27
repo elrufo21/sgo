@@ -30,7 +30,11 @@ interface ProductFormBaseProps {
   initialData?: Partial<Product>;
   mode: "create" | "edit";
   onSave: (
-    data: Omit<Product, "id"> & { images?: string[]; imageFile?: File | null },
+    data: Omit<Product, "id"> & {
+      images?: string[];
+      imageFile?: File | null;
+      unidadImagenAlternaFile?: File | null;
+    },
   ) => Promise<boolean | void> | boolean | void;
   onNew?: () => void;
   onArchive?: () => void;
@@ -97,6 +101,8 @@ type ProductFormValues = Omit<Product, "id"> & {
   unidadesPorEmpaque?: number | null;
   preVentaUnidadAlterna?: number | null;
   valorUMUnidadAlterna?: number | null;
+  unidadImagenAlterna?: string;
+  unidadImagenAlternaFile?: File | null;
 };
 
 type OtherUnitDialogData = {
@@ -104,6 +110,8 @@ type OtherUnitDialogData = {
   unidadAlterna: string;
   unidadesPorEmpaque: string;
   preVentaUnidadAlterna: string;
+  unidadImagen: string;
+  unidadImagenFile: File | null;
   preVenta: number;
   preCosto: number;
   error: string;
@@ -116,12 +124,17 @@ type UnidadMedidaUpsertPayload = {
   precioVenta: number;
   precioVentaB: number;
   precioCosto: number;
+  unidadImagen?: string;
 };
 
 const toDialogString = (value: unknown, fallback = "") => {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return fallback;
   return String(value);
+};
+const toDialogFile = (value: unknown, fallback: File | null = null) => {
+  if (value instanceof File) return value;
+  return fallback;
 };
 
 const parseOtherUnitDialogData = (
@@ -151,6 +164,14 @@ const parseOtherUnitDialogData = (
       source.preVentaUnidadAlterna,
       fallback?.preVentaUnidadAlterna ?? "",
     ),
+    unidadImagen: toDialogString(
+      source.unidadImagen,
+      fallback?.unidadImagen ?? "",
+    ),
+    unidadImagenFile: toDialogFile(
+      source.unidadImagenFile,
+      fallback?.unidadImagenFile ?? null,
+    ),
     preVenta: toSafePositiveNumber(source.preVenta ?? fallback?.preVenta ?? 0),
     preCosto: toSafePositiveNumber(source.preCosto ?? fallback?.preCosto ?? 0),
     error: toDialogString(source.error, fallback?.error ?? ""),
@@ -160,12 +181,64 @@ const parseOtherUnitDialogData = (
 const toTwoDecimals = (value: number) =>
   Number.isFinite(value) ? Number(value.toFixed(2)) : 0;
 
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(file);
+  });
+const dataUrlToFile = (dataUrl: string, fileName: string) => {
+  const arr = dataUrl.split(",");
+  const mimeMatch = arr[0]?.match(/:(.*?);/);
+  const mime = mimeMatch?.[1] ?? "image/png";
+  const bstr = atob(arr[1] ?? "");
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new File([u8arr], fileName, { type: mime });
+};
+
+const toPersistedImagePath = (value: unknown) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+  const lower = normalized.toLowerCase();
+  if (lower.startsWith("blob:") || lower.startsWith("data:")) return "";
+  return normalized;
+};
+
+const toUnitImagePayload = (value: unknown) => {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return "";
+  const lower = normalized.toLowerCase();
+  if (lower.startsWith("blob:") || lower.startsWith("data:")) return "";
+  return normalized;
+};
+
 const isAxiosLikeError = (value: unknown): boolean => {
   if (!value || typeof value !== "object") return false;
   const record = value as Record<string, unknown>;
   return (
     Boolean(record.isAxiosError) || ("response" in record && "config" in record)
   );
+};
+
+const buildUnidadMedidaFormData = (
+  payload: UnidadMedidaUpsertPayload,
+  unidadImagenFile?: File | null,
+) => {
+  const formData = new FormData();
+  Object.entries(payload).forEach(([key, value]) => {
+    const normalized =
+      value === undefined || value === null ? "" : String(value);
+    formData.append(key, normalized);
+  });
+  if (unidadImagenFile instanceof File) {
+    formData.append("imagen", unidadImagenFile);
+  }
+  return formData;
 };
 
 const sharedDialogInputSx = {
@@ -191,6 +264,9 @@ function OtherUnitDialogContent() {
   const rawDialogData = useDialogStore((s) => s.data);
   const setDialogData = useDialogStore((s) => s.setData);
   const unidadBaseInputRef = useRef<HTMLInputElement | null>(null);
+  const unidadImagenInputRef = useRef<HTMLInputElement | null>(null);
+  const unidadVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [unidadTakingPhoto, setUnidadTakingPhoto] = useState(false);
   const dialogData = parseOtherUnitDialogData(rawDialogData);
   const unidadBaseDraft =
     normalizeUnitLabel(dialogData.unidadAlterna) || "Unidad";
@@ -210,6 +286,8 @@ function OtherUnitDialogContent() {
     unidadesPorEmpaqueDraft > 0
       ? dialogData.preCosto / unidadesPorEmpaqueDraft
       : 0;
+  const unidadImagenPreview = String(dialogData.unidadImagen ?? "").trim();
+  const hasUnidadImagen = unidadImagenPreview !== "";
 
   const updateField = (
     field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna",
@@ -282,6 +360,98 @@ function OtherUnitDialogContent() {
     }
     handleFieldEnter(event);
   };
+
+  const updateUnitImage = (value: string, file: File | null = null) => {
+    setDialogData((prevData: unknown) => {
+      const latestDialogData = parseOtherUnitDialogData(prevData);
+      return {
+        ...latestDialogData,
+        unidadImagen: value,
+        unidadImagenFile: file,
+        error: "",
+      };
+    });
+  };
+
+  const handleUnitImageChange = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      updateUnitImage(dataUrl, file);
+    } catch {
+      setDialogData((prevData: unknown) => {
+        const latestDialogData = parseOtherUnitDialogData(prevData);
+        return {
+          ...latestDialogData,
+          error: "No se pudo cargar la imagen de la unidad.",
+        };
+      });
+    }
+  };
+
+  const stopUnidadCamera = useCallback(() => {
+    const stream = unidadVideoRef.current?.srcObject as MediaStream | null;
+    stream?.getTracks().forEach((track) => track.stop());
+    if (unidadVideoRef.current) {
+      unidadVideoRef.current.srcObject = null;
+    }
+    setUnidadTakingPhoto(false);
+  }, []);
+
+  const startUnidadCamera = async () => {
+    try {
+      setUnidadTakingPhoto(true);
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+      if (unidadVideoRef.current) {
+        unidadVideoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error("No se pudo iniciar la camara de unidad", error);
+      setDialogData((prevData: unknown) => {
+        const latestDialogData = parseOtherUnitDialogData(prevData);
+        return {
+          ...latestDialogData,
+          error: "No se pudo abrir la camara.",
+        };
+      });
+      setUnidadTakingPhoto(false);
+    }
+  };
+
+  const takeUnidadPhoto = () => {
+    const video = unidadVideoRef.current;
+    if (!video) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const file = dataUrlToFile(dataUrl, `unidad-${Date.now()}.png`);
+    updateUnitImage(dataUrl, file);
+    stopUnidadCamera();
+  };
+
+  useEffect(() => {
+    return () => {
+      stopUnidadCamera();
+    };
+  }, [stopUnidadCamera]);
 
   return (
     <div className="space-y-4 py-1">
@@ -414,12 +584,95 @@ function OtherUnitDialogContent() {
           </p>
           <p className="text-xs text-slate-500">
             Valor a reducir (1/
-            {Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
+            {Number.isFinite(unidadesPorEmpaqueDraft) &&
+            unidadesPorEmpaqueDraft > 0
               ? Number(unidadesPorEmpaqueDraft.toFixed(2))
               : 0}
-            ):{" "}
-            {Number(valorUMCalculado.toFixed(6))}
+            ): {Number(valorUMCalculado.toFixed(6))}
           </p>
+        </div>
+      </div>
+
+      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
+        <p className="text-slate-500">Imagen de unidad alterna</p>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="h-24 w-24 overflow-hidden rounded-md border border-slate-200 bg-white">
+            {unidadTakingPhoto ? (
+              <video
+                ref={unidadVideoRef}
+                autoPlay
+                playsInline
+                className="h-full w-full bg-black object-cover"
+              />
+            ) : hasUnidadImagen ? (
+              <img
+                src={unidadImagenPreview}
+                alt="Imagen de unidad alterna"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-400">
+                Sin imagen
+              </div>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={unidadImagenInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleUnitImageChange}
+            />
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              onClick={() => unidadImagenInputRef.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Seleccionar
+            </button>
+            {!unidadTakingPhoto ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-md border border-indigo-200 bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                onClick={startUnidadCamera}
+              >
+                <Camera className="h-3.5 w-3.5" />
+                Tomar foto
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700"
+                  onClick={takeUnidadPhoto}
+                >
+                  Capturar
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={stopUnidadCamera}
+                >
+                  Cancelar
+                </button>
+              </>
+            )}
+            {hasUnidadImagen ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
+                onClick={() => {
+                  stopUnidadCamera();
+                  updateUnitImage("", null);
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Quitar
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -553,6 +806,10 @@ export default function ProductFormBase({
         firstAltRow?.factor ??
         firstAltRow?.valorUM,
     );
+    const explicitUnidadImagenAlterna = toDialogString(
+      (initialData as any)?.unidadImagenAlterna ?? firstAltRow?.unidadImagen,
+      "",
+    );
     const derivedPreVentaUnidadAlterna = toSafePositiveNumber(
       firstAltRow?.preVenta,
     );
@@ -610,6 +867,8 @@ export default function ProductFormBase({
           : derivedValorUMUnidadAlterna > 0
             ? derivedValorUMUnidadAlterna
             : null,
+      unidadImagenAlterna: explicitUnidadImagenAlterna,
+      unidadImagenAlternaFile: null,
     };
   }, [initialData, mode, fallbackUser, generateCode]);
 
@@ -730,6 +989,7 @@ export default function ProductFormBase({
   const currentImage = (watch("images")?.[0] ?? "").trim();
   const displayImage = currentImage !== "" ? currentImage : placeholderImage;
   const hasImage = currentImage !== "";
+  const unidadAlternaActual = normalizeUnitLabel(watch("unidadAlterna"));
 
   const unidadMedidaOptions = useMemo(() => {
     const opciones = new Set<string>();
@@ -829,6 +1089,15 @@ export default function ProductFormBase({
       unidadAlterna.toLowerCase() === unidadPrincipal.toLowerCase()
         ? ""
         : unidadAlterna || "";
+    const unidadImagenForm = String(
+      getValues("unidadImagenAlterna") ?? "",
+    ).trim();
+    const unidadImagenFileForm = getValues("unidadImagenAlternaFile");
+    const unidadImagenAlterna = Array.isArray(initialData?.unidadesAlternas)
+      ? String(initialData?.unidadesAlternas?.[0]?.unidadImagen ?? "").trim()
+      : "";
+    const unidadImagenInicial =
+      unidadImagenForm || unidadImagenAlterna || currentImage;
 
     const initialDialogData: OtherUnitDialogData = {
       unidadPrincipal: unidadPrincipal || "Unidad",
@@ -841,6 +1110,9 @@ export default function ProductFormBase({
         preVentaUnidadAlternaInicial > 0
           ? String(Number(preVentaUnidadAlternaInicial.toFixed(2)))
           : "",
+      unidadImagen: unidadImagenInicial,
+      unidadImagenFile:
+        unidadImagenFileForm instanceof File ? unidadImagenFileForm : null,
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: typeof modalError === "string" ? modalError : "",
@@ -884,6 +1156,14 @@ export default function ProductFormBase({
       shouldDirty: true,
       shouldValidate: true,
     });
+    setValue("unidadImagenAlterna", "", {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("unidadImagenAlternaFile", null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
   };
 
   const handleOtherUnitDialogCancel = () => {
@@ -918,6 +1198,11 @@ export default function ProductFormBase({
         getValues("preVentaUnidadAlterna"),
         "",
       ),
+      unidadImagen: toDialogString(getValues("unidadImagenAlterna"), ""),
+      unidadImagenFile:
+        getValues("unidadImagenAlternaFile") instanceof File
+          ? (getValues("unidadImagenAlternaFile") as File)
+          : null,
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: "",
@@ -988,6 +1273,25 @@ export default function ProductFormBase({
       const normalizedUnidadAlterna = unidadAlterna.toLocaleUpperCase("es-PE");
       const precioCostoUnitario =
         unidadesPorEmpaque > 0 ? dialogData.preCosto / unidadesPorEmpaque : 0;
+      const unidadImagenModal = toUnitImagePayload(dialogData.unidadImagen);
+      const unidadImagenAlternaActual = toPersistedImagePath(
+        getValues("unidadImagenAlterna"),
+      );
+      const unidadImagenAlternaInicial = Array.isArray(
+        initialData?.unidadesAlternas,
+      )
+        ? toPersistedImagePath(initialData?.unidadesAlternas?.[0]?.unidadImagen)
+        : "";
+      const unidadImagenProductoActual = toPersistedImagePath(currentImage);
+      const unidadImagenProductoInicial = toPersistedImagePath(
+        initialData?.images?.[0],
+      );
+      const unidadImagen =
+        unidadImagenModal ||
+        unidadImagenAlternaActual ||
+        unidadImagenAlternaInicial ||
+        unidadImagenProductoActual ||
+        unidadImagenProductoInicial;
       const unidadPayload: UnidadMedidaUpsertPayload = {
         idProducto: editProductId,
         umDescripcion: normalizedUnidadAlterna,
@@ -995,19 +1299,21 @@ export default function ProductFormBase({
         precioVenta: toTwoDecimals(preVentaUnidadAlterna),
         precioVentaB: 0,
         precioCosto: toTwoDecimals(precioCostoUnitario),
+        unidadImagen,
       };
+      const unidadFormData = buildUnidadMedidaFormData(
+        unidadPayload,
+        dialogData.unidadImagenFile,
+      );
 
       const upsertResponse = await apiRequest<
         { idUm?: number } | null,
-        UnidadMedidaUpsertPayload,
+        FormData,
         null
       >({
         url: `${API_BASE_URL}/Productos/unidad-medida`,
         method: "POST",
-        data: unidadPayload,
-        config: {
-          headers: { "Content-Type": "application/json" },
-        },
+        data: unidadFormData,
         fallback: null,
       });
 
@@ -1061,6 +1367,18 @@ export default function ProductFormBase({
       shouldDirty: true,
       shouldValidate: true,
     });
+    setValue(
+      "unidadImagenAlterna",
+      toDialogString(dialogData.unidadImagen, ""),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      },
+    );
+    setValue("unidadImagenAlternaFile", dialogData.unidadImagenFile ?? null, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     return true;
   };
 
@@ -1091,19 +1409,6 @@ export default function ProductFormBase({
       console.error("No se pudo iniciar la camara", error);
       setTakingPhoto(false);
     }
-  };
-
-  const dataUrlToFile = (dataUrl: string, fileName: string) => {
-    const arr = dataUrl.split(",");
-    const mimeMatch = arr[0]?.match(/:(.*?);/);
-    const mime = mimeMatch?.[1] ?? "image/png";
-    const bstr = atob(arr[1] ?? "");
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return new File([u8arr], fileName, { type: mime });
   };
 
   const takePhoto = () => {
@@ -1198,6 +1503,12 @@ export default function ProductFormBase({
       unidadesPorEmpaque: appliesOtherUnit ? unidadesPorEmpaque : null,
       preVentaUnidadAlterna: appliesOtherUnit ? preVentaUnidadAlterna : null,
       valorUMUnidadAlterna: appliesOtherUnit ? valorUMUnidadAlterna : null,
+      unidadImagenAlterna: appliesOtherUnit
+        ? toUnitImagePayload(values.unidadImagenAlterna)
+        : "",
+      unidadImagenAlternaFile: appliesOtherUnit
+        ? (values.unidadImagenAlternaFile ?? null)
+        : null,
     };
     const saved = await Promise.resolve(onSave(payload));
     if (saved === false) return;
@@ -1522,125 +1833,137 @@ export default function ProductFormBase({
                     />
                   </div>
 
-                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
-                    <HookFormAutocomplete<ProductFormValues>
-                      name="unidadMedida"
-                      label="Unidad de Medida"
-                      options={unidadMedidaOptions}
-                      placeholder="Selecciona o escribe una unidad"
-                      rules={{ required: "La unidad de medida es obligatoria" }}
-                      allowCreate
-                      showCreateOption={false}
-                      syncInputToValue
-                      className="w-full"
-                    />
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 md:items-start">
+                    <div className="space-y-3">
+                      <HookFormAutocomplete<ProductFormValues>
+                        name="unidadMedida"
+                        label="Unidad de Medida"
+                        options={unidadMedidaOptions}
+                        placeholder="Selecciona o escribe una unidad"
+                        rules={{ required: "La unidad de medida es obligatoria" }}
+                        allowCreate
+                        showCreateOption={false}
+                        syncInputToValue
+                        className="w-full"
+                      />
+                      <HookFormInput<ProductFormValues>
+                        name="preVenta"
+                        label="Precio de Venta"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        rules={{
+                          valueAsNumber: true,
+                          required: "El precio de venta es obligatorio",
+                          validate: (v) =>
+                            v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v) &&
+                            v > 0
+                              ? true
+                              : "El precio de venta debe ser mayor a 0",
+                        }}
+                      />
+                      <HookFormInput<ProductFormValues>
+                        name="cantidad"
+                        label="Cantidad en Stock"
+                        type="number"
+                        disabled={isServiceProduct}
+                        rules={{
+                          valueAsNumber: true,
+                          validate: (v) => {
+                            if (isServiceProduct) return true;
+                            return (
+                              (v !== undefined &&
+                                v !== null &&
+                                !Number.isNaN(v as number)) ||
+                              "La cantidad es obligatoria"
+                            );
+                          },
+                        }}
+                      />
+                      <HookFormInput<ProductFormValues>
+                        name="usuario"
+                        label="Usuario Responsable"
+                        disabled
+                      />
+                    </div>
 
-                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={aplicaOtraUnidad}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setValue("aplicaOtraUnidad", checked, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={aplicaOtraUnidad}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setValue("aplicaOtraUnidad", checked, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
 
-                              if (checked) {
-                                openOtherUnitModal();
-                                return;
-                              }
+                                if (checked) {
+                                  openOtherUnitModal();
+                                  return;
+                                }
 
-                              clearOtherUnitConfiguration();
-                            }}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          Aplica otra unidad
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => openOtherUnitModal()}
-                          disabled={!aplicaOtraUnidad}
-                          className="px-3 py-1.5 text-sm rounded-md border border-blue-200 bg-white text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          Configurar unidad
-                        </button>
+                                clearOtherUnitConfiguration();
+                              }}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            Aplica otra unidad
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => openOtherUnitModal()}
+                            disabled={!aplicaOtraUnidad}
+                            className="inline-flex h-10 items-center justify-center rounded-md border border-blue-200 bg-white px-3 text-sm text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Configurar unidad
+                          </button>
+                        </div>
+                        {aplicaOtraUnidad ? (
+                          <div className="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2.5">
+                            <p className="text-xs text-slate-500">
+                              Unidad alterna configurada
+                            </p>
+                            <p className="truncate text-sm font-semibold text-slate-800 uppercase">
+                              {unidadAlternaActual || "SIN DEFINIR"}
+                            </p>
+                          </div>
+                        ) : null}
                       </div>
+                      <HookFormInput<ProductFormValues>
+                        name="preCosto"
+                        label="Precio de Costo"
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        rules={{
+                          valueAsNumber: true,
+                          required: "El precio de costo es obligatorio",
+                          validate: (v) =>
+                            v !== undefined &&
+                            v !== null &&
+                            !Number.isNaN(v) &&
+                            v > 0
+                              ? true
+                              : "El precio de costo debe ser mayor a 0",
+                        }}
+                      />
+                      <HookFormSelect<ProductFormValues>
+                        name="estado"
+                        label="Estado del Producto"
+                        disabled={mode === "create"}
+                        options={[
+                          { value: "ACTIVO", label: "Activo" },
+                          { value: "INACTIVO", label: "Inactivo" },
+                        ]}
+                        rules={{ required: "El estado es obligatorio" }}
+                      />
                     </div>
                   </div>
-
-                  <HookFormInput<ProductFormValues>
-                    name="preVenta"
-                    label="Precio de Venta"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    rules={{
-                      valueAsNumber: true,
-                      required: "El precio de venta es obligatorio",
-                      validate: (v) =>
-                        v !== undefined &&
-                        v !== null &&
-                        !Number.isNaN(v) &&
-                        v > 0
-                          ? true
-                          : "El precio de venta debe ser mayor a 0",
-                    }}
-                  />
-                  <HookFormInput<ProductFormValues>
-                    name="preCosto"
-                    label="Precio de Costo"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    rules={{
-                      valueAsNumber: true,
-                      required: "El precio de costo es obligatorio",
-                      validate: (v) =>
-                        v !== undefined &&
-                        v !== null &&
-                        !Number.isNaN(v) &&
-                        v > 0
-                          ? true
-                          : "El precio de costo debe ser mayor a 0",
-                    }}
-                  />
-
-                  <HookFormInput<ProductFormValues>
-                    name="cantidad"
-                    label="Cantidad en Stock"
-                    type="number"
-                    disabled={isServiceProduct}
-                    rules={{
-                      valueAsNumber: true,
-                      validate: (v) => {
-                        if (isServiceProduct) return true;
-                        return (
-                          (v !== undefined &&
-                            v !== null &&
-                            !Number.isNaN(v as number)) ||
-                          "La cantidad es obligatoria"
-                        );
-                      },
-                    }}
-                  />
-                  <HookFormSelect<ProductFormValues>
-                    name="estado"
-                    label="Estado del Producto"
-                    disabled={mode === "create"}
-                    options={[
-                      { value: "ACTIVO", label: "Activo" },
-                      { value: "INACTIVO", label: "Inactivo" },
-                    ]}
-                    rules={{ required: "El estado es obligatorio" }}
-                  />
-                  <HookFormInput<ProductFormValues>
-                    name="usuario"
-                    label="Usuario Responsable"
-                    disabled
-                  />
                 </div>
                 <div className="border-t-2 border-gray-100">
                   <div className="space-y-5">

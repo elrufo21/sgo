@@ -53,7 +53,7 @@ BEGIN
       ISNULL(p.ProductoEstado, '') + '|' +  
       ISNULL(p.ProductoUsuario, '') + '|' +  
       ISNULL(CONVERT(VARCHAR(10), p.ProductoFecha, 23), '') + '|' +  
-      ISNULL(p.ProductoImagen, '') + '|' +  
+      ISNULL(u.unidadImagen, ISNULL(p.ProductoImagen, '')) + '|' +  
       ISNULL(CONVERT(VARCHAR(50), p.ValorCritico), '0') + '|' +  
       ISNULL(p.AplicaINV, '') AS RowText  
     FROM UnidadMedida u  

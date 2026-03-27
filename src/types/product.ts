@@ -1,4 +1,5 @@
 export interface ProductUnitOption {
+  unidad?: string;
   unidadMedida: string;
   cantidad: number;
   preCosto: number;
@@ -6,6 +7,7 @@ export interface ProductUnitOption {
   preVentaB: number | string;
   factor?: number;
   valorUM?: number;
+  unidadImagen?: string;
 }
 
 export interface Product {

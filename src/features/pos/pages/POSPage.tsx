@@ -307,6 +307,7 @@ const POSPage = () => {
           product.unidadMedida,
           variation,
         );
+        const variationImage = String(variation.unidadImagen ?? "").trim();
         const variationStock = deriveVariationStock(
           product.cantidad,
           product.unidadMedida,
@@ -323,6 +324,7 @@ const POSPage = () => {
           preCosto: Number(variation.preCosto ?? product.preCosto ?? 0),
           preVenta: Number(variation.preVenta ?? product.preVenta ?? 0),
           preVentaB: Number(variation.preVentaB ?? product.preVentaB ?? 0),
+          images: variationImage ? [variationImage] : product.images ?? [],
           catalogKey: `var-${product.id}-${index}`,
         });
       });
@@ -486,6 +488,25 @@ const POSPage = () => {
     });
 
   const productColumns = [
+    columnHelper.display({
+      id: "imagen",
+      header: "Img",
+      cell: ({ row }) => {
+        const image = row.original.images?.[0];
+        if (!image) {
+          return (
+            <div className="h-9 w-9 rounded-md border border-slate-200 bg-slate-100" />
+          );
+        }
+        return (
+          <img
+            src={image}
+            alt={row.original.nombre}
+            className="h-9 w-9 rounded-md border border-slate-200 object-cover"
+          />
+        );
+      },
+    }),
     columnHelper.accessor("codigo", {
       header: "Código",
       cell: (info) => info.getValue(),

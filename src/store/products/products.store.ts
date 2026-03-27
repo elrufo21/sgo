@@ -28,6 +28,8 @@ interface ApiProduct {
   aplicaINV?: string | null;
   cantidadANT?: number | null;
   fechaModCant?: string | null;
+  unidadImagen?: string | null;
+  UnidadImagen?: string | null;
 }
 
 interface ProductsState {
@@ -38,6 +40,7 @@ interface ProductsState {
     product: Omit<Product, "id"> & {
       imageFile?: File | null;
       imageRemoved?: boolean;
+      unidadImagenAlternaFile?: File | null;
     },
   ) => Promise<boolean>;
   updateProduct: (
@@ -45,6 +48,7 @@ interface ProductsState {
     data: Omit<Product, "id"> & {
       imageFile?: File | null;
       imageRemoved?: boolean;
+      unidadImagenAlternaFile?: File | null;
     },
   ) => Promise<boolean>;
   deleteProduct: (id: number) => Promise<boolean>;
@@ -90,6 +94,13 @@ const normalizeSegment = (value: unknown) =>
   String(value ?? "")
     .replace(/[|;\[\]\r\n]/g, " ")
     .trim();
+const normalizePersistedImageSegment = (value: unknown) => {
+  const normalized = normalizeSegment(value);
+  if (!normalized) return "";
+  const lower = normalized.toLowerCase();
+  if (lower.startsWith("blob:") || lower.startsWith("data:")) return "";
+  return normalized;
+};
 const normalizeUpperSegment = (value: unknown) =>
   normalizeSegment(value).toLocaleUpperCase("es-PE");
 
@@ -234,6 +245,14 @@ const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => {
     rawItem.valorUM ?? rawItem.factor ?? rawItem.ValorUM ?? rawItem.Factor,
     0,
   );
+  const unidadImagen = String(
+    rawItem.unidadImagen ??
+      rawItem.UnidadImagen ??
+      item.unidadImagen ??
+      item.UnidadImagen ??
+      item.productoImagen ??
+      "",
+  ).trim();
 
   return {
     unidadMedida: (item.productoUM ?? "").trim(),
@@ -243,6 +262,7 @@ const mapApiToUnitOption = (item: ApiProduct): ProductUnitOption => {
     preVentaB: 0,
     factor: factorValue > 0 ? factorValue : undefined,
     valorUM: factorValue > 0 ? factorValue : undefined,
+    unidadImagen: unidadImagen || undefined,
   };
 };
 
@@ -361,6 +381,8 @@ const buildProductDataString = (
     imageRemoved?: boolean;
     aplicaOtraUnidad?: boolean;
     unidadAlterna?: string;
+    unidadImagenAlterna?: string;
+    unidadImagenAlternaFile?: File | null;
     unidadesPorEmpaque?: number | null;
     preVentaUnidadAlterna?: number | null;
     valorUMUnidadAlterna?: number | null;
@@ -370,6 +392,7 @@ const buildProductDataString = (
       factor?: number;
       valorUM?: number;
       preVenta?: number;
+      unidadImagen?: string;
     }>;
   },
   payload: ApiProduct,
@@ -404,6 +427,7 @@ const buildProductDataString = (
           unidad: normalizeUpperSegment(row?.unidad ?? row?.unidadMedida ?? ""),
           factor: toNumberValue(row?.factor ?? row?.valorUM, 0),
           preVenta: toNumberValue(row?.preVenta, 0),
+          unidadImagen: normalizePersistedImageSegment(row?.unidadImagen ?? ""),
         }))
         .filter((row) => row.unidad !== "" && row.factor > 0)
     : [];
@@ -414,6 +438,9 @@ const buildProductDataString = (
   const fallbackPreVentaUnidadAlterna = toNumberValue(
     product.preVentaUnidadAlterna,
     0,
+  );
+  const fallbackUnidadImagenAlterna = normalizePersistedImageSegment(
+    product.unidadImagenAlterna ?? "",
   );
   const fallbackUnidadNormalizada = fallbackUnidad || "UNIDAD";
   const resolveDivisor = (factor: number, explicitUnitsPerPackage = 0) => {
@@ -426,12 +453,13 @@ const buildProductDataString = (
   const selectedUnit =
     fromArray[0] ??
     (fallbackFactor > 0
-      ? {
-          unidad: fallbackUnidadNormalizada,
-          factor: fallbackFactor,
-          divisor: resolveDivisor(fallbackFactor, fallbackUnitsPerPackage),
-          preVenta: fallbackPreVentaUnidadAlterna,
-        }
+        ? {
+            unidad: fallbackUnidadNormalizada,
+            factor: fallbackFactor,
+            divisor: resolveDivisor(fallbackFactor, fallbackUnitsPerPackage),
+            preVenta: fallbackPreVentaUnidadAlterna,
+            unidadImagen: fallbackUnidadImagenAlterna || imageFromPayload,
+          }
       : null);
 
   if (!product.aplicaOtraUnidad || !selectedUnit) {
@@ -449,6 +477,9 @@ const buildProductDataString = (
       : toNumberValue(payload.productoVenta, 0) / unitDivisor;
   const detailVentaB = toNumberValue(payload.productoVentaB, 0) / unitDivisor;
   const detailCosto = toNumberValue(payload.productoCosto, 0) / unitDivisor;
+  const detailUnidadImagen = normalizePersistedImageSegment(
+    (selectedUnit as { unidadImagen?: unknown }).unidadImagen ?? imageFromPayload,
+  );
 
   const detail = [
     selectedUnit.unidad,
@@ -456,6 +487,7 @@ const buildProductDataString = (
     formatDecimal(detailVenta, 2),
     formatDecimal(detailVentaB, 2),
     formatDecimal(detailCosto, 2),
+    detailUnidadImagen,
   ].join("|");
 
   return `${header}[${detail}]`;
@@ -469,6 +501,8 @@ const buildProductFormData = (
     imageRemoved?: boolean;
     aplicaOtraUnidad?: boolean;
     unidadAlterna?: string;
+    unidadImagenAlterna?: string;
+    unidadImagenAlternaFile?: File | null;
     unidadesPorEmpaque?: number | null;
     preVentaUnidadAlterna?: number | null;
     valorUMUnidadAlterna?: number | null;
@@ -478,6 +512,7 @@ const buildProductFormData = (
       factor?: number;
       valorUM?: number;
       preVenta?: number;
+      unidadImagen?: string;
     }>;
   },
   idOverride?: number,
@@ -499,6 +534,9 @@ const buildProductFormData = (
 
   if (product.imageFile instanceof File) {
     formData.append("imagen", product.imageFile);
+  }
+  if (product.unidadImagenAlternaFile instanceof File) {
+    formData.append("imagenUnidad", product.unidadImagenAlternaFile);
   }
   if (product.imageRemoved) {
     formData.append("eliminarImagen", "true");
