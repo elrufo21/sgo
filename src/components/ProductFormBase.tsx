@@ -808,6 +808,7 @@ export default function ProductFormBase({
 
   const openOtherUnitModal = (modalError?: string) => {
     const unidadPrincipal = normalizeUnitLabel(getValues("unidadMedida"));
+    const nombreProducto = String(getValues("nombre") ?? "").trim();
     const unidadAlterna = normalizeUnitLabel(getValues("unidadAlterna"));
     const unidadesPorEmpaque = getValues("unidadesPorEmpaque");
     const unidadesPorEmpaqueDraft = parseUnitsPerPackage(unidadesPorEmpaque);
@@ -846,7 +847,9 @@ export default function ProductFormBase({
     };
 
     openDialog({
-      title: "Configurar contenido por unidad principal",
+      title: nombreProducto
+        ? `Unidad alternativa de ${nombreProducto}`
+        : "Configurar contenido por unidad principal",
       content: <OtherUnitDialogContent />,
       confirmText: "Guardar unidad",
       cancelText: "Cancelar",

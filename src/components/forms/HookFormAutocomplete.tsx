@@ -238,18 +238,6 @@ export function HookFormAutocomplete<
       return direction === "left" ? start === 0 : end === input.value.length;
     };
 
-    if (event.key === "ArrowUp" && !isPopupOpen) {
-      event.preventDefault();
-      focusPreviousInput(source);
-      return;
-    }
-
-    if (event.key === "ArrowDown" && !isPopupOpen) {
-      event.preventDefault();
-      focusNextInput(source);
-      return;
-    }
-
     if (
       event.key === "ArrowLeft" &&
       !isPopupOpen &&
