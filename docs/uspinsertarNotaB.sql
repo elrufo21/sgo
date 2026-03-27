@@ -514,9 +514,67 @@ Fetch Next From Tabla INTO @Columna
 end                                    
  Close Tabla;                                    
  Deallocate Tabla;              
-               
- Commit Transaction;                  
- select convert(varchar,@NotaId)+'¬'+@cod                  
-                                 
+if(len(@Guia)>0 AND @NotaEstado<>'PENDIENTE')                  
+begin                  
+Declare TablaB Cursor For Select * From fnSplitString(@Guia,';')                   
+Open TablaB                  
+Declare @ColumnaB varchar(max)                
+Declare @g1 int,@g2 int,                
+        @g3 int,@g4 int,@g5 int                
+                
+Declare @CantidadA decimal(18,2),                 
+        @IdProductoU numeric(20),                                 
+        @CantidadU decimal(18,2),                                    
+        @Um varchar(40),                                                                   
+        @ValorUMU decimal(18,4)                
+                
+Declare @IniciaStockB decimal(18,2),                
+        @StockFinalB decimal(18,2)                
+                          
+Fetch Next From TablaB INTO @ColumnaB                  
+ While @@FETCH_STATUS = 0                  
+ Begin                  
+Set @g1 = CharIndex('|',@ColumnaB,0)                                   
+Set @g2 = CharIndex('|',@ColumnaB,@g1+1)                                    
+Set @g3 = CharIndex('|',@ColumnaB,@g2+1)                                    
+Set @g4 = CharIndex('|',@ColumnaB,@g3+1)                                    
+Set @g5=Len(@ColumnaB)+1                   
+                 
+set @CantidadA=Convert(decimal(18,2),SUBSTRING(@ColumnaB,1,@g1-1))                
+Set @IdProductoU=Convert(numeric(20),SUBSTRING(@ColumnaB,@g1+1,@g2-(@g1+1)))                
+Set @CantidadU=Convert(decimal(18,2),SUBSTRING(@ColumnaB,@g2+1,@g3-(@g2+1)))                  
+Set @Um=SUBSTRING(@ColumnaB,@g3+1,@g4-(@g3+1))                  
+Set @ValorUMU=Convert(decimal(18,4),SUBSTRING(@ColumnaB,@g4+1,@g5-(@g4+1)))                      
+                
+ Declare @CantidadSalB decimal(18,2)                 
+                
+ set @CantidadSalB=(@CantidadA * @CantidadU)* @ValorUMU                            
+                                
+ set @IniciaStockB=(select top 1 p.ProductoCantidad                 
+ from Producto p where p.IdProducto=@IdProductoU)                                    
+                 
+ set @StockFinalB=@IniciaStockB-@CantidadSalB                                   
+                             
+ insert into Kardex values(@IdProductoU,GETDATE(),'Salida por Venta',@Serie+'-'+@cod,@IniciaStockB,                                    
+ 0,@CantidadSalB,0,@StockFinalB,'SALIDA',@NotaUsuario)                                    
+                               
+ update producto                              
+ set  ProductoCantidad =ProductoCantidad - @CantidadSalB                                  
+ where IDProducto=@IdProductoU                    
+                
+Fetch Next From TablaB INTO @ColumnaB                  
+end                  
+    Close TablaB;                  
+    Deallocate TablaB;                  
+    Commit Transaction;                  
+    select convert(varchar,@NotaId)+'¬'+@cod                  
+end                  
+else                  
+begin                  
+    Commit Transaction;                  
+    select convert(varchar,@NotaId)+'¬'+@cod                  
+end                  
+                                  
+  
 END   
 END    

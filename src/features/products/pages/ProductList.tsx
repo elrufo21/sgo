@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { CrudList } from "@/components/ListView";
 import { useProductsStore } from "@/store/products/products.store";
 import type { Product } from "@/types/product";
+import type { ProductUnitOption } from "@/types/product";
 
 const ProductList = () => {
   const { products, fetchProducts, deleteProduct } = useProductsStore();
@@ -36,6 +37,54 @@ const ProductList = () => {
     amountFormatter.format(Number.isFinite(value) ? value : 0);
   const formatCurrency = (value: number | string) =>
     ` ${formatAmount(Number(value) || 0)}`;
+  const stockFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("en-US", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 6,
+      }),
+    [],
+  );
+  const formatStock = (value: number) =>
+    stockFormatter.format(Number.isFinite(value) ? value : 0);
+
+  const normalizeUnitLabel = (value: unknown) =>
+    String(value ?? "").trim().toUpperCase();
+  const getReductionValue = (_row: Product, um: ProductUnitOption) => {
+    const rawFactor = Number(um.valorUM ?? um.factor ?? 0);
+    if (Number.isFinite(rawFactor) && rawFactor > 0) {
+      return rawFactor;
+    }
+    return NaN;
+  };
+  const getAltStockForDisplay = (row: Product, um: ProductUnitOption) => {
+    const baseStock = Number(row.cantidad ?? 0);
+    const safeBaseStock =
+      Number.isFinite(baseStock) && baseStock >= 0 ? baseStock : 0;
+    const rawAltStock = Number(um.cantidad ?? 0);
+    const safeAltStock =
+      Number.isFinite(rawAltStock) && rawAltStock >= 0 ? rawAltStock : 0;
+
+    const principalUnit = normalizeUnitLabel(row.unidadMedida);
+    const altUnit = normalizeUnitLabel(um.unidadMedida);
+    const hasDifferentUnit =
+      principalUnit !== "" && altUnit !== "" && principalUnit !== altUnit;
+    const looksUnconverted =
+      hasDifferentUnit &&
+      Math.abs(safeAltStock - safeBaseStock) < 0.000001 &&
+      safeBaseStock > 0;
+
+    if (!looksUnconverted && safeAltStock > 0) {
+      return safeAltStock;
+    }
+
+    const reductionValue = getReductionValue(row, um);
+    if (Number.isFinite(reductionValue) && reductionValue > 0) {
+      return safeBaseStock / reductionValue;
+    }
+
+    return safeAltStock;
+  };
 
   const isBienProduct = useCallback((product: Product) => {
     const type = String(product.aplicaINV ?? "")
@@ -121,7 +170,8 @@ const ProductList = () => {
             <div className="space-y-0.5 text-xs text-slate-600">
               {row.unidadesAlternas.map((um) => (
                 <div key={`${row.id}-${um.unidadMedida}`}>
-                  {um.unidadMedida}: Stock {um.cantidad} | Venta{" "}
+                  {um.unidadMedida}: Stock{" "}
+                  {formatStock(getAltStockForDisplay(row, um))} | Venta{" "}
                   {formatCurrency(um.preVenta)}
                 </div>
               ))}

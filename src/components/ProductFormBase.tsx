@@ -62,34 +62,25 @@ const deriveInitialUnitsPerPackage = (
   if (!initialData || !altRow) return null;
 
   const explicitFactor = toSafePositiveNumber(altRow.factor ?? altRow.valorUM);
-  if (explicitFactor > 1) {
-    return Number(explicitFactor.toFixed(2));
+  if (explicitFactor > 0) {
+    // valorUM representa cuánto de unidad principal consume 1 unidad alterna.
+    // Ej: 1 UNIDAD = 0.05 CAJA => cantidad por CAJA = 1 / 0.05 = 20.
+    const unitsPerPackage =
+      explicitFactor < 1 ? 1 / explicitFactor : explicitFactor;
+    if (Number.isFinite(unitsPerPackage) && unitsPerPackage > 1) {
+      return Number(unitsPerPackage.toFixed(2));
+    }
   }
 
   const baseStock = toSafePositiveNumber(initialData.cantidad);
   const altStock = toSafePositiveNumber(altRow.cantidad);
   if (baseStock > 0 && altStock > 0) {
-    const byStock = baseStock / altStock;
-    if (Number.isFinite(byStock) && byStock > 1) {
-      return Number(byStock.toFixed(2));
-    }
-  }
-
-  const baseVenta = toSafePositiveNumber(initialData.preVenta);
-  const altVenta = toSafePositiveNumber(altRow.preVenta);
-  if (baseVenta > 0 && altVenta > 0) {
-    const byVenta = baseVenta / altVenta;
-    if (Number.isFinite(byVenta) && byVenta > 1) {
-      return Number(byVenta.toFixed(2));
-    }
-  }
-
-  const baseCosto = toSafePositiveNumber(initialData.preCosto);
-  const altCosto = toSafePositiveNumber(altRow.preCosto);
-  if (baseCosto > 0 && altCosto > 0) {
-    const byCosto = baseCosto / altCosto;
-    if (Number.isFinite(byCosto) && byCosto > 1) {
-      return Number(byCosto.toFixed(2));
+    const stockRatio = baseStock / altStock;
+    if (Number.isFinite(stockRatio) && stockRatio > 0) {
+      const unitsPerPackage = stockRatio > 1 ? stockRatio : 1 / stockRatio;
+      if (Number.isFinite(unitsPerPackage) && unitsPerPackage > 1) {
+        return Number(unitsPerPackage.toFixed(2));
+      }
     }
   }
 
@@ -113,7 +104,6 @@ type OtherUnitDialogData = {
   unidadAlterna: string;
   unidadesPorEmpaque: string;
   preVentaUnidadAlterna: string;
-  valorUM: string;
   preVenta: number;
   preCosto: number;
   error: string;
@@ -161,7 +151,6 @@ const parseOtherUnitDialogData = (
       source.preVentaUnidadAlterna,
       fallback?.preVentaUnidadAlterna ?? "",
     ),
-    valorUM: toDialogString(source.valorUM, fallback?.valorUM ?? ""),
     preVenta: toSafePositiveNumber(source.preVenta ?? fallback?.preVenta ?? 0),
     preCosto: toSafePositiveNumber(source.preCosto ?? fallback?.preCosto ?? 0),
     error: toDialogString(source.error, fallback?.error ?? ""),
@@ -211,8 +200,7 @@ function OtherUnitDialogContent() {
   const precioVentaUnitarioDraft = toSafePositiveNumber(
     dialogData.preVentaUnidadAlterna,
   );
-  const valorUMDraft = parseUnitsPerPackage(dialogData.valorUM);
-  const valorUMSugerido =
+  const valorUMCalculado =
     unidadesPorEmpaqueDraft > 0 ? 1 / unidadesPorEmpaqueDraft : 0;
   const precioVentaUnitarioSugerido =
     unidadesPorEmpaqueDraft > 0
@@ -224,11 +212,7 @@ function OtherUnitDialogContent() {
       : 0;
 
   const updateField = (
-    field:
-      | "unidadAlterna"
-      | "unidadesPorEmpaque"
-      | "preVentaUnidadAlterna"
-      | "valorUM",
+    field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna",
     value: string,
   ) => {
     const normalizedValue =
@@ -263,39 +247,21 @@ function OtherUnitDialogContent() {
   }, []);
 
   const handleFieldBlur =
-    (
-      field:
-        | "unidadAlterna"
-        | "unidadesPorEmpaque"
-        | "preVentaUnidadAlterna"
-        | "valorUM",
-    ) =>
+    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
     (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
     };
 
   const handleFieldCompositionEnd =
-    (
-      field:
-        | "unidadAlterna"
-        | "unidadesPorEmpaque"
-        | "preVentaUnidadAlterna"
-        | "valorUM",
-    ) =>
+    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
     (event: React.CompositionEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
     };
 
   const handleFieldInput =
-    (
-      field:
-        | "unidadAlterna"
-        | "unidadesPorEmpaque"
-        | "preVentaUnidadAlterna"
-        | "valorUM",
-    ) =>
+    (field: "unidadAlterna" | "unidadesPorEmpaque" | "preVentaUnidadAlterna") =>
     (event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       const target = event.target as HTMLInputElement | HTMLTextAreaElement;
       updateField(field, target.value ?? "");
@@ -326,7 +292,7 @@ function OtherUnitDialogContent() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <TextField
           fullWidth
           autoFocus
@@ -395,41 +361,6 @@ function OtherUnitDialogContent() {
           fullWidth
           size="small"
           type="number"
-          label={`Valor por ${unidadBaseDraft}`}
-          value={dialogData.valorUM}
-          onChange={(event) => {
-            updateField("valorUM", event.target.value);
-          }}
-          onBlur={handleFieldBlur("valorUM")}
-          onInput={handleFieldInput("valorUM")}
-          onCompositionEnd={handleFieldCompositionEnd("valorUM")}
-          onKeyDown={handleNumberFieldKeyDown}
-          placeholder="Ej: 0.05"
-          autoComplete="off"
-          sx={{
-            ...sharedDialogInputSx,
-            "& input[type=number]": {
-              MozAppearance: "textfield",
-            },
-            "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
-              {
-                WebkitAppearance: "none",
-                margin: 0,
-              },
-          }}
-          inputProps={{
-            min: 0.0001,
-            step: 0.0001,
-            "data-auto-next": "true",
-            "data-no-history-guard": "true",
-            autoComplete: "new-password",
-          }}
-        />
-
-        <TextField
-          fullWidth
-          size="small"
-          type="number"
           label={`Precio venta por ${unidadBaseDraft}`}
           value={dialogData.preVentaUnidadAlterna}
           onChange={(event) => {
@@ -482,11 +413,12 @@ function OtherUnitDialogContent() {
             {formatMoney(precioCostoUnitarioPreview)}
           </p>
           <p className="text-xs text-slate-500">
-            Valor por {unidadBaseDraft} actual:{" "}
-            {Number.isFinite(valorUMDraft) && valorUMDraft > 0
-              ? Number(valorUMDraft.toFixed(6))
-              : 0}{" "}
-            | Sugerido: {Number(valorUMSugerido.toFixed(6))}
+            Valor a reducir (1/
+            {Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
+              ? Number(unidadesPorEmpaqueDraft.toFixed(2))
+              : 0}
+            ):{" "}
+            {Number(valorUMCalculado.toFixed(6))}
           </p>
         </div>
       </div>
@@ -882,25 +814,14 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       getValues("preVentaUnidadAlterna"),
     );
-    const valorUMUnidadAlterna = parseUnitsPerPackage(
-      getValues("valorUMUnidadAlterna"),
-    );
     const preVentaUnidadAlternaSugerida =
       Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
         ? preVentaActual / unidadesPorEmpaqueDraft
         : 0;
-    const valorUMSugerido =
-      Number.isFinite(unidadesPorEmpaqueDraft) && unidadesPorEmpaqueDraft > 0
-        ? 1 / unidadesPorEmpaqueDraft
-        : 1;
     const preVentaUnidadAlternaInicial =
       preVentaUnidadAlterna > 0
         ? preVentaUnidadAlterna
         : preVentaUnidadAlternaSugerida;
-    const valorUMInicial =
-      Number.isFinite(valorUMUnidadAlterna) && valorUMUnidadAlterna > 0
-        ? valorUMUnidadAlterna
-        : valorUMSugerido;
     const unidadBaseDefault =
       unidadAlterna &&
       unidadPrincipal &&
@@ -919,8 +840,6 @@ export default function ProductFormBase({
         preVentaUnidadAlternaInicial > 0
           ? String(Number(preVentaUnidadAlternaInicial.toFixed(2)))
           : "",
-      valorUM:
-        valorUMInicial > 0 ? String(Number(valorUMInicial.toFixed(6))) : "1",
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: typeof modalError === "string" ? modalError : "",
@@ -974,17 +893,12 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       getValues("preVentaUnidadAlterna"),
     );
-    const valorUMUnidadAlterna = parseUnitsPerPackage(
-      getValues("valorUMUnidadAlterna"),
-    );
     const hasValidConfig =
       !!unidadBase &&
       Number.isFinite(unidadesPorEmpaque) &&
       unidadesPorEmpaque > 1 &&
       unidadBase.toLowerCase() !== unidadPrincipal.toLowerCase() &&
-      preVentaUnidadAlterna > 0 &&
-      Number.isFinite(valorUMUnidadAlterna) &&
-      valorUMUnidadAlterna > 0;
+      preVentaUnidadAlterna > 0;
 
     if (appliesOtherUnit && !hasValidConfig) {
       clearOtherUnitConfiguration();
@@ -1001,7 +915,6 @@ export default function ProductFormBase({
         getValues("preVentaUnidadAlterna"),
         "",
       ),
-      valorUM: toDialogString(getValues("valorUMUnidadAlterna"), ""),
       preVenta: preVentaActual,
       preCosto: preCostoActual,
       error: "",
@@ -1018,7 +931,7 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       dialogData.preVentaUnidadAlterna,
     );
-    const valorUM = parseUnitsPerPackage(dialogData.valorUM);
+    const valorUM = unidadesPorEmpaque > 0 ? 1 / unidadesPorEmpaque : 0;
 
     if (!unidadPrincipal) {
       setDialogData({
@@ -1056,14 +969,6 @@ export default function ProductFormBase({
       setDialogData({
         ...dialogData,
         error: `Ingresa un precio de venta valido para ${unidadAlterna}.`,
-      });
-      return false;
-    }
-
-    if (!Number.isFinite(valorUM) || valorUM <= 0) {
-      setDialogData({
-        ...dialogData,
-        error: `Ingresa un valor por ${unidadAlterna} valido y mayor a 0.`,
       });
       return false;
     }
@@ -1254,7 +1159,10 @@ export default function ProductFormBase({
     const preVentaUnidadAlterna = toSafePositiveNumber(
       values.preVentaUnidadAlterna,
     );
-    const valorUMUnidadAlterna = parseUnitsPerPackage(values.valorUMUnidadAlterna);
+    const valorUMUnidadAlterna =
+      Number.isFinite(unidadesPorEmpaque) && unidadesPorEmpaque > 0
+        ? Number((1 / unidadesPorEmpaque).toFixed(6))
+        : NaN;
 
     if (
       appliesOtherUnit &&
@@ -1268,7 +1176,7 @@ export default function ProductFormBase({
         valorUMUnidadAlterna <= 0)
     ) {
       openOtherUnitModal(
-        "Configura una unidad base valida, cuantas unidades contiene la unidad principal, su precio de venta y su valor por unidad base antes de guardar.",
+        "Configura una unidad base valida, cuantas unidades contiene la unidad principal y su precio de venta antes de guardar.",
       );
       return;
     }

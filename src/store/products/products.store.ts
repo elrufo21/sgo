@@ -267,15 +267,14 @@ const groupProductsByHeader = (items: ApiProduct[]): Product[] => {
       const rows = grouped.get(id) ?? [];
       if (!rows.length) return null;
 
-      // Prefer the row with highest stock as header (typically unidad principal).
-      const headerRow = rows.reduce((best, current) => {
-        const bestQty = toNumberValue(best.productoCantidad, 0);
-        const currentQty = toNumberValue(current.productoCantidad, 0);
-        return currentQty > bestQty ? current : best;
-      }, rows[0]);
+      // El SP devuelve primero la fila base (unidad principal), luego alternas.
+      // Mantener ese orden evita invertir principal/secundaria cuando la alterna
+      // tiene stock convertido mayor.
+      const headerRow = rows[0];
 
       const header = mapApiToProduct(headerRow);
       const headerUm = (headerRow.productoUM ?? "").trim().toLowerCase();
+      const headerQty = toNumberValue(headerRow.productoCantidad, 0);
 
       const alternativas = rows
         .filter((row) => row !== headerRow)
@@ -283,7 +282,30 @@ const groupProductsByHeader = (items: ApiProduct[]): Product[] => {
           const um = (row.productoUM ?? "").trim().toLowerCase();
           return um !== "" && um !== headerUm;
         })
-        .map(mapApiToUnitOption);
+        .map(mapApiToUnitOption)
+        .map((row) => {
+          const explicitFactor = toNumberValue(row.valorUM ?? row.factor, 0);
+          if (explicitFactor > 0) {
+            return {
+              ...row,
+              factor: Number(explicitFactor.toFixed(6)),
+              valorUM: Number(explicitFactor.toFixed(6)),
+            };
+          }
+
+          const altQty = toNumberValue(row.cantidad, 0);
+          const derivedFactor =
+            headerQty > 0 && altQty > 0 ? headerQty / altQty : 0;
+          if (derivedFactor > 0) {
+            return {
+              ...row,
+              factor: Number(derivedFactor.toFixed(6)),
+              valorUM: Number(derivedFactor.toFixed(6)),
+            };
+          }
+
+          return row;
+        });
 
       const uniqueAlternativas = alternativas.filter((row, idx, list) => {
         const key = row.unidadMedida.trim().toLowerCase();
