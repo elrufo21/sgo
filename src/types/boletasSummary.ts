@@ -65,6 +65,10 @@ export interface BoletaSummarySendDetailPayload {
 export interface BoletaSummarySendPayload {
   NRO_DOCUMENTO_EMPRESA: string;
   RAZON_SOCIAL: string;
+  USUARIO?: string;
+  Usuario?: string;
+  usuario?: string;
+  USUARIO_REGISTRO?: string;
   TIPO_DOCUMENTO: string;
   CODIGO: string;
   SERIE: string;

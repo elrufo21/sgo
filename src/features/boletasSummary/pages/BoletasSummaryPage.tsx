@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  buildBoletasCsv,
   calculateBoletaTotals,
   parseAmount,
 } from "../boletasSummary.utils";
@@ -69,6 +68,8 @@ const normalizeSerieNumero = (value: string) => {
 
 type BoletasSummarySession = {
   user?: {
+    username?: string | null;
+    displayName?: string | null;
     companyId?: string | number | null;
     companyRuc?: string | null;
     companyName?: string | null;
@@ -82,6 +83,7 @@ type BoletasSummarySession = {
   companiaRuc?: string | null;
   razonSocial?: string | null;
   loginPayload?: {
+    usuario?: string | null;
     companiaId?: string | number | null;
     companiaRuc?: string | null;
     razonSocial?: string | null;
@@ -167,11 +169,10 @@ export default function BoletasSummaryPage() {
           acc.count += 1;
           acc.subTotal += parseAmount(row.subTotal);
           acc.igv += parseAmount(row.igv);
-          acc.icbper += parseAmount(row.icbper);
           acc.total += parseAmount(row.total);
           return acc;
         },
-        { count: 0, subTotal: 0, igv: 0, icbper: 0, total: 0 },
+        { count: 0, subTotal: 0, igv: 0, total: 0 },
       ),
     [filteredSentRows],
   );
@@ -208,22 +209,6 @@ export default function BoletasSummaryPage() {
     requestSentSummaries();
   }, [requestSentSummaries]);
 
-  const handleConsultSentSummary = useCallback(
-    (row: BoletaSummarySentRecord) => {
-      const detail = [
-        safeTrim(row.serie) && `Serie: ${safeTrim(row.serie)}`,
-        safeTrim(row.ticket) && `Ticket: ${safeTrim(row.ticket)}`,
-        safeTrim(row.codigoSunat) && `Código: ${safeTrim(row.codigoSunat)}`,
-        safeTrim(row.mensaje) && `Mensaje: ${safeTrim(row.mensaje)}`,
-      ]
-        .filter(Boolean)
-        .join(" | ");
-
-      toast.info(detail || "Sin detalle adicional del resumen.");
-    },
-    [],
-  );
-
   const handleSendSummary = useCallback(async () => {
     if (!filteredRows.length) {
       toast.info("No hay boletas pendientes para enviar.");
@@ -248,6 +233,9 @@ export default function BoletasSummaryPage() {
 
     const user = parsedSession?.user ?? {};
     const loginPayload = parsedSession?.loginPayload ?? {};
+    const currentUser = safeTrim(
+      user.displayName ?? loginPayload.usuario ?? user.username,
+    );
     const companyId = Number(
       user.companyId ??
         parsedSession?.companiaId ??
@@ -314,6 +302,10 @@ export default function BoletasSummaryPage() {
           parsedSession?.razonSocial ??
           loginPayload.razonSocial,
       ),
+      USUARIO: currentUser || "SISTEMA",
+      Usuario: currentUser || "SISTEMA",
+      usuario: currentUser || "SISTEMA",
+      USUARIO_REGISTRO: currentUser || "SISTEMA",
       TIPO_DOCUMENTO: "6",
       CODIGO: "RC",
       SERIE: serieResumen,
@@ -404,28 +396,6 @@ export default function BoletasSummaryPage() {
     totals.total,
   ]);
 
-  const handleExportCsv = useCallback(() => {
-    if (!filteredRows.length) {
-      toast.info("No hay boletas para exportar.");
-      return;
-    }
-
-    const csv = buildBoletasCsv(filteredRows);
-    const fileDate =
-      referenceDate !== "-" ? referenceDate.replaceAll("/", "-") : "sin-fecha";
-    const fileName = `resumen-boletas_${fileDate}.csv`;
-
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1200);
-  }, [filteredRows, referenceDate]);
-
   const handleExportSentCsv = useCallback(() => {
     if (!filteredSentRows.length) {
       toast.info("No hay resúmenes enviados para exportar.");
@@ -487,7 +457,7 @@ export default function BoletasSummaryPage() {
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
   }, [filteredSentRows, sentDateFrom, sentDateTo]);
 
-  const columns = useMemo<ColumnDef<BoletaSummaryDocument, unknown>[]>(
+  const columns = useMemo(
     () => [
       columnHelper.accessor("notaId", {
         header: "NotaId",
@@ -553,18 +523,17 @@ export default function BoletasSummaryPage() {
     [],
   );
 
-  const sentColumns = useMemo<ColumnDef<BoletaSummarySentRecord, unknown>[]>(
+  const sentColumns = useMemo(
     () => [
       sentColumnHelper.display({
         id: "consultar",
         header: "Consultar",
-        cell: ({ row }) => (
+        cell: () => (
           <button
             type="button"
-            className="text-sm font-medium text-blue-600 hover:underline"
-            onClick={() => handleConsultSentSummary(row.original)}
+            className="text-sm font-medium text-blue-600"
           >
-            Ver
+            Consultar
           </button>
         ),
       }),
@@ -591,11 +560,6 @@ export default function BoletasSummaryPage() {
       }),
       sentColumnHelper.accessor("igv", {
         header: "IGV",
-        cell: (info) => info.getValue(),
-        meta: { tdClassName: "text-right", align: "right" },
-      }),
-      sentColumnHelper.accessor("icbper", {
-        header: "ICBPER",
         cell: (info) => info.getValue(),
         meta: { tdClassName: "text-right", align: "right" },
       }),
@@ -659,7 +623,7 @@ export default function BoletasSummaryPage() {
         cell: (info) => info.getValue() || "-",
       }),
     ],
-    [handleConsultSentSummary],
+    [],
   );
 
   return (
@@ -708,7 +672,9 @@ export default function BoletasSummaryPage() {
         ) : (
           <DataTable
             data={documents}
-            columns={columns}
+            columns={
+              columns as unknown as ColumnDef<BoletaSummaryDocument, unknown>[]
+            }
             filterKeys={[
               "notaId",
               "serieNumero",
@@ -762,14 +728,6 @@ export default function BoletasSummaryPage() {
                     <RefreshCw className="h-4 w-4" />
                     Actualizar
                   </button>
-                  <button
-                    type="button"
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-100 sm:w-auto"
-                    onClick={handleExportCsv}
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Exportar CSV
-                  </button>
                 </div>
               </div>
             }
@@ -809,7 +767,12 @@ export default function BoletasSummaryPage() {
       ) : (
         <DataTable
           data={sentSummaries}
-          columns={sentColumns}
+          columns={
+            sentColumns as unknown as ColumnDef<
+              BoletaSummarySentRecord,
+              unknown
+            >[]
+          }
           isLoading={sentSummariesLoading}
           emptyMessage="No hay resúmenes enviados en el rango seleccionado."
           filterKeys={[
@@ -890,7 +853,7 @@ export default function BoletasSummaryPage() {
           }
           footerContent={
             <div className="flex w-full justify-end">
-              <div className="grid w-full grid-cols-2 gap-2 text-sm lg:w-auto lg:grid-cols-5">
+              <div className="grid w-full grid-cols-2 gap-2 text-sm lg:w-auto lg:grid-cols-4">
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 lg:min-w-[140px]">
                   <p className="text-xs text-slate-500">Cant.</p>
                   <p className="text-lg font-semibold text-slate-800">
@@ -907,12 +870,6 @@ export default function BoletasSummaryPage() {
                   <p className="text-xs text-slate-500">IGV S/</p>
                   <p className="text-lg font-semibold text-slate-800">
                     {formatCurrency(sentTotals.igv)}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 lg:min-w-[140px]">
-                  <p className="text-xs text-slate-500">ICBPER S/</p>
-                  <p className="text-lg font-semibold text-slate-800">
-                    {formatCurrency(sentTotals.icbper)}
                   </p>
                 </div>
                 <div className="rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 py-2 lg:min-w-[140px]">

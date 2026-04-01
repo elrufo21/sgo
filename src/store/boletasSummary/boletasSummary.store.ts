@@ -276,8 +276,35 @@ const parseDelimitedSentSummaries = (
     (chunk) => chunk && chunk !== "~",
   );
 
-  return detailRows.map((chunk, index) => mapDelimitedSentSummaryRow(chunk, index));
+  return detailRows
+    .map((chunk, index) => mapDelimitedSentSummaryRow(chunk, index))
+    .filter(hasMeaningfulSentSummaryRow);
 };
+
+const looksLikeJsonString = (value: string) => {
+  const trimmed = value.trim();
+  return (
+    (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+    (trimmed.startsWith("[") && trimmed.endsWith("]"))
+  );
+};
+
+const isPlaceholderText = (value: unknown) => {
+  const normalized = normalizeText(value, "");
+  if (!normalized) return true;
+  return normalized === "~";
+};
+
+const hasMeaningfulSentSummaryRow = (row: BoletaSummarySentRecord) =>
+  [
+    row.fechaEmision,
+    row.fechaEnvio,
+    row.serie,
+    row.rangoNumeros,
+    row.ticket,
+    row.codigoSunat,
+    row.mensaje,
+  ].some((field) => !isPlaceholderText(field));
 
 const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[] => {
   if (Array.isArray(payload)) {
@@ -315,11 +342,23 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
           estado: normalizeText(row.estado ?? row.Estado),
         } satisfies BoletaSummarySentRecord;
       })
-      .filter((row) => row.serie || row.ticket || row.fechaEmision || row.fechaEnvio);
+      .filter(hasMeaningfulSentSummaryRow);
   }
 
   if (typeof payload === "string") {
-    return parseDelimitedSentSummaries(payload);
+    const normalized = normalizeText(payload, "");
+    if (isPlaceholderText(normalized)) return [];
+
+    if (looksLikeJsonString(normalized)) {
+      try {
+        const parsed = JSON.parse(normalized) as unknown;
+        return parseSentSummariesResponse(parsed);
+      } catch {
+        // Continue with delimited parser fallback.
+      }
+    }
+
+    return parseDelimitedSentSummaries(normalized);
   }
 
   const record = asRecord(payload);
@@ -332,8 +371,20 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
     Object.values(record).find((value) => typeof value === "string");
 
   if (typeof stringCandidate === "string") {
-    const fromString = parseDelimitedSentSummaries(stringCandidate);
-    if (fromString.length > 0 || normalizeText(stringCandidate, "") === "~") {
+    const normalizedCandidate = normalizeText(stringCandidate, "");
+    if (isPlaceholderText(normalizedCandidate)) return [];
+
+    if (looksLikeJsonString(normalizedCandidate)) {
+      try {
+        const parsed = JSON.parse(normalizedCandidate) as unknown;
+        return parseSentSummariesResponse(parsed);
+      } catch {
+        // Continue with delimited parser fallback.
+      }
+    }
+
+    const fromString = parseDelimitedSentSummaries(normalizedCandidate);
+    if (fromString.length > 0) {
       return fromString;
     }
   }
