@@ -596,19 +596,19 @@ function OtherUnitDialogContent() {
       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm">
         <p className="text-slate-500">Imagen de unidad alterna</p>
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="h-24 w-24 overflow-hidden rounded-md border border-slate-200 bg-white">
+          <div className="h-24 w-24 overflow-hidden rounded-md border border-slate-200 bg-slate-50">
             {unidadTakingPhoto ? (
               <video
                 ref={unidadVideoRef}
                 autoPlay
                 playsInline
-                className="h-full w-full bg-black object-cover"
+                className="h-full w-full bg-black object-contain"
               />
             ) : hasUnidadImagen ? (
               <img
                 src={unidadImagenPreview}
                 alt="Imagen de unidad alterna"
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center px-2 text-center text-xs text-slate-400">
@@ -1969,14 +1969,14 @@ export default function ProductFormBase({
                   <div className="space-y-5">
                     <h3 className="text-lg font-semibold">Foto del producto</h3>
 
-                    <div className="relative w-full h-64 border rounded-lg overflow-hidden shadow-md">
+                    <div className="relative h-64 w-full overflow-hidden rounded-lg border bg-slate-50 shadow-md">
                       {takingPhoto ? (
                         <>
                           <video
                             ref={videoRef}
                             autoPlay
                             playsInline
-                            className="w-full h-full bg-black object-cover"
+                            className="h-full w-full bg-black object-contain"
                           />
                           <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
                             <div className="flex gap-3">
@@ -2002,7 +2002,7 @@ export default function ProductFormBase({
                           <img
                             src={displayImage}
                             onClick={openImageModal}
-                            className={`w-full h-full object-cover ${
+                            className={`h-full w-full object-contain ${
                               hasImage ? "cursor-zoom-in" : ""
                             }`}
                             alt="Foto producto"
