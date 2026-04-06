@@ -23,6 +23,7 @@ export interface BoletaSummarySentRecord {
   fechaEmision: string;
   fechaEnvio: string;
   serie: string;
+  secuencia?: string;
   rangoNumeros: string;
   subTotal: string;
   igv: string;
@@ -31,8 +32,16 @@ export interface BoletaSummarySentRecord {
   ticket: string;
   codigoSunat: string;
   hashCdr: string;
+  cdr?: string;
+  tieneCdr?: string;
   mensaje: string;
   usuario: string;
+  ruc?: string;
+  usuarioSolEmpresa?: string;
+  passSolEmpresa?: string;
+  tipoDocumento?: string;
+  tipoProceso?: number;
+  intentos?: number;
   estado: string;
 }
 
@@ -105,4 +114,30 @@ export interface BoletaSummarySendResponse {
     mensaje: string;
     resultado: string;
   };
+}
+
+export interface BoletaSummaryConsultPayload {
+  RESUMEN_ID: number;
+  TICKET: string;
+  CODIGO_SUNAT: string;
+  MENSAJE_SUNAT: string;
+  ESTADO: string;
+  SECUENCIA: string;
+  RUC: string;
+  USUARIO_SOL_EMPRESA: string;
+  PASS_SOL_EMPRESA: string;
+  TIPO_DOCUMENTO: string;
+  TIPO_PROCESO: number;
+  INTENTOS: number;
+}
+
+export interface BoletaSummaryConsultResponse {
+  ok: boolean;
+  accion: string;
+  mensaje: string;
+  intentos: number | null;
+  cod_sunat: string;
+  msj_sunat: string;
+  hash_cdr: string;
+  hash_cpe: string;
 }

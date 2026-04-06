@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { API_BASE_URL } from "@/config";
 import { apiRequest } from "@/shared/helpers/apiRequest";
 import type {
+  BoletaSummaryConsultPayload,
+  BoletaSummaryConsultResponse,
   BoletaSummaryDocument,
   BoletaSummarySentRecord,
   BoletaSummarySendPayload,
@@ -26,6 +28,9 @@ interface BoletasSummaryState {
   sendSummary: (
     payload: BoletaSummarySendPayload,
   ) => Promise<BoletaSummarySendResponse>;
+  consultSummary: (
+    payload: BoletaSummaryConsultPayload,
+  ) => Promise<BoletaSummaryConsultResponse>;
 }
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -227,32 +232,129 @@ const toIsoDate = (value: unknown): string => {
   return "";
 };
 
+const normalizeDelimitedHeader = (value: string) =>
+  normalizeText(value, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+
+const buildDelimitedHeaderIndex = (headerChunk: string) => {
+  const index: Record<string, number> = {};
+  headerChunk.split("|").forEach((columnName, columnIndex) => {
+    const key = normalizeDelimitedHeader(columnName);
+    if (key && index[key] === undefined) {
+      index[key] = columnIndex;
+    }
+  });
+  return index;
+};
+
+const getDelimitedValue = (
+  parts: string[],
+  headerIndex: Record<string, number> | null,
+  aliases: string[],
+  fallbackIndex?: number,
+) => {
+  if (headerIndex) {
+    for (const alias of aliases) {
+      const key = normalizeDelimitedHeader(alias);
+      const idx = headerIndex[key];
+      if (idx !== undefined) {
+        return normalizeText(parts[idx], "");
+      }
+    }
+  }
+
+  if (fallbackIndex === undefined || fallbackIndex < 0) return "";
+  return normalizeText(parts[fallbackIndex], "");
+};
+
 const mapDelimitedSentSummaryRow = (
   chunk: string,
   index: number,
+  headerIndex: Record<string, number> | null = null,
 ): BoletaSummarySentRecord => {
   const parts = chunk.split("|");
-  const at = (idx: number) => normalizeText(parts[idx], "");
-  const resumenId = toPositiveInt(at(0), 0);
+  const resumenId = toPositiveInt(
+    getDelimitedValue(parts, headerIndex, ["Id", "ResumenId"], 0),
+    0,
+  );
+  const serie = getDelimitedValue(
+    parts,
+    headerIndex,
+    ["Serie", "ResumenSerie"],
+    4,
+  );
 
   return {
     id: resumenId || index + 1,
     resumenId,
-    companiaId: toPositiveInt(at(1), 0),
-    fechaEmision: at(2),
-    fechaEnvio: at(3),
-    serie: at(4),
-    rangoNumeros: at(5),
-    subTotal: at(6) || "0.00",
-    igv: at(7) || "0.00",
-    icbper: at(8) || "0.00",
-    total: at(9) || "0.00",
-    ticket: at(10),
-    codigoSunat: at(11),
-    hashCdr: at(12),
-    mensaje: at(13),
-    usuario: at(14),
-    estado: at(18),
+    companiaId: toPositiveInt(
+      getDelimitedValue(parts, headerIndex, ["Compania", "CompaniaId"], 1),
+      0,
+    ),
+    fechaEmision: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["FechaEmision", "FechaReferencia"],
+      2,
+    ),
+    fechaEnvio: getDelimitedValue(parts, headerIndex, ["FechaEnvio"], 3),
+    serie,
+    secuencia:
+      getDelimitedValue(
+        parts,
+        headerIndex,
+        ["Secuencia", "NroDocumento"],
+        -1,
+      ) || serie,
+    rangoNumeros: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["RangoNumeros", "RangoNumero"],
+      5,
+    ),
+    subTotal: getDelimitedValue(parts, headerIndex, ["SubTotal"], 6) || "0.00",
+    igv: getDelimitedValue(parts, headerIndex, ["IGV"], 7) || "0.00",
+    icbper: getDelimitedValue(parts, headerIndex, ["ICBPER"], 8) || "0.00",
+    total: getDelimitedValue(parts, headerIndex, ["Total"], 9) || "0.00",
+    ticket: getDelimitedValue(parts, headerIndex, ["Ticket", "ResumenTiket"], 10),
+    codigoSunat: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["CDSunat", "CodigoSunat", "CodSunat"],
+      11,
+    ),
+    hashCdr: getDelimitedValue(parts, headerIndex, ["HASHCDR", "HashCdr"], 12),
+    cdr: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["CDRBase64", "CDR", "Cdr", "XmlCdr"],
+      -1,
+    ),
+    tieneCdr: getDelimitedValue(parts, headerIndex, ["TieneCDR"], -1),
+    mensaje: getDelimitedValue(parts, headerIndex, ["Mensaje", "MensajeSunat"], 13),
+    usuario: getDelimitedValue(parts, headerIndex, ["Usuario"], 14),
+    ruc: getDelimitedValue(parts, headerIndex, ["RUC"], 15),
+    usuarioSolEmpresa: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["UserSol", "UsuarioSolEmpresa", "UsuarioSol"],
+      16,
+    ),
+    passSolEmpresa: getDelimitedValue(
+      parts,
+      headerIndex,
+      ["ClaveSol", "PassSolEmpresa", "PassSol"],
+      17,
+    ),
+    tipoDocumento: "RC",
+    intentos: toPositiveInt(
+      getDelimitedValue(parts, headerIndex, ["Intentos"], 19),
+      0,
+    ),
+    estado: getDelimitedValue(parts, headerIndex, ["ESTADO", "Estado"], 18),
   };
 };
 
@@ -264,20 +366,23 @@ const parseDelimitedSentSummaries = (
     return [];
   }
 
-  const normalizedRaw = raw.replaceAll("Â¬", "¬");
+  const normalizedRaw = raw.replaceAll("Â¬", "¬").replaceAll("\uFFFD", "¬");
   const chunks = normalizedRaw
     .split("¬")
     .map((chunk) => chunk.trim())
     .filter(Boolean);
   if (!chunks.length) return [];
 
-  const hasSchemaPrefix = chunks[0].includes("Id|Compania|FechaEmision|FechaEnvio");
+  const hasSchemaPrefix = chunks[0]
+    .toLowerCase()
+    .includes("id|compania|fechaemision|fechaenvio");
+  const headerIndex = hasSchemaPrefix ? buildDelimitedHeaderIndex(chunks[0]) : null;
   const detailRows = (hasSchemaPrefix ? chunks.slice(3) : chunks).filter(
     (chunk) => chunk && chunk !== "~",
   );
 
   return detailRows
-    .map((chunk, index) => mapDelimitedSentSummaryRow(chunk, index))
+    .map((chunk, index) => mapDelimitedSentSummaryRow(chunk, index, headerIndex))
     .filter(hasMeaningfulSentSummaryRow);
 };
 
@@ -325,6 +430,15 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
           ),
           fechaEnvio: normalizeText(row.fechaEnvio ?? row.FechaEnvio),
           serie: normalizeText(row.serie ?? row.Serie ?? row.resumenSerie),
+          secuencia: normalizeText(
+            row.secuencia ??
+              row.Secuencia ??
+              row.nroDocumento ??
+              row.NRO_DOCUMENTO ??
+              row.serie ??
+              row.Serie ??
+              row.resumenSerie,
+          ),
           rangoNumeros: normalizeText(
             row.rangoNumeros ?? row.RangoNumeros ?? row.rangoNumero,
           ),
@@ -337,8 +451,50 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
           ),
           codigoSunat: normalizeText(row.codigoSunat ?? row.CodigoSunat),
           hashCdr: normalizeText(row.hashCdr ?? row.HASHCDR ?? row.hashcdr),
+          cdr: normalizeText(
+            row.cdr ??
+              row.CDRBase64 ??
+              row.cdrBase64 ??
+              row.CDR ??
+              row.xmlCdr ??
+              row.XmlCdr ??
+              row.cdrXml ??
+              row.CdrXml,
+          ),
+          tieneCdr: normalizeText(row.tieneCdr ?? row.TieneCDR),
           mensaje: normalizeText(row.mensaje ?? row.Mensaje ?? row.mensajeSunat),
           usuario: normalizeText(row.usuario ?? row.Usuario),
+          ruc: normalizeText(
+            row.ruc ??
+              row.RUC ??
+              row.nroDocumentoEmpresa ??
+              row.NRO_DOCUMENTO_EMPRESA,
+          ),
+          usuarioSolEmpresa: normalizeText(
+            row.usuarioSolEmpresa ??
+              row.userSol ??
+              row.UserSol ??
+              row.USUARIO_SOL_EMPRESA,
+          ),
+          passSolEmpresa: normalizeText(
+            row.passSolEmpresa ??
+              row.claveSol ??
+              row.ClaveSol ??
+              row.PASS_SOL_EMPRESA,
+          ),
+          tipoDocumento: normalizeText(
+            row.tipoDocumento ?? row.TipoDocumento ?? row.TIPO_DOCUMENTO,
+            "RC",
+          ),
+          tipoProceso: toPositiveInt(
+            row.tipoProceso ??
+              row.TipoProceso ??
+              row.TIPO_PROCESO ??
+              row.tipoProcesoUsado ??
+              row.TipoProcesoUsado,
+            0,
+          ),
+          intentos: toPositiveInt(row.intentos ?? row.Intentos, 0),
           estado: normalizeText(row.estado ?? row.Estado),
         } satisfies BoletaSummarySentRecord;
       })
@@ -602,6 +758,102 @@ const parseSendSummaryResponse = (payload: unknown): BoletaSummarySendResponse =
   };
 };
 
+const emptyConsultSummaryResponse: BoletaSummaryConsultResponse = {
+  ok: false,
+  accion: "",
+  mensaje: "",
+  intentos: null,
+  cod_sunat: "",
+  msj_sunat: "",
+  hash_cdr: "",
+  hash_cpe: "",
+};
+
+const parseConsultSummaryResponse = (
+  payload: unknown,
+): BoletaSummaryConsultResponse => {
+  if (typeof payload === "string") {
+    const trimmed = payload.trim();
+    if (!trimmed) {
+      return {
+        ...emptyConsultSummaryResponse,
+        mensaje: "No se pudo consultar el resumen.",
+      };
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      return parseConsultSummaryResponse(parsed);
+    } catch {
+      return {
+        ...emptyConsultSummaryResponse,
+        mensaje: trimmed,
+        msj_sunat: trimmed,
+      };
+    }
+  }
+
+  const record = asRecord(payload);
+  if (!record) {
+    return {
+      ...emptyConsultSummaryResponse,
+      mensaje: "No se pudo consultar el resumen.",
+    };
+  }
+
+  const axiosResponse = asRecord(record.response);
+  if (axiosResponse) {
+    const status = toPositiveInt(axiosResponse.status, 0);
+    const apiMessage =
+      extractApiMessage(axiosResponse.data) || normalizeText(record.message, "");
+
+    return {
+      ...emptyConsultSummaryResponse,
+      accion: "error",
+      mensaje: apiMessage || "No se pudo consultar el resumen.",
+      cod_sunat: status > 0 ? String(status) : "",
+      msj_sunat: apiMessage,
+    };
+  }
+
+  const okValue = toBoolean(record.ok ?? record.Ok ?? null);
+  const accion = normalizeText(record.accion ?? record.action ?? "", "");
+  const message =
+    extractApiMessage(record) || normalizeText(record.mensaje ?? record.message, "");
+  const intentosRaw = Number(record.intentos ?? record.Intentos);
+  const intentos =
+    Number.isFinite(intentosRaw) && intentosRaw >= 0
+      ? Math.floor(intentosRaw)
+      : null;
+
+  return {
+    ok: okValue,
+    accion,
+    mensaje:
+      message ||
+      (okValue
+        ? "Consulta realizada correctamente."
+        : "No se pudo consultar el resumen."),
+    intentos,
+    cod_sunat: normalizeText(
+      record.cod_sunat ?? record.codSunat ?? record.CodSunat,
+      "",
+    ),
+    msj_sunat: normalizeText(
+      record.msj_sunat ?? record.msjSunat ?? record.MsjSunat,
+      "",
+    ),
+    hash_cdr: normalizeText(
+      record.hash_cdr ?? record.hashCdr ?? record.HashCdr,
+      "",
+    ),
+    hash_cpe: normalizeText(
+      record.hash_cpe ?? record.hashCpe ?? record.HashCpe,
+      "",
+    ),
+  };
+};
+
 export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
   documents: [],
   sentSummaries: [],
@@ -731,6 +983,29 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
       };
     } finally {
       set({ sendingSummary: false });
+    }
+  },
+  consultSummary: async (payload) => {
+    try {
+      const response = await apiRequest<unknown>({
+        url: `${API_BASE_URL}/Nota/resumen/consultar`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      return parseConsultSummaryResponse(response);
+    } catch (error) {
+      console.error("Error al consultar resumen de boletas", error);
+      return {
+        ...emptyConsultSummaryResponse,
+        mensaje: "No se pudo consultar el resumen.",
+      };
     }
   },
 }));
