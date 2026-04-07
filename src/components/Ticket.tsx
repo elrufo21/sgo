@@ -82,11 +82,8 @@ const formatUnitPrefix = (value: unknown): string => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
 
-  const abbreviated = raw.slice(0, 3);
-  const normalized =
-    abbreviated.charAt(0).toUpperCase() + abbreviated.slice(1).toLowerCase();
-
-  return `${normalized}. `;
+  const abbreviated = raw.slice(0, 3).toUpperCase();
+  return `${abbreviated}. `;
 };
 
 const UNITS = [
