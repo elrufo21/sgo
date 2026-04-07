@@ -5,6 +5,7 @@ import { useBoletasSummaryStore } from "@/store/boletasSummary/boletasSummary.st
 import type {
   BoletaSummaryDocument,
   BoletaSummarySentRecord,
+  BoletaSummarySendBajaPayload,
   BoletaSummarySendPayload,
 } from "@/types/boletasSummary";
 import { Workbook } from "exceljs";
@@ -147,6 +148,7 @@ export default function BoletasSummaryPage() {
     sendingSummary,
     fetchNextSummarySequence,
     sendSummary,
+    sendSummaryBaja,
     consultSummary,
   } = useBoletasSummaryStore();
   const [activeTab, setActiveTab] = useState<SummaryTab>("pending");
@@ -167,10 +169,11 @@ export default function BoletasSummaryPage() {
     null,
   );
   const lastAutoFetchedSentRangeRef = useRef<string>("");
+  const isCancelledMode = sendBoletasStatus === "ANULADOS";
 
   useEffect(() => {
-    void fetchDocuments();
-  }, [fetchDocuments]);
+    void fetchDocuments({ includeCancelled: isCancelledMode });
+  }, [fetchDocuments, isCancelledMode]);
 
   useEffect(() => {
     setFilteredRows(documents);
@@ -226,8 +229,8 @@ export default function BoletasSummaryPage() {
   );
 
   const handleRefresh = useCallback(() => {
-    void fetchDocuments();
-  }, [fetchDocuments]);
+    void fetchDocuments({ includeCancelled: isCancelledMode });
+  }, [fetchDocuments, isCancelledMode]);
 
   const requestSentSummaries = useCallback(() => {
     if (!sentDateFrom || !sentDateTo) {
@@ -255,7 +258,11 @@ export default function BoletasSummaryPage() {
 
   const handleSendSummary = useCallback(async () => {
     if (!filteredRows.length) {
-      toast.info("No hay boletas pendientes para enviar.");
+      toast.info(
+        isCancelledMode
+          ? "No hay boletas anuladas para enviar baja."
+          : "No hay boletas pendientes para enviar.",
+      );
       return;
     }
 
@@ -308,21 +315,34 @@ export default function BoletasSummaryPage() {
 
     const detalle = filteredRows.map((row, index) => {
       const dni = safeTrim(row.clienteDni);
-      return {
+      const base = {
         item: index + 1,
         tipoComprobante: "03",
         nroComprobante: safeTrim(row.serieNumero),
         tipoDocumento: "1",
         nroDocumento: dni || "00000000",
-        tipoComprobanteRef: "",
-        nroComprobanteRef: "",
-        statu: "1",
         codMoneda: "PEN",
         total: Number(parseAmount(row.total).toFixed(2)),
         icbper: Number(parseAmount(row.icbper).toFixed(2)),
         gravada: Number(parseAmount(row.subTotal).toFixed(2)),
-        isc: 0,
         igv: Number(parseAmount(row.igv).toFixed(2)),
+        docuId: row.docuId,
+        notaId: row.notaId,
+      };
+
+      if (isCancelledMode) {
+        return {
+          ...base,
+          statu: "3",
+        };
+      }
+
+      return {
+        ...base,
+        tipoComprobanteRef: "",
+        nroComprobanteRef: "",
+        statu: "1",
+        isc: 0,
         otros: 0,
         cargoXAsignacion: 1,
         montoCargoXAsig: 0,
@@ -330,12 +350,10 @@ export default function BoletasSummaryPage() {
         inafecto: 0,
         exportacion: 0,
         gratuitas: 0,
-        docuId: row.docuId,
-        notaId: row.notaId,
       };
     });
 
-    const payloadResumen: BoletaSummarySendPayload = {
+    const payloadBase = {
       NRO_DOCUMENTO_EMPRESA: safeTrim(
         user.companyRuc ??
           parsedSession?.companiaRuc ??
@@ -352,7 +370,7 @@ export default function BoletasSummaryPage() {
       USUARIO_REGISTRO: currentUser || "SISTEMA",
       TIPO_DOCUMENTO: "6",
       CODIGO: "RC",
-      SERIE: serieResumen,
+      SERIE: isCancelledMode ? "RC" : serieResumen,
       SECUENCIA: String(nextSequence),
       FECHA_REFERENCIA: referenceDateIso,
       FECHA_DOCUMENTO: todayIso,
@@ -366,34 +384,42 @@ export default function BoletasSummaryPage() {
         user.certificadoBase64 ?? loginPayload.certificadoBase64,
       ),
       COMPANIA_ID: Number.isFinite(companyId) && companyId > 0 ? companyId : 1,
-      RANGO_NUMEROS: rangoNumeros,
-      SUBTOTAL: Number(totals.subTotal.toFixed(2)),
-      IGV: Number(totals.igv.toFixed(2)),
-      ICBPER: Number(totals.icbper.toFixed(2)),
-      TOTAL: Number(totals.total.toFixed(2)),
       detalle,
     };
 
-    const response = await sendSummary(payloadResumen);
+    const response = isCancelledMode
+      ? await sendSummaryBaja(payloadBase as BoletaSummarySendBajaPayload)
+      : await sendSummary({
+          ...(payloadBase as BoletaSummarySendPayload),
+          RANGO_NUMEROS: rangoNumeros,
+          SUBTOTAL: Number(totals.subTotal.toFixed(2)),
+          IGV: Number(totals.igv.toFixed(2)),
+          ICBPER: Number(totals.icbper.toFixed(2)),
+          TOTAL: Number(totals.total.toFixed(2)),
+        });
     const isSuccess = response.ok || response.flg_rta === "1";
 
     if (isSuccess) {
       const ticket = safeTrim(response.ticket || response.msj_sunat);
       const code = safeTrim(response.cod_sunat);
+      const successPrefix = isCancelledMode ? "Baja enviada" : "Resumen enviado";
       const registroBdMensaje =
         safeTrim(response.registro_bd?.mensaje) ||
         safeTrim(response.registro_bd?.resultado);
       const sentRangeFrom = `${todayIso.slice(0, 8)}01`;
       const sentRangeTo = todayIso;
       if (ticket && code) {
-        toast.success(`Resumen enviado. Ticket: ${ticket}. Código: ${code}`);
+        toast.success(`${successPrefix}. Ticket: ${ticket}. Código: ${code}`);
       } else if (ticket) {
-        toast.success(`Resumen enviado. Ticket: ${ticket}`);
+        toast.success(`${successPrefix}. Ticket: ${ticket}`);
       } else if (code) {
-        toast.success(`Resumen enviado. Código SUNAT: ${code}`);
+        toast.success(`${successPrefix}. Código SUNAT: ${code}`);
       } else {
         toast.success(
-          safeTrim(response.mensaje) || "Resumen enviado correctamente.",
+          safeTrim(response.mensaje) ||
+            (isCancelledMode
+              ? "Baja enviada correctamente."
+              : "Resumen enviado correctamente."),
         );
       }
 
@@ -407,7 +433,7 @@ export default function BoletasSummaryPage() {
       setSentDateFrom(sentRangeFrom);
       setSentDateTo(sentRangeTo);
       setActiveTab("sent");
-      void fetchDocuments();
+      void fetchDocuments({ includeCancelled: isCancelledMode });
       void fetchSentSummaries({
         fechaInicio: sentRangeFrom,
         fechaFin: sentRangeTo,
@@ -426,12 +452,19 @@ export default function BoletasSummaryPage() {
       toast.error(`${errorCode} - ${errorMessage}`);
       return;
     }
-    toast.error(errorMessage || "No se pudo enviar el resumen.");
+    toast.error(
+      errorMessage ||
+        (isCancelledMode
+          ? "No se pudo enviar la baja."
+          : "No se pudo enviar el resumen."),
+    );
   }, [
     fetchDocuments,
     fetchNextSummarySequence,
     filteredRows,
+    isCancelledMode,
     referenceDate,
+    sendSummaryBaja,
     sendSummary,
     fetchSentSummaries,
     totals.icbper,
@@ -707,7 +740,13 @@ export default function BoletasSummaryPage() {
       );
       const secuencia = safeTrim(row.secuencia ?? row.serie);
       const tipoDocumento = safeTrim(row.tipoDocumento || "RC");
-      const estado = "P";
+      const normalizedEstado = safeTrim(row.estado).toUpperCase();
+      const estado =
+        normalizedEstado === "B" ||
+        normalizedEstado.includes("BAJA") ||
+        normalizedEstado.includes("ANUL")
+          ? "B"
+          : "P";
 
       const tipoProcesoRaw = Number(
         row.tipoProceso ?? user.entorno ?? loginPayload.entorno ?? 3,

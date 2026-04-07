@@ -50,7 +50,8 @@ const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
   const quantity = Number(item.cantidad ?? 0);
   if (!Number.isFinite(quantity) || quantity <= 0) return true;
 
-  const stock = typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
+  const stock =
+    typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
   if (stock === undefined) return false;
   return quantity > stock || stock <= 0;
 };
@@ -120,6 +121,7 @@ const PaymentPage = () => {
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloadingComprobante, setIsDownloadingComprobante] =
     useState(false);
+  const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [confirmedFlowType, setConfirmedFlowType] = useState<
     "create" | "edit" | null
@@ -175,16 +177,15 @@ const PaymentPage = () => {
     markDraftAsConfirmed,
     resetDraftForNewSale,
     discardCurrentDraft,
-  } =
-    usePosCartDraftPersistence({
-      enabled: shouldPersistPosDraft,
-      autosave:
-        shouldPersistPosDraft &&
-        (isPosEditDraftFlow || (isPosSaleDraftFlow && !isConfirmed)),
-      hydrateFromStorage: shouldPersistPosDraft,
-      scope: isPosEditDraftFlow ? "note-edit" : "sale",
-      noteId: isPosEditDraftFlow ? resolvedNoteIdForDraft : null,
-    });
+  } = usePosCartDraftPersistence({
+    enabled: shouldPersistPosDraft,
+    autosave:
+      shouldPersistPosDraft &&
+      (isPosEditDraftFlow || (isPosSaleDraftFlow && !isConfirmed)),
+    hydrateFromStorage: shouldPersistPosDraft,
+    scope: isPosEditDraftFlow ? "note-edit" : "sale",
+    noteId: isPosEditDraftFlow ? resolvedNoteIdForDraft : null,
+  });
 
   isConfirmedRef.current = isConfirmed;
   isOrderNotesFlowRef.current = isOrderNotesFlow;
@@ -379,6 +380,8 @@ const PaymentPage = () => {
   const totalsToRender = hasLiveItems ? totals : paidTotals;
   const canEditItems =
     !isConfirmed && !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
+  const ticketIdNumber = Number(notaId ?? 0);
+  const hasTicketId = Number.isFinite(ticketIdNumber) && ticketIdNumber > 0;
   const previousItemsCountRef = useRef(items.length);
   const previousLocalItemsCountRef = useRef(purchasedItems.length);
   const hasRedirectedOnEmptyRef = useRef(false);
@@ -417,12 +420,7 @@ const PaymentPage = () => {
     }
 
     previousItemsCountRef.current = currentCount;
-  }, [
-    isOrderNotesFlow,
-    isConfirmed,
-    items.length,
-    redirectToPosWithEmptyCart,
-  ]);
+  }, [isOrderNotesFlow, isConfirmed, items.length, redirectToPosWithEmptyCart]);
 
   useEffect(() => {
     const previousCount = previousLocalItemsCountRef.current;
@@ -832,9 +830,8 @@ const PaymentPage = () => {
 
     currentDetails.forEach((detalle) => {
       const detalleIdRaw = Number(detalle.detalleId ?? 0);
-      const detalleId = Number.isFinite(detalleIdRaw) && detalleIdRaw > 0
-        ? detalleIdRaw
-        : 0;
+      const detalleId =
+        Number.isFinite(detalleIdRaw) && detalleIdRaw > 0 ? detalleIdRaw : 0;
       const unidadUpper = safeTrim(detalle.detalleUm ?? "UND").toUpperCase();
       const payloadBase = {
         DetalleId: detalleId,
@@ -1814,7 +1811,9 @@ const PaymentPage = () => {
     if (!ensureFacturaCustomerAndRuc()) return;
 
     const sourceItems = hasLiveItems ? items : purchasedItems;
-    const invalidItems = sourceItems.filter(hasInvalidQuantityOrStockForPayment);
+    const invalidItems = sourceItems.filter(
+      hasInvalidQuantityOrStockForPayment,
+    );
     if (invalidItems.length) {
       toast.error("No puede agregar productos en 0.");
       return;
@@ -2216,6 +2215,133 @@ const PaymentPage = () => {
     setServerItemsInStore(itemsForEditing);
   };
 
+  const handleVoidTicket = async () => {
+    if (!hasTicketId) {
+      toast.info("No hay ticket para anular.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `¿Seguro que deseas anular el ticket #${ticketIdNumber}?`,
+    );
+    if (!confirmed) return;
+
+    setIsVoidingTicket(true);
+    try {
+      const detallesParaAnular: PosCartItem[] = serverItems.length
+        ? serverItems
+        : purchasedItems.length
+          ? purchasedItems
+          : items;
+
+      if (!detallesParaAnular.length) {
+        toast.error("No hay detalle para anular.");
+        return;
+      }
+
+      const documento =
+        safeTrim(documentNumber) ||
+        `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+      const usuarioAnulacion = safeTrim(resolvedNotaUsuario) || "USUARIO";
+
+      const detalleCadena = detallesParaAnular
+        .map((item) => {
+          const idProducto = Number(item.productId ?? 0);
+          const codigo = safeTrim(item.codigo) || String(idProducto || "");
+          const cantidad = Number(item.cantidad ?? 0);
+          const precio = Number(item.precio ?? 0);
+          const costo = Number(item.precio ?? 0);
+          const valorUM =
+            Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
+              ? Number(item.valorUM)
+              : 1;
+
+          return [
+            idProducto,
+            codigo,
+            Number.isFinite(cantidad) ? cantidad.toFixed(2) : "0.00",
+            Number.isFinite(precio) ? precio.toFixed(2) : "0.00",
+            Number.isFinite(costo) ? costo.toFixed(2) : "0.00",
+            Number.isFinite(valorUM) ? valorUM.toFixed(4) : "1.0000",
+            "S",
+          ].join("|");
+        })
+        .join(";");
+
+      const listaOrden =
+        `${ticketIdNumber}|${ticketIdNumber}|${usuarioAnulacion}|${documento}` +
+        `[${detalleCadena}[`;
+
+      const result = await apiRequest({
+        url: buildApiUrl("/Nota/anular-documento"),
+        method: "POST",
+        data: { ListaOrden: listaOrden },
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      const resultObj =
+        result && typeof result === "object"
+          ? (result as {
+              ok?: unknown;
+              resultado?: unknown;
+              mensaje?: unknown;
+              message?: unknown;
+              Mensaje?: unknown;
+              Message?: unknown;
+              isAxiosError?: unknown;
+              response?: {
+                data?: {
+                  mensaje?: unknown;
+                  message?: unknown;
+                };
+              };
+            })
+          : null;
+
+      const responseMessage =
+        typeof result === "string"
+          ? safeTrim(result)
+          : safeTrim(
+              resultObj?.mensaje ??
+                resultObj?.message ??
+                resultObj?.Mensaje ??
+                resultObj?.Message ??
+                resultObj?.response?.data?.mensaje ??
+                resultObj?.response?.data?.message,
+            );
+
+      const resultadoTexto = safeTrim(
+        resultObj?.resultado ?? (typeof result === "string" ? result : ""),
+      ).toLowerCase();
+      const isSuccess =
+        Boolean(resultObj?.ok) || resultadoTexto === "true";
+
+      if (
+        !isSuccess ||
+        !result ||
+        result === false ||
+        Boolean(resultObj?.isAxiosError)
+      ) {
+        toast.error(responseMessage || "No se pudo anular el ticket.");
+        return;
+      }
+
+      toast.success(responseMessage || "Ticket anulado correctamente.");
+      await fetchNotaFromServer(ticketIdNumber);
+    } catch (error) {
+      console.error("Error al anular ticket", error);
+      toast.error("No se pudo anular el ticket.");
+    } finally {
+      setIsVoidingTicket(false);
+    }
+  };
+
   const createComprobanteBlob = useCallback(async () => {
     const clean = (value: unknown) => String(value ?? "").trim();
     const now = new Date();
@@ -2349,8 +2475,12 @@ const PaymentPage = () => {
       return;
     }
 
-    const printableItems = itemsToRender.length ? itemsToRender : purchasedItems;
-    const invalidItems = printableItems.filter(hasInvalidQuantityOrStockForPayment);
+    const printableItems = itemsToRender.length
+      ? itemsToRender
+      : purchasedItems;
+    const invalidItems = printableItems.filter(
+      hasInvalidQuantityOrStockForPayment,
+    );
     if (invalidItems.length) {
       toast.error("No puede imprimir con productos en 0.");
       return;
@@ -2496,10 +2626,7 @@ const PaymentPage = () => {
                           handlePriceChange(item, e.target.value);
                         }}
                         onBlur={(e) => {
-                          handlePriceBlur(
-                            item,
-                            e.currentTarget.value,
-                          );
+                          handlePriceBlur(item, e.currentTarget.value);
                         }}
                         onFocus={(e) => e.target.select()}
                         disabled={!canEditItems}
@@ -2624,15 +2751,14 @@ const PaymentPage = () => {
                           data-payment-column="price"
                           data-payment-row-index={rowIndex}
                           className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          value={priceDrafts[getCartItemKey(item)] ?? item.precio}
+                          value={
+                            priceDrafts[getCartItemKey(item)] ?? item.precio
+                          }
                           onChange={(e) => {
                             handlePriceChange(item, e.target.value);
                           }}
                           onBlur={(e) => {
-                            handlePriceBlur(
-                              item,
-                              e.currentTarget.value,
-                            );
+                            handlePriceBlur(item, e.currentTarget.value);
                           }}
                           onKeyDown={(event) =>
                             handleColumnArrowNavigation(
@@ -3160,14 +3286,29 @@ const PaymentPage = () => {
             Pago y comprobante
           </h1>
         </div>
-        <Link
-          to={backRoute}
-          className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
-          onClick={(e) => handleBackToPos(e)}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          {backLabel}
-        </Link>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          {hasTicketId && (
+            <button
+              type="button"
+              className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 py-2 text-sm text-[#B23636] transition-colors hover:bg-[#B23636]/15 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={() => {
+                void handleVoidTicket();
+              }}
+              disabled={isVoidingTicket}
+            >
+              <Trash2 className="w-4 h-4" />
+              {isVoidingTicket ? "Anulando..." : "Anular ticket"}
+            </button>
+          )}
+          <Link
+            to={backRoute}
+            className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            onClick={(e) => handleBackToPos(e)}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            {backLabel}
+          </Link>
+        </div>
       </div>
       {/* Layout móvil/mediano: tabs combinados + formulario */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr] lg:gap-5 min-[1405px]:hidden">

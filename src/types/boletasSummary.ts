@@ -51,27 +51,27 @@ export interface BoletaSummarySendDetailPayload {
   nroComprobante: string;
   tipoDocumento: string;
   nroDocumento: string;
-  tipoComprobanteRef: string;
-  nroComprobanteRef: string;
+  tipoComprobanteRef?: string;
+  nroComprobanteRef?: string;
   statu: string;
   codMoneda: string;
   total: number;
   icbper: number;
   gravada: number;
-  isc: number;
+  isc?: number;
   igv: number;
-  otros: number;
-  cargoXAsignacion: number;
-  montoCargoXAsig: number;
-  exonerado: number;
-  inafecto: number;
-  exportacion: number;
-  gratuitas: number;
-  docuId?: number;
+  otros?: number;
+  cargoXAsignacion?: number;
+  montoCargoXAsig?: number;
+  exonerado?: number;
+  inafecto?: number;
+  exportacion?: number;
+  gratuitas?: number;
+  docuId: number;
   notaId?: number;
 }
 
-export interface BoletaSummarySendPayload {
+export interface BoletaSummaryBasePayload {
   NRO_DOCUMENTO_EMPRESA: string;
   RAZON_SOCIAL: string;
   USUARIO?: string;
@@ -90,13 +90,18 @@ export interface BoletaSummarySendPayload {
   PASS_SOL_EMPRESA: string;
   RUTA_PFX: string;
   COMPANIA_ID: number;
+  detalle: BoletaSummarySendDetailPayload[];
+}
+
+export interface BoletaSummarySendPayload extends BoletaSummaryBasePayload {
   RANGO_NUMEROS: string;
   SUBTOTAL: number;
   IGV: number;
   ICBPER: number;
   TOTAL: number;
-  detalle: BoletaSummarySendDetailPayload[];
 }
+
+export type BoletaSummarySendBajaPayload = BoletaSummaryBasePayload;
 
 export interface BoletaSummarySendResponse {
   ok: boolean;

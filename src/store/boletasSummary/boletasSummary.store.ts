@@ -6,6 +6,7 @@ import type {
   BoletaSummaryConsultResponse,
   BoletaSummaryDocument,
   BoletaSummarySentRecord,
+  BoletaSummarySendBajaPayload,
   BoletaSummarySendPayload,
   BoletaSummarySendResponse,
 } from "@/types/boletasSummary";
@@ -17,7 +18,10 @@ interface BoletasSummaryState {
   sentSummariesLoading: boolean;
   sequenceLoading: boolean;
   sendingSummary: boolean;
-  fetchDocuments: (dataOverride?: string | number) => Promise<void>;
+  fetchDocuments: (options?: {
+    dataOverride?: string | number;
+    includeCancelled?: boolean;
+  }) => Promise<void>;
   fetchSentSummaries: (params: {
     fechaInicio: string;
     fechaFin: string;
@@ -27,6 +31,9 @@ interface BoletasSummaryState {
   ) => Promise<string | null>;
   sendSummary: (
     payload: BoletaSummarySendPayload,
+  ) => Promise<BoletaSummarySendResponse>;
+  sendSummaryBaja: (
+    payload: BoletaSummarySendBajaPayload,
   ) => Promise<BoletaSummarySendResponse>;
   consultSummary: (
     payload: BoletaSummaryConsultPayload,
@@ -111,13 +118,17 @@ const resolveCompanyId = () => {
   }
 };
 
-const mapDelimitedRow = (chunk: string, index: number): BoletaSummaryDocument => {
+const mapDelimitedRow = (
+  chunk: string,
+  index: number,
+): BoletaSummaryDocument | null => {
   const parts = chunk.split("|");
   const at = (idx: number) => normalizeText(parts[idx], "");
 
   const docuId = toPositiveInt(at(0), 0);
   const companiaId = toPositiveInt(at(1), 0);
   const notaId = toPositiveInt(at(2), 0);
+  if (!docuId && !notaId) return null;
 
   return {
     id: docuId || index + 1,
@@ -154,7 +165,8 @@ const parseDelimitedDocuments = (rawValue: string): BoletaSummaryDocument[] => {
     .split("¬")
     .map((chunk) => chunk.trim())
     .filter(Boolean)
-    .map((chunk, index) => mapDelimitedRow(chunk, index));
+    .map((chunk, index) => mapDelimitedRow(chunk, index))
+    .filter((row): row is BoletaSummaryDocument => Boolean(row));
 };
 
 const parseDocumentsResponse = (payload: unknown): BoletaSummaryDocument[] => {
@@ -861,20 +873,27 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
   sentSummariesLoading: false,
   sequenceLoading: false,
   sendingSummary: false,
-  fetchDocuments: async (dataOverride) => {
+  fetchDocuments: async (options) => {
+    const { dataOverride, includeCancelled = false } = options ?? {};
     const fallbackCompanyId = resolveCompanyId();
     const payloadData =
       dataOverride !== undefined && dataOverride !== null
         ? String(dataOverride).trim()
         : String(fallbackCompanyId);
     const safeData = payloadData || String(fallbackCompanyId);
+    const endpoint = includeCancelled
+      ? `${API_BASE_URL}/Nota/lista-bajas`
+      : `${API_BASE_URL}/Nota/lista-documentos`;
+    const requestData = includeCancelled
+      ? { Data: safeData }
+      : { data: safeData };
 
     set({ loading: true });
     try {
       const response = await apiRequest<unknown>({
-        url: `${API_BASE_URL}/Nota/lista-documentos`,
+        url: endpoint,
         method: "POST",
-        data: { data: safeData },
+        data: requestData,
         config: {
           headers: {
             "Content-Type": "application/json",
@@ -888,7 +907,7 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
         loading: false,
       });
     } catch (error) {
-      console.error("Error al listar boletas", error);
+      console.error("Error al listar boletas para resumen", error);
       set({ loading: false });
     }
   },
@@ -980,6 +999,32 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
       return {
         ...emptySendSummaryResponse,
         mensaje: "No se pudo enviar el resumen.",
+      };
+    } finally {
+      set({ sendingSummary: false });
+    }
+  },
+  sendSummaryBaja: async (payload) => {
+    set({ sendingSummary: true });
+    try {
+      const response = await apiRequest<unknown>({
+        url: `${API_BASE_URL}/Nota/resumen/enviar-baja`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      return parseSendSummaryResponse(response);
+    } catch (error) {
+      console.error("Error al enviar resumen de bajas", error);
+      return {
+        ...emptySendSummaryResponse,
+        mensaje: "No se pudo enviar la baja.",
       };
     } finally {
       set({ sendingSummary: false });
