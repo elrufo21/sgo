@@ -193,12 +193,19 @@ const POSPage = () => {
     clearEditingNota();
   }, [clearCart, clearEditingNota, location.state, resetDraftForNewSale]);
 
-  const getInvalidItemsForPayment = () =>
-    items.filter(hasInvalidQuantityForPayment);
+  const hasInvalidPriceForPayment = (item: PosCartItem) => {
+    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+    const draftValue = priceDrafts[getCartItemKey(item)];
+    if (draftValue === undefined) {
+      const storedPrice = Number(item.precio ?? 0);
+      return !Number.isFinite(storedPrice) || storedPrice < minPrice;
+    }
 
-  const hasInvalidItemsForPayment = items.some(
-    hasInvalidQuantityForPayment,
-  );
+    const normalizedDraft = draftValue.trim();
+    if (!normalizedDraft) return true;
+    const draftPrice = Number(normalizedDraft);
+    return !Number.isFinite(draftPrice) || draftPrice < minPrice;
+  };
 
   const goToPayment = () => {
     if (!items.length) {
@@ -218,16 +225,13 @@ const POSPage = () => {
       ? `${paymentBasePath}/${Number(editingNotaId)}?mode=edit`
       : paymentBasePath;
 
-    const invalidItems = getInvalidItemsForPayment();
-    if (invalidItems.length) {
-      const preview = invalidItems
-        .slice(0, 3)
-        .map((item) => item.nombre)
-        .join(", ");
-      const suffix = invalidItems.length > 3 ? "..." : "";
-      toast.error(
-        `Corrige el carrito antes de pagar. Verifica cantidad en: ${preview}${suffix}`,
-      );
+    if (items.some(hasInvalidQuantityForPayment)) {
+      toast.error("La cantidad debe ser mayor a 0.");
+      return;
+    }
+
+    if (items.some(hasInvalidPriceForPayment)) {
+      toast.error("El precio no debe ser menor al precio establecido.");
       return;
     }
 
@@ -392,31 +396,16 @@ const POSPage = () => {
   const handlePriceChange = (item: PosCartItem, value: string) => {
     if (!/^\d*\.?\d*$/.test(value)) return;
 
-    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
     setPriceDrafts((prev) => ({ ...prev, [getCartItemKey(item)]: value }));
 
     const parsed = Number(value);
-    if (!Number.isNaN(parsed) && parsed >= minPrice) {
+    if (!Number.isNaN(parsed)) {
       updatePrice(getCartItemKey(item), parsed);
     }
   };
 
-  const handlePriceBlur = (
-    item: PosCartItem,
-    value: string,
-    input?: HTMLInputElement | null,
-  ) => {
-    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
-    const normalizedMinPrice = Number.isInteger(minPrice)
-      ? String(minPrice)
-      : minPrice.toFixed(2);
-
+  const handlePriceBlur = (item: PosCartItem, value: string) => {
     if (value.trim() === "") {
-      setPriceDrafts((prev) => ({
-        ...prev,
-        [getCartItemKey(item)]: normalizedMinPrice,
-      }));
-      updatePrice(getCartItemKey(item), minPrice);
       return;
     }
 
@@ -424,23 +413,8 @@ const POSPage = () => {
     if (Number.isNaN(parsed)) {
       setPriceDrafts((prev) => ({
         ...prev,
-        [getCartItemKey(item)]: String(item.precio ?? normalizedMinPrice),
+        [getCartItemKey(item)]: String(item.precio ?? 0),
       }));
-      return;
-    }
-
-    if (parsed < minPrice) {
-      toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
-      setPriceDrafts((prev) => ({
-        ...prev,
-        [getCartItemKey(item)]: normalizedMinPrice,
-      }));
-      updatePrice(getCartItemKey(item), minPrice);
-      window.requestAnimationFrame(() => {
-        if (!input || input.disabled) return;
-        input.focus();
-        input.select?.();
-      });
       return;
     }
 
@@ -641,7 +615,6 @@ const POSPage = () => {
                         handlePriceBlur(
                           item,
                           event.currentTarget.value,
-                          event.currentTarget,
                         )
                       }
                       navGroup="pos-price-input"
@@ -709,7 +682,7 @@ const POSPage = () => {
         </div>
         <button
           className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
-          disabled={!items.length || hasInvalidItemsForPayment}
+          disabled={!items.length}
           onClick={goToPayment}
         >
           <CheckCircle2 className="w-5 h-5" />
@@ -763,7 +736,7 @@ const POSPage = () => {
               aria-label="Abrir carrito"
             >
               <ShoppingCart className="w-4 h-4" />
-              <span>{totals.itemCount} ítems</span>
+              <span>{items.length} ítems</span>
               <span className="text-gray-300">|</span>
             </button>
           </div>

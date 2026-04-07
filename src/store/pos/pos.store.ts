@@ -121,11 +121,14 @@ export const usePosStore = create<PosState>()(
 
       addProduct: (product, quantity = 1) =>
         set((state) => {
-          const minPrice = toNonNegative((product as any).preVentaB ?? 0);
           const basePrice =
             toNumber((product as any).preVenta ?? 0) ||
             toNumber((product as any).preVentaB ?? 0) ||
             0;
+          const minPrice = Math.max(
+            toNonNegative((product as any).preVentaB ?? 0),
+            toNonNegative(basePrice)
+          );
           const reductionValue = (() => {
             const raw = toNumber((product as any).valorUM, 1);
             return Number.isFinite(raw) && raw > 0 ? raw : 1;

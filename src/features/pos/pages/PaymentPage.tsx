@@ -379,6 +379,74 @@ const PaymentPage = () => {
   const totalsToRender = hasLiveItems ? totals : paidTotals;
   const canEditItems =
     !isConfirmed && !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
+  const previousItemsCountRef = useRef(items.length);
+  const previousLocalItemsCountRef = useRef(purchasedItems.length);
+  const hasRedirectedOnEmptyRef = useRef(false);
+  const redirectToPosWithEmptyCart = useCallback(() => {
+    if (hasRedirectedOnEmptyRef.current) return;
+    hasRedirectedOnEmptyRef.current = true;
+    clearCart();
+    setPurchasedItems([]);
+    setPaidTotals({ subTotal: 0, total: 0, itemCount: 0 });
+    clearEditingNota();
+    void resetDraftForNewSale()
+      .catch(() => undefined)
+      .finally(() => {
+        navigate(backRoute, { state: { resetCart: true } });
+      });
+  }, [backRoute, clearCart, clearEditingNota, navigate, resetDraftForNewSale]);
+
+  useEffect(() => {
+    if (items.length > 0 || purchasedItems.length > 0) {
+      hasRedirectedOnEmptyRef.current = false;
+    }
+  }, [items.length, purchasedItems.length]);
+
+  useEffect(() => {
+    const previousCount = previousItemsCountRef.current;
+    const currentCount = items.length;
+    const removedAllItems = previousCount > 0 && currentCount === 0;
+
+    if (
+      !hasRedirectedOnEmptyRef.current &&
+      !isOrderNotesFlow &&
+      !isConfirmed &&
+      removedAllItems
+    ) {
+      redirectToPosWithEmptyCart();
+    }
+
+    previousItemsCountRef.current = currentCount;
+  }, [
+    isOrderNotesFlow,
+    isConfirmed,
+    items.length,
+    redirectToPosWithEmptyCart,
+  ]);
+
+  useEffect(() => {
+    const previousCount = previousLocalItemsCountRef.current;
+    const currentCount = purchasedItems.length;
+    const removedAllLocalItems = previousCount > 0 && currentCount === 0;
+
+    if (
+      !hasRedirectedOnEmptyRef.current &&
+      !hasLiveItems &&
+      !isOrderNotesFlow &&
+      !isConfirmed &&
+      removedAllLocalItems
+    ) {
+      redirectToPosWithEmptyCart();
+    }
+
+    previousLocalItemsCountRef.current = currentCount;
+  }, [
+    hasLiveItems,
+    isConfirmed,
+    isOrderNotesFlow,
+    purchasedItems.length,
+    redirectToPosWithEmptyCart,
+  ]);
 
   const focusVerticalInput = useCallback(
     (
@@ -489,33 +557,19 @@ const PaymentPage = () => {
     if (!canEditItems) return;
     if (!/^\d*\.?\d*$/.test(value)) return;
 
-    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
     const itemKey = getCartItemKey(item);
     setPriceDrafts((prev) => ({ ...prev, [itemKey]: value }));
 
     const parsed = Number(value);
-    if (!Number.isNaN(parsed) && parsed >= minPrice) {
+    if (!Number.isNaN(parsed)) {
       applyPriceToItem(item, parsed);
     }
   };
 
-  const handlePriceBlur = (
-    item: PosCartItem,
-    value: string,
-    input?: HTMLInputElement | null,
-  ) => {
+  const handlePriceBlur = (item: PosCartItem, value: string) => {
     if (!canEditItems) return;
-    const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
-    const normalizedMinPrice = Number.isInteger(minPrice)
-      ? String(minPrice)
-      : minPrice.toFixed(2);
 
     if (value.trim() === "") {
-      setPriceDrafts((prev) => ({
-        ...prev,
-        [getCartItemKey(item)]: normalizedMinPrice,
-      }));
-      applyPriceToItem(item, minPrice);
       return;
     }
 
@@ -523,23 +577,8 @@ const PaymentPage = () => {
     if (Number.isNaN(parsed)) {
       setPriceDrafts((prev) => ({
         ...prev,
-        [getCartItemKey(item)]: String(item.precio ?? normalizedMinPrice),
+        [getCartItemKey(item)]: String(item.precio ?? 0),
       }));
-      return;
-    }
-
-    if (parsed < minPrice) {
-      toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
-      setPriceDrafts((prev) => ({
-        ...prev,
-        [getCartItemKey(item)]: normalizedMinPrice,
-      }));
-      applyPriceToItem(item, minPrice);
-      window.requestAnimationFrame(() => {
-        if (!input || input.disabled) return;
-        input.focus();
-        input.select?.();
-      });
       return;
     }
 
@@ -1780,6 +1819,25 @@ const PaymentPage = () => {
       toast.error("No puede agregar productos en 0.");
       return;
     }
+
+    const invalidPriceItems = sourceItems.filter((item) => {
+      const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+      const draftValue = priceDrafts[getCartItemKey(item)];
+      if (draftValue === undefined) {
+        const storedPrice = Number(item.precio ?? 0);
+        return !Number.isFinite(storedPrice) || storedPrice < minPrice;
+      }
+
+      const normalizedDraft = draftValue.trim();
+      if (!normalizedDraft) return true;
+      const draftPrice = Number(normalizedDraft);
+      return !Number.isFinite(draftPrice) || draftPrice < minPrice;
+    });
+    if (invalidPriceItems.length) {
+      toast.error("El precio no debe ser menor al precio base.");
+      return;
+    }
+
     const sourceTotals = hasLiveItems ? totals : paidTotals;
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
@@ -2441,7 +2499,6 @@ const PaymentPage = () => {
                           handlePriceBlur(
                             item,
                             e.currentTarget.value,
-                            e.currentTarget,
                           );
                         }}
                         onFocus={(e) => e.target.select()}
@@ -2575,7 +2632,6 @@ const PaymentPage = () => {
                             handlePriceBlur(
                               item,
                               e.currentTarget.value,
-                              e.currentTarget,
                             );
                           }}
                           onKeyDown={(event) =>
