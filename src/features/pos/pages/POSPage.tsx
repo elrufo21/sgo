@@ -41,6 +41,14 @@ const buildVariationDetailId = (baseId: number, index: number) =>
   -1 * (baseId * 1000 + (index + 1));
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
   Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
+const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
+  const quantity = Number(item.cantidad ?? 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) return true;
+
+  const stock = typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
+  if (stock === undefined) return false;
+  return quantity > stock || stock <= 0;
+};
 const normalizeUnitLabel = (value: unknown) =>
   String(value ?? "").trim().toUpperCase();
 const canonicalUnit = (value: unknown) => {
@@ -189,13 +197,12 @@ const POSPage = () => {
     clearEditingNota();
   }, [clearCart, clearEditingNota, location.state, resetDraftForNewSale]);
 
-  const getOutOfStockItems = () =>
-    items.filter((item) => {
-      const stock =
-        typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
-      if (stock === undefined) return false;
-      return (item.cantidad ?? 0) > stock || stock <= 0;
-    });
+  const getInvalidItemsForPayment = () =>
+    items.filter(hasInvalidQuantityOrStockForPayment);
+
+  const hasInvalidItemsForPayment = items.some(
+    hasInvalidQuantityOrStockForPayment,
+  );
 
   const goToPayment = () => {
     if (!items.length) {
@@ -215,32 +222,16 @@ const POSPage = () => {
       ? `${paymentBasePath}/${Number(editingNotaId)}?mode=edit`
       : paymentBasePath;
 
-    const outOfStockItems = getOutOfStockItems();
-    if (outOfStockItems.length) {
-      openDialog({
-        title: "Stock insuficiente",
-        content: (
-          <div className="space-y-2">
-            <p className="text-sm text-slate-700">
-              Estás añadiendo productos sin stock suficiente:
-            </p>
-            <ul className="list-disc list-inside text-sm text-slate-800 max-h-40 overflow-auto">
-              {outOfStockItems.map((item) => (
-                <li key={getCartItemKey(item)}>
-                  {item.nombre} — stock: {Math.max(item.stock ?? 0, 0)},
-                  carrito: {item.cantidad}
-                </li>
-              ))}
-            </ul>
-            <p className="text-sm text-slate-700">
-              ¿Deseas continuar de todos modos?
-            </p>
-          </div>
-        ),
-        confirmText: "Continuar",
-        cancelText: "Cancelar",
-        onConfirm: () => navigate(paymentTarget),
-      });
+    const invalidItems = getInvalidItemsForPayment();
+    if (invalidItems.length) {
+      const preview = invalidItems
+        .slice(0, 3)
+        .map((item) => item.nombre)
+        .join(", ");
+      const suffix = invalidItems.length > 3 ? "..." : "";
+      toast.error(
+        `Corrige el carrito antes de pagar. Verifica cantidad y stock en: ${preview}${suffix}`,
+      );
       return;
     }
 
@@ -722,7 +713,7 @@ const POSPage = () => {
         </div>
         <button
           className="w-full mt-3 inline-flex justify-center items-center gap-2 py-2.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50"
-          disabled={!items.length}
+          disabled={!items.length || hasInvalidItemsForPayment}
           onClick={goToPayment}
         >
           <CheckCircle2 className="w-5 h-5" />

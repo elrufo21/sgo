@@ -44,6 +44,8 @@ type NotaDetallePayload = {
   detalleEstado?: string;
   valorUM?: number;
 };
+const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
+  Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
 
 const PaymentPage = () => {
   const { notaId: notaIdParam } = useParams<{ notaId?: string }>();
@@ -131,6 +133,15 @@ const PaymentPage = () => {
   const prevApplyDiscountRef = useRef(false);
   const hasMountedApplyDiscountRef = useRef(false);
   const hasInvalidCustomerSelectionRef = useRef(false);
+  const isConfirmedRef = useRef(false);
+  const isOrderNotesFlowRef = useRef(false);
+  const clearCartRef = useRef(clearCart);
+  const clearEditingNotaRef = useRef(clearEditingNota);
+  const resetDraftForNewSaleRef = useRef<() => Promise<void>>(() =>
+    Promise.resolve(),
+  );
+  const hasExecutedConfirmedSaleCleanupRef = useRef(false);
+  const shouldCleanupOnExitAfterConfirmRef = useRef(false);
 
   const docTypeConfig: Record<
     "03" | "01" | "101",
@@ -166,6 +177,33 @@ const PaymentPage = () => {
       scope: isPosEditDraftFlow ? "note-edit" : "sale",
       noteId: isPosEditDraftFlow ? resolvedNoteIdForDraft : null,
     });
+
+  isConfirmedRef.current = isConfirmed;
+  isOrderNotesFlowRef.current = isOrderNotesFlow;
+  clearCartRef.current = clearCart;
+  clearEditingNotaRef.current = clearEditingNota;
+  resetDraftForNewSaleRef.current = resetDraftForNewSale;
+
+  const runConfirmedSaleCleanup = useCallback(() => {
+    if (hasExecutedConfirmedSaleCleanupRef.current) return;
+    hasExecutedConfirmedSaleCleanupRef.current = true;
+    shouldCleanupOnExitAfterConfirmRef.current = false;
+    clearCartRef.current();
+    clearEditingNotaRef.current();
+    void resetDraftForNewSaleRef.current();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      const shouldCleanOnExit =
+        !isOrderNotesFlowRef.current &&
+        isConfirmedRef.current &&
+        shouldCleanupOnExitAfterConfirmRef.current;
+
+      if (!shouldCleanOnExit) return;
+      runConfirmedSaleCleanup();
+    };
+  }, [runConfirmedSaleCleanup]);
 
   useEffect(() => {
     if (!isPosEditDraftFlow || !isPosDraftHydrated) return;
@@ -401,35 +439,39 @@ const PaymentPage = () => {
 
   const handleQuantityChange = (item: PosCartItem, delta: number) => {
     if (!canEditItems) return;
+    const itemKey = getCartItemKey(item);
     const desired = Math.max(0, (item.cantidad ?? 0) + delta);
     if (hasLiveItems) {
-      updateQuantity(item.productId, desired);
+      updateQuantity(itemKey, desired);
       return;
     }
     adjustLocalItems((prev) =>
       prev.map((it) =>
-        it.productId === item.productId ? { ...it, cantidad: desired } : it,
+        getCartItemKey(it) === itemKey ? { ...it, cantidad: desired } : it,
       ),
     );
   };
 
-  const handleRemoveItem = (productId: number) => {
+  const handleRemoveItem = (itemKey: number) => {
     if (!canEditItems) return;
     if (hasLiveItems) {
-      removeItem(productId);
+      removeItem(itemKey);
       return;
     }
-    adjustLocalItems((prev) => prev.filter((it) => it.productId !== productId));
+    adjustLocalItems((prev) =>
+      prev.filter((it) => getCartItemKey(it) !== itemKey),
+    );
   };
 
   const applyPriceToItem = (item: PosCartItem, price: number) => {
+    const itemKey = getCartItemKey(item);
     if (hasLiveItems) {
-      updatePrice(item.productId, price);
+      updatePrice(itemKey, price);
       return;
     }
     adjustLocalItems((prev) =>
       prev.map((it) =>
-        it.productId === item.productId ? { ...it, precio: price } : it,
+        getCartItemKey(it) === itemKey ? { ...it, precio: price } : it,
       ),
     );
   };
@@ -439,7 +481,8 @@ const PaymentPage = () => {
     if (!/^\d*\.?\d*$/.test(value)) return;
 
     const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
-    setPriceDrafts((prev) => ({ ...prev, [item.productId]: value }));
+    const itemKey = getCartItemKey(item);
+    setPriceDrafts((prev) => ({ ...prev, [itemKey]: value }));
 
     const parsed = Number(value);
     if (!Number.isNaN(parsed) && parsed >= minPrice) {
@@ -461,7 +504,7 @@ const PaymentPage = () => {
     if (value.trim() === "") {
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: normalizedMinPrice,
+        [getCartItemKey(item)]: normalizedMinPrice,
       }));
       applyPriceToItem(item, minPrice);
       return;
@@ -471,7 +514,7 @@ const PaymentPage = () => {
     if (Number.isNaN(parsed)) {
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: String(item.precio ?? normalizedMinPrice),
+        [getCartItemKey(item)]: String(item.precio ?? normalizedMinPrice),
       }));
       return;
     }
@@ -480,7 +523,7 @@ const PaymentPage = () => {
       toast.error(`El valor mínimo es ${normalizedMinPrice}.`);
       setPriceDrafts((prev) => ({
         ...prev,
-        [item.productId]: normalizedMinPrice,
+        [getCartItemKey(item)]: normalizedMinPrice,
       }));
       applyPriceToItem(item, minPrice);
       window.requestAnimationFrame(() => {
@@ -491,7 +534,10 @@ const PaymentPage = () => {
       return;
     }
 
-    setPriceDrafts((prev) => ({ ...prev, [item.productId]: String(parsed) }));
+    setPriceDrafts((prev) => ({
+      ...prev,
+      [getCartItemKey(item)]: String(parsed),
+    }));
     applyPriceToItem(item, parsed);
   };
 
@@ -737,7 +783,10 @@ const PaymentPage = () => {
     };
 
     currentDetails.forEach((detalle) => {
-      const detalleId = Number(detalle.detalleId ?? 0);
+      const detalleIdRaw = Number(detalle.detalleId ?? 0);
+      const detalleId = Number.isFinite(detalleIdRaw) && detalleIdRaw > 0
+        ? detalleIdRaw
+        : 0;
       const unidadUpper = safeTrim(detalle.detalleUm ?? "UND").toUpperCase();
       const payloadBase = {
         DetalleId: detalleId,
@@ -1661,7 +1710,11 @@ const PaymentPage = () => {
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
       detalles: safeItems.map((item) => ({
-        detalleId: (item as any).detalleId ?? 0,
+        detalleId:
+          Number.isFinite(Number((item as any).detalleId)) &&
+          Number((item as any).detalleId) > 0
+            ? Number((item as any).detalleId)
+            : 0,
         idProducto: item.productId,
         detalleCantidad: item.cantidad,
         detalleUm: safeTrim(item.unidadMedida ?? "UND").toUpperCase(),
@@ -2016,6 +2069,7 @@ const PaymentPage = () => {
     refetchProducts();
 
     setConfirmedFlowType(isEditing ? "edit" : "create");
+    shouldCleanupOnExitAfterConfirmRef.current = !isEditing;
     toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
     handlePrint();
   };
@@ -2029,13 +2083,16 @@ const PaymentPage = () => {
     }
 
     if (isConfirmed) {
-      clearCart();
-      clearEditingNota();
-      if (confirmedFlowType === "create") {
-        void resetDraftForNewSale();
+      if (
+        confirmedFlowType === "create" ||
+        shouldCleanupOnExitAfterConfirmRef.current
+      ) {
+        runConfirmedSaleCleanup();
         navigate(backRoute, { state: { resetCart: true } });
         return;
       }
+      clearCart();
+      clearEditingNota();
       navigate(backRoute, { state: { preserveCart: true } });
       return;
     }
@@ -2078,6 +2135,7 @@ const PaymentPage = () => {
       navigate(`/sales/order_notes/${notaId}/edit`);
       return;
     }
+    shouldCleanupOnExitAfterConfirmRef.current = false;
     setIsConfirmed(false);
     setConfirmedFlowType(null);
     setEditingNotaInStore(notaId);
@@ -2269,7 +2327,7 @@ const PaymentPage = () => {
 
           return (
             <article
-              key={item.productId}
+              key={getCartItemKey(item)}
               className={`p-3 ${
                 isZeroOrNegative || isStockNegative
                   ? "bg-red-50/70"
@@ -2289,7 +2347,7 @@ const PaymentPage = () => {
                 <button
                   type="button"
                   className="h-7 w-7 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => handleRemoveItem(item.productId)}
+                  onClick={() => handleRemoveItem(getCartItemKey(item))}
                   disabled={!canEditItems}
                   title="Quitar"
                 >
@@ -2348,7 +2406,7 @@ const PaymentPage = () => {
                         step="0.01"
                         inputMode="decimal"
                         className="w-full border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        value={priceDrafts[item.productId] ?? item.precio}
+                        value={priceDrafts[getCartItemKey(item)] ?? item.precio}
                         onChange={(e) => {
                           handlePriceChange(item, e.target.value);
                         }}
@@ -2408,7 +2466,7 @@ const PaymentPage = () => {
 
               return (
                 <div
-                  key={item.productId}
+                  key={getCartItemKey(item)}
                   className={`grid grid-cols-[96px_minmax(0,1fr)_120px_130px] items-start px-3 py-3 ${
                     isZeroOrNegative || isStockNegative
                       ? "bg-red-50/70"
@@ -2482,7 +2540,7 @@ const PaymentPage = () => {
                           data-payment-column="price"
                           data-payment-row-index={rowIndex}
                           className="w-16 border-0 bg-transparent text-right text-sm outline-none appearance-none [appearance:textfield] disabled:text-slate-500 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          value={priceDrafts[item.productId] ?? item.precio}
+                          value={priceDrafts[getCartItemKey(item)] ?? item.precio}
                           onChange={(e) => {
                             handlePriceChange(item, e.target.value);
                           }}
@@ -2524,7 +2582,7 @@ const PaymentPage = () => {
                       <button
                         type="button"
                         className="h-6 w-6 shrink-0 rounded-md border border-red-200 bg-red-50 text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        onClick={() => handleRemoveItem(item.productId)}
+                        onClick={() => handleRemoveItem(getCartItemKey(item))}
                         disabled={!canEditItems}
                         title="Quitar"
                       >
