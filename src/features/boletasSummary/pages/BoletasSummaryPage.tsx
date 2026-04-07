@@ -133,6 +133,7 @@ type BoletasSummarySession = {
 } | null;
 
 type SummaryTab = "pending" | "sent";
+type SendBoletasStatus = "PENDIENTES" | "ANULADOS";
 
 export default function BoletasSummaryPage() {
   const {
@@ -149,6 +150,8 @@ export default function BoletasSummaryPage() {
     consultSummary,
   } = useBoletasSummaryStore();
   const [activeTab, setActiveTab] = useState<SummaryTab>("pending");
+  const [sendBoletasStatus, setSendBoletasStatus] =
+    useState<SendBoletasStatus>("PENDIENTES");
   const [filteredRows, setFilteredRows] = useState<BoletaSummaryDocument[]>([]);
   const todayIso = useMemo(() => toLocalIsoDate(new Date()), []);
   const firstDayOfMonthIso = useMemo(
@@ -556,8 +559,11 @@ export default function BoletasSummaryPage() {
         0,
       );
 
+      worksheet.addRow({});
+
       const totalsRow = worksheet.addRow({
-        serie: "Totales",
+        fechaEmision: `Items: ${filteredSentRows.length}`,
+        serie: "Totales S/",
         subTotal: Number(subtotalSum.toFixed(2)),
         igv: Number(igvSum.toFixed(2)),
         total: Number(totalSum.toFixed(2)),
@@ -565,6 +571,7 @@ export default function BoletasSummaryPage() {
 
       totalsRow.eachCell((cell, colNumber) => {
         const isAmountColumn = colNumber >= 5 && colNumber <= 7;
+        const isLabelColumn = colNumber === 1 || colNumber === 3;
         cell.font = { bold: true };
         cell.border = {
           top: { style: "thin", color: { argb: "FFCBD5E1" } },
@@ -581,6 +588,9 @@ export default function BoletasSummaryPage() {
           vertical: "middle",
           horizontal: isAmountColumn ? "right" : "left",
         };
+        if (isLabelColumn) {
+          cell.alignment = { vertical: "middle", horizontal: "left" };
+        }
         if (isAmountColumn) {
           cell.numFmt = "#,##0.00";
         }
@@ -1039,14 +1049,23 @@ export default function BoletasSummaryPage() {
                   </span>
                   <select
                     className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none sm:w-auto sm:min-w-[160px]"
-                    value="PENDIENTES"
-                    disabled
+                    value={sendBoletasStatus}
+                    onChange={(event) =>
+                      setSendBoletasStatus(
+                        event.target.value as SendBoletasStatus,
+                      )
+                    }
                   >
                     <option value="PENDIENTES">PENDIENTES</option>
+                    <option value="ANULADOS">ANULADOS</option>
                   </select>
                   <button
                     type="button"
-                    className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 text-sm font-medium text-[#B23636] hover:bg-[#B23636]/15 sm:w-auto"
+                    className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium sm:w-auto disabled:cursor-not-allowed disabled:opacity-60 ${
+                      sendBoletasStatus === "PENDIENTES"
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                        : "border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15"
+                    }`}
                     onClick={handleSendSummary}
                     disabled={sequenceLoading || sendingSummary}
                   >
