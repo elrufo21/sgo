@@ -459,7 +459,6 @@ export default function BoletasSummaryPage() {
         { header: "Rango Numeros", key: "rangoNumeros", width: 22 },
         { header: "SubTotal", key: "subTotal", width: 14 },
         { header: "IGV", key: "igv", width: 12 },
-        { header: "ICBPER", key: "icbper", width: 12 },
         { header: "Total", key: "total", width: 14 },
         { header: "Ticket", key: "ticket", width: 22 },
         { header: "Codigo SUNAT", key: "codigoSunat", width: 13 },
@@ -500,7 +499,6 @@ export default function BoletasSummaryPage() {
           rangoNumeros: toExcelSafeText(row.rangoNumeros),
           subTotal: Number(parseAmount(row.subTotal).toFixed(2)),
           igv: Number(parseAmount(row.igv).toFixed(2)),
-          icbper: Number(parseAmount(row.icbper).toFixed(2)),
           total: Number(parseAmount(row.total).toFixed(2)),
           ticket: toExcelSafeText(row.ticket),
           codigoSunat: toExcelSafeText(row.codigoSunat),
@@ -511,7 +509,8 @@ export default function BoletasSummaryPage() {
         });
 
         excelRow.eachCell((cell, colNumber) => {
-          const isAmountColumn = colNumber >= 5 && colNumber <= 8;
+          const isAmountColumn = colNumber >= 5 && colNumber <= 7;
+          const isSunatCodeColumn = colNumber === 9;
           cell.border = {
             top: { style: "thin", color: { argb: "FFE2E8F0" } },
             left: { style: "thin", color: { argb: "FFE2E8F0" } },
@@ -520,8 +519,12 @@ export default function BoletasSummaryPage() {
           };
           cell.alignment = {
             vertical: "top",
-            horizontal: isAmountColumn ? "right" : "left",
-            wrapText: colNumber === 11 || colNumber === 12,
+            horizontal: isAmountColumn
+              ? "right"
+              : isSunatCodeColumn
+                ? "center"
+                : "left",
+            wrapText: colNumber === 10 || colNumber === 11,
           };
 
           if (isAmountColumn) {
@@ -548,15 +551,20 @@ export default function BoletasSummaryPage() {
         (acc, row) => acc + parseAmount(row.igv),
         0,
       );
+      const totalSum = filteredSentRows.reduce(
+        (acc, row) => acc + parseAmount(row.total),
+        0,
+      );
 
       const totalsRow = worksheet.addRow({
         serie: "Totales",
         subTotal: Number(subtotalSum.toFixed(2)),
         igv: Number(igvSum.toFixed(2)),
+        total: Number(totalSum.toFixed(2)),
       });
 
       totalsRow.eachCell((cell, colNumber) => {
-        const isAmountColumn = colNumber === 5 || colNumber === 6;
+        const isAmountColumn = colNumber >= 5 && colNumber <= 7;
         cell.font = { bold: true };
         cell.border = {
           top: { style: "thin", color: { argb: "FFCBD5E1" } },

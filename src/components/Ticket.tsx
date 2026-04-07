@@ -78,6 +78,17 @@ const readCompanyPhoneFromStorage = (): string => {
   }
 };
 
+const formatUnitPrefix = (value: unknown): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const abbreviated = raw.slice(0, 3);
+  const normalized =
+    abbreviated.charAt(0).toUpperCase() + abbreviated.slice(1).toLowerCase();
+
+  return `${normalized}. `;
+};
+
 const UNITS = [
   "",
   "UNO",
@@ -478,6 +489,7 @@ const TicketDocument = ({
         ? (items ?? []).map((item) => ({
             quantity: Number(item.cantidad ?? 0),
             description: item.nombre ?? "Producto",
+            unitMeasure: item.unidadMedida ?? "",
             unitPrice: Number(item.precio ?? 0),
             total: Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
           }))
@@ -485,6 +497,7 @@ const TicketDocument = ({
             {
               quantity: 10.0,
               description: "UNI CHAPA CLASICA 250 CANTOL",
+              unitMeasure: "",
               unitPrice: 79.0,
               total: 790.0,
             },
@@ -605,7 +618,9 @@ const TicketDocument = ({
         {ticketData.items.map((item, index) => (
           <View key={index} style={styles.tableRow}>
             <Text style={styles.colCant}>{item.quantity.toFixed(2)}</Text>
-            <Text style={styles.colDesc}>{item.description}</Text>
+            <Text style={styles.colDesc}>
+              {`${formatUnitPrefix(item.unitMeasure)}${item.description}`}
+            </Text>
             <Text style={styles.colPUni}>{item.unitPrice.toFixed(2)}</Text>
             <Text style={styles.colImporte}>{item.total.toFixed(2)}</Text>
           </View>
