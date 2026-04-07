@@ -41,13 +41,9 @@ const buildVariationDetailId = (baseId: number, index: number) =>
   -1 * (baseId * 1000 + (index + 1));
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
   Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
-const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
+const hasInvalidQuantityForPayment = (item: PosCartItem) => {
   const quantity = Number(item.cantidad ?? 0);
-  if (!Number.isFinite(quantity) || quantity <= 0) return true;
-
-  const stock = typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
-  if (stock === undefined) return false;
-  return quantity > stock || stock <= 0;
+  return !Number.isFinite(quantity) || quantity <= 0;
 };
 const normalizeUnitLabel = (value: unknown) =>
   String(value ?? "").trim().toUpperCase();
@@ -198,10 +194,10 @@ const POSPage = () => {
   }, [clearCart, clearEditingNota, location.state, resetDraftForNewSale]);
 
   const getInvalidItemsForPayment = () =>
-    items.filter(hasInvalidQuantityOrStockForPayment);
+    items.filter(hasInvalidQuantityForPayment);
 
   const hasInvalidItemsForPayment = items.some(
-    hasInvalidQuantityOrStockForPayment,
+    hasInvalidQuantityForPayment,
   );
 
   const goToPayment = () => {
@@ -230,7 +226,7 @@ const POSPage = () => {
         .join(", ");
       const suffix = invalidItems.length > 3 ? "..." : "";
       toast.error(
-        `Corrige el carrito antes de pagar. Verifica cantidad y stock en: ${preview}${suffix}`,
+        `Corrige el carrito antes de pagar. Verifica cantidad en: ${preview}${suffix}`,
       );
       return;
     }

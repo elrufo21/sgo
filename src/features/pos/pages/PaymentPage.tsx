@@ -46,6 +46,14 @@ type NotaDetallePayload = {
 };
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
   Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
+const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
+  const quantity = Number(item.cantidad ?? 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) return true;
+
+  const stock = typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
+  if (stock === undefined) return false;
+  return quantity > stock || stock <= 0;
+};
 
 const PaymentPage = () => {
   const { notaId: notaIdParam } = useParams<{ notaId?: string }>();
@@ -369,7 +377,8 @@ const PaymentPage = () => {
   const hasLiveItems = !isOrderNotesFlow && items.length > 0;
   const itemsToRender = hasLiveItems ? items : purchasedItems;
   const totalsToRender = hasLiveItems ? totals : paidTotals;
-  const canEditItems = !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
+  const canEditItems =
+    !isConfirmed && !isReadOnlyNoteView && (hasLiveItems || isEditingMode);
 
   const focusVerticalInput = useCallback(
     (
@@ -1766,6 +1775,11 @@ const PaymentPage = () => {
     if (!ensureFacturaCustomerAndRuc()) return;
 
     const sourceItems = hasLiveItems ? items : purchasedItems;
+    const invalidItems = sourceItems.filter(hasInvalidQuantityOrStockForPayment);
+    if (invalidItems.length) {
+      toast.error("No puede agregar productos en 0.");
+      return;
+    }
     const sourceTotals = hasLiveItems ? totals : paidTotals;
     setPurchasedItems(sourceItems);
     setPaidTotals(sourceTotals);
@@ -2071,7 +2085,7 @@ const PaymentPage = () => {
     setConfirmedFlowType(isEditing ? "edit" : "create");
     shouldCleanupOnExitAfterConfirmRef.current = !isEditing;
     toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
-    handlePrint();
+    void handlePrint({ skipConfirmedCheck: true });
   };
 
   const handleBackToPos = (ev?: MouseEvent) => {
@@ -2270,7 +2284,20 @@ const PaymentPage = () => {
     }
   }, [createComprobanteBlob, downloadComprobante, getComprobanteFileName]);
 
-  const handlePrint = async () => {
+  const handlePrint = async (options?: { skipConfirmedCheck?: boolean }) => {
+    const skipConfirmedCheck = options?.skipConfirmedCheck === true;
+    if (!skipConfirmedCheck && !isConfirmed) {
+      toast.error("Debe confirmar el documento antes de imprimir.");
+      return;
+    }
+
+    const printableItems = itemsToRender.length ? itemsToRender : purchasedItems;
+    const invalidItems = printableItems.filter(hasInvalidQuantityOrStockForPayment);
+    if (invalidItems.length) {
+      toast.error("No puede imprimir con productos en 0.");
+      return;
+    }
+
     try {
       setIsPrinting(true);
       await createComprobanteBlob();
@@ -2685,7 +2712,7 @@ const PaymentPage = () => {
                   type="button"
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
                   onClick={() => handlePrint()}
-                  disabled={isPrinting}
+                  disabled={isPrinting || !isConfirmed}
                 >
                   <Printer className="h-4 w-4" />
                   {isPrinting ? "Imprimiendo..." : "Imprimir"}
@@ -3052,7 +3079,7 @@ const PaymentPage = () => {
         <button
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
           onClick={() => handlePrint()}
-          disabled={isPrinting}
+          disabled={isPrinting || !isConfirmed}
         >
           <Printer className="w-5 h-5" />
           {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
