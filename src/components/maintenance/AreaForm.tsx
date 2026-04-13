@@ -141,15 +141,15 @@ export default function AreaForm({
                   </h1>
                 </div>
                 <div className="flex items-center gap-2">
-                  {mode !== "edit" && (
+                  {mode === "edit" && onDelete && (
                     <button
-                      type="submit"
-                      disabled={isSubmitting}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                      title="Guardar"
+                      type="button"
+                      onClick={onDelete}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
+                      title="Eliminar"
                     >
-                      <Save className="w-4 h-4" />
-                      <span className="hidden sm:inline">Guardar</span>
+                      <Trash2 className="w-4 h-4" />
+                      <span className="hidden sm:inline">Eliminar</span>
                     </button>
                   )}
                   {mode !== "edit" && (
@@ -163,15 +163,15 @@ export default function AreaForm({
                       <span className="hidden sm:inline">Nuevo</span>
                     </button>
                   )}
-                  {mode === "edit" && onDelete && (
+                  {mode !== "edit" && (
                     <button
-                      type="button"
-                      onClick={onDelete}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
-                      title="Eliminar"
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                      title="Guardar"
                     >
-                      <Trash2 className="w-4 h-4" />
-                      <span className="hidden sm:inline">Eliminar</span>
+                      <Save className="w-4 h-4" />
+                      <span className="hidden sm:inline">Guardar</span>
                     </button>
                   )}
                 </div>

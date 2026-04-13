@@ -30,7 +30,7 @@ const EditableTextCell = ({
       disabled={isDisabled}
       onChange={(e) => setValue(e.target.value)}
       onBlur={onBlur}
-      className="w-[80px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-full min-w-[96px] px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     />
   );
 };

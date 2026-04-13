@@ -38,6 +38,9 @@ interface BoletasSummaryState {
   consultSummary: (
     payload: BoletaSummaryConsultPayload,
   ) => Promise<BoletaSummaryConsultResponse>;
+  consultSummaryBaja: (
+    payload: BoletaSummaryConsultPayload,
+  ) => Promise<BoletaSummaryConsultResponse>;
 }
 
 const toPositiveInt = (value: unknown, fallback = 0) => {
@@ -298,6 +301,16 @@ const mapDelimitedSentSummaryRow = (
     ["Serie", "ResumenSerie"],
     4,
   );
+  const estado = getDelimitedValue(parts, headerIndex, ["ESTADO", "Estado"], 18);
+  const tipoDocumento = inferSummaryDocumentType(
+    getDelimitedValue(
+      parts,
+      headerIndex,
+      ["TIPO_DOCUMENTO", "TipoDocumento", "TipoDoc"],
+      -1,
+    ),
+    estado,
+  );
 
   return {
     id: resumenId || index + 1,
@@ -361,12 +374,12 @@ const mapDelimitedSentSummaryRow = (
       ["ClaveSol", "PassSolEmpresa", "PassSol"],
       17,
     ),
-    tipoDocumento: "RC",
+    tipoDocumento,
     intentos: toPositiveInt(
       getDelimitedValue(parts, headerIndex, ["Intentos"], 19),
       0,
     ),
-    estado: getDelimitedValue(parts, headerIndex, ["ESTADO", "Estado"], 18),
+    estado,
   };
 };
 
@@ -412,6 +425,27 @@ const isPlaceholderText = (value: unknown) => {
   return normalized === "~";
 };
 
+const inferSummaryDocumentType = (
+  tipoDocumento: unknown,
+  estado: unknown,
+): "RA" | "RC" => {
+  const explicitType = normalizeText(tipoDocumento, "").toUpperCase();
+  if (explicitType === "RA" || explicitType === "RC") {
+    return explicitType;
+  }
+
+  const normalizedEstado = normalizeText(estado, "").toUpperCase();
+  if (
+    normalizedEstado === "B" ||
+    normalizedEstado.includes("BAJA") ||
+    normalizedEstado.includes("ANUL")
+  ) {
+    return "RA";
+  }
+
+  return "RC";
+};
+
 const hasMeaningfulSentSummaryRow = (row: BoletaSummarySentRecord) =>
   [
     row.fechaEmision,
@@ -432,6 +466,7 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
           row.resumenId ?? row.ResumenId ?? row.id ?? row.Id,
           0,
         );
+        const estado = normalizeText(row.estado ?? row.Estado);
 
         return {
           id: resumenId || index + 1,
@@ -494,9 +529,9 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
               row.ClaveSol ??
               row.PASS_SOL_EMPRESA,
           ),
-          tipoDocumento: normalizeText(
+          tipoDocumento: inferSummaryDocumentType(
             row.tipoDocumento ?? row.TipoDocumento ?? row.TIPO_DOCUMENTO,
-            "RC",
+            estado,
           ),
           tipoProceso: toPositiveInt(
             row.tipoProceso ??
@@ -507,7 +542,7 @@ const parseSentSummariesResponse = (payload: unknown): BoletaSummarySentRecord[]
             0,
           ),
           intentos: toPositiveInt(row.intentos ?? row.Intentos, 0),
-          estado: normalizeText(row.estado ?? row.Estado),
+          estado,
         } satisfies BoletaSummarySentRecord;
       })
       .filter(hasMeaningfulSentSummaryRow);
@@ -779,6 +814,9 @@ const emptyConsultSummaryResponse: BoletaSummaryConsultResponse = {
   msj_sunat: "",
   hash_cdr: "",
   hash_cpe: "",
+  cdr_recibido: false,
+  cdr_base64: "",
+  requiere_reenvio: false,
 };
 
 const parseConsultSummaryResponse = (
@@ -862,6 +900,19 @@ const parseConsultSummaryResponse = (
     hash_cpe: normalizeText(
       record.hash_cpe ?? record.hashCpe ?? record.HashCpe,
       "",
+    ),
+    cdr_recibido: toBoolean(
+      record.cdr_recibido ?? record.cdrRecibido ?? record.CdrRecibido ?? false,
+    ),
+    cdr_base64: normalizeText(
+      record.cdr_base64 ?? record.cdrBase64 ?? record.CdrBase64,
+      "",
+    ),
+    requiere_reenvio: toBoolean(
+      record.requiere_reenvio ??
+        record.requiereReenvio ??
+        record.RequiereReenvio ??
+        false,
     ),
   };
 };
@@ -1050,6 +1101,29 @@ export const useBoletasSummaryStore = create<BoletasSummaryState>((set) => ({
       return {
         ...emptyConsultSummaryResponse,
         mensaje: "No se pudo consultar el resumen.",
+      };
+    }
+  },
+  consultSummaryBaja: async (payload) => {
+    try {
+      const response = await apiRequest<unknown>({
+        url: `${API_BASE_URL}/Nota/resumen/consultar-baja`,
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      return parseConsultSummaryResponse(response);
+    } catch (error) {
+      console.error("Error al consultar baja de boletas", error);
+      return {
+        ...emptyConsultSummaryResponse,
+        mensaje: "No se pudo consultar la baja.",
       };
     }
   },

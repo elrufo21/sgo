@@ -185,7 +185,7 @@ const EditableDataTable = ({
       {/* Barra de herramientas */}
       <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
         {enableFiltering && (
-          <div className="relative flex-1 max-w-full sm:max-w-sm">
+          <div className="relative flex-1 max-w-full sm:max-w-md">
             <Search
               className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
               size={18}
@@ -202,8 +202,8 @@ const EditableDataTable = ({
 
       {/* Tabla */}
       <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-        <div className="overflow-x-auto overflow-y-auto max-h-[min(58vh,540px)]">
-          <table className="w-full min-w-[520px] sm:min-w-[640px]">
+        <div className="overflow-x-auto overflow-y-auto max-h-[min(60vh,560px)] md:max-h-[min(58vh,540px)]">
+          <table className="w-full min-w-[460px] sm:min-w-[640px]">
             <thead className="bg-gray-50 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>

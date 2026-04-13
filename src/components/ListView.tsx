@@ -151,19 +151,36 @@ export function CrudList<T>(props: CrudListProps<T>) {
           });
 
         return (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap justify-end gap-2">
             {onEdit ? (
-              <button type="button" onClick={() => onEdit(row.original, id)}>
-                <Pencil className="text-green-600" />
+              <button
+                type="button"
+                onClick={() => onEdit(row.original, id)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                title="Editar"
+                aria-label="Editar"
+              >
+                <Pencil className="h-4 w-4" />
               </button>
             ) : (
-              <Link to={`${basePath}/${id}/edit`}>
-                <Pencil className="text-green-600" />
+              <Link
+                to={`${basePath}/${id}/edit`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
+                title="Editar"
+                aria-label="Editar"
+              >
+                <Pencil className="h-4 w-4" />
               </Link>
             )}
 
-            <button onClick={askDelete}>
-              <Trash2 className="text-red-600 hover:text-red-800" />
+            <button
+              type="button"
+              onClick={askDelete}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100"
+              title="Eliminar"
+              aria-label="Eliminar"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         );

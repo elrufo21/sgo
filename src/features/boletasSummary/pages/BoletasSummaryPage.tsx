@@ -96,6 +96,14 @@ const isSuccessfulSummaryConsultation = (row: BoletaSummarySentRecord) => {
   return hasCdrArtifacts && message.includes("ACEPTADA");
 };
 
+const isCancelledSentSummary = (row: BoletaSummarySentRecord) => {
+  const tipoDocumento = safeTrim(row.tipoDocumento).toUpperCase();
+  if (tipoDocumento === "RA") return true;
+
+  const estado = safeTrim(row.estado).toUpperCase();
+  return estado === "B" || estado.includes("BAJA") || estado.includes("ANUL");
+};
+
 const EXCEL_MAX_CELL_LENGTH = 32767;
 
 const toExcelSafeText = (value: unknown) => {
@@ -150,6 +158,7 @@ export default function BoletasSummaryPage() {
     sendSummary,
     sendSummaryBaja,
     consultSummary,
+    consultSummaryBaja,
   } = useBoletasSummaryStore();
   const [activeTab, setActiveTab] = useState<SummaryTab>("pending");
   const [sendBoletasStatus, setSendBoletasStatus] =
@@ -313,36 +322,23 @@ export default function BoletasSummaryPage() {
         ? `${normalizeSerieNumero(firstSerieNumero)} al ${normalizeSerieNumero(lastSerieNumero)}`
         : "";
 
-    const detalle = filteredRows.map((row, index) => {
+    const detalleResumen = filteredRows.map((row, index) => {
       const dni = safeTrim(row.clienteDni);
-      const base = {
+      return {
         item: index + 1,
         tipoComprobante: "03",
         nroComprobante: safeTrim(row.serieNumero),
         tipoDocumento: "1",
         nroDocumento: dni || "00000000",
+        tipoComprobanteRef: "",
+        nroComprobanteRef: "",
+        statu: "1",
         codMoneda: "PEN",
         total: Number(parseAmount(row.total).toFixed(2)),
         icbper: Number(parseAmount(row.icbper).toFixed(2)),
         gravada: Number(parseAmount(row.subTotal).toFixed(2)),
-        igv: Number(parseAmount(row.igv).toFixed(2)),
-        docuId: row.docuId,
-        notaId: row.notaId,
-      };
-
-      if (isCancelledMode) {
-        return {
-          ...base,
-          statu: "3",
-        };
-      }
-
-      return {
-        ...base,
-        tipoComprobanteRef: "",
-        nroComprobanteRef: "",
-        statu: "1",
         isc: 0,
+        igv: Number(parseAmount(row.igv).toFixed(2)),
         otros: 0,
         cargoXAsignacion: 1,
         montoCargoXAsig: 0,
@@ -350,8 +346,25 @@ export default function BoletasSummaryPage() {
         inafecto: 0,
         exportacion: 0,
         gratuitas: 0,
+        docuId: row.docuId,
+        notaId: row.notaId,
       };
     });
+
+    const detalleBaja = filteredRows.map((row, index) => ({
+      item: index + 1,
+      tipoComprobante: "03",
+      nroComprobante: safeTrim(row.serieNumero),
+      descripcion: "ANULACION DE DOCUMENTO",
+      docuId: row.docuId,
+      notaId: row.notaId,
+    }));
+
+    const tipoProcesoRaw = Number(user.entorno ?? loginPayload.entorno ?? 3);
+    const tipoProceso =
+      Number.isFinite(tipoProcesoRaw) && tipoProcesoRaw > 0
+        ? Math.floor(tipoProcesoRaw)
+        : 3;
 
     const payloadBase = {
       NRO_DOCUMENTO_EMPRESA: safeTrim(
@@ -369,12 +382,12 @@ export default function BoletasSummaryPage() {
       usuario: currentUser || "SISTEMA",
       USUARIO_REGISTRO: currentUser || "SISTEMA",
       TIPO_DOCUMENTO: "6",
-      CODIGO: "RC",
-      SERIE: isCancelledMode ? "RC" : serieResumen,
+      CODIGO: isCancelledMode ? "RA" : "RC",
+      SERIE: serieResumen,
       SECUENCIA: String(nextSequence),
       FECHA_REFERENCIA: referenceDateIso,
       FECHA_DOCUMENTO: todayIso,
-      TIPO_PROCESO: safeTrim(user.entorno ?? loginPayload.entorno ?? "3"),
+      TIPO_PROCESO: tipoProceso,
       CONTRA_FIRMA: safeTrim(
         user.claveCertificado ?? loginPayload.claveCertificado,
       ),
@@ -384,19 +397,24 @@ export default function BoletasSummaryPage() {
         user.certificadoBase64 ?? loginPayload.certificadoBase64,
       ),
       COMPANIA_ID: Number.isFinite(companyId) && companyId > 0 ? companyId : 1,
-      detalle,
     };
 
     const response = isCancelledMode
-      ? await sendSummaryBaja(payloadBase as BoletaSummarySendBajaPayload)
+      ? await sendSummaryBaja({
+          ...payloadBase,
+          CODIGO: "RA",
+          detalle: detalleBaja,
+        } as BoletaSummarySendBajaPayload)
       : await sendSummary({
-          ...(payloadBase as BoletaSummarySendPayload),
+          ...payloadBase,
+          CODIGO: "RC",
+          detalle: detalleResumen,
           RANGO_NUMEROS: rangoNumeros,
           SUBTOTAL: Number(totals.subTotal.toFixed(2)),
           IGV: Number(totals.igv.toFixed(2)),
           ICBPER: Number(totals.icbper.toFixed(2)),
           TOTAL: Number(totals.total.toFixed(2)),
-        });
+        } as BoletaSummarySendPayload);
     const isSuccess = response.ok || response.flg_rta === "1";
 
     if (isSuccess) {
@@ -491,6 +509,7 @@ export default function BoletasSummaryPage() {
       worksheet.columns = [
         { header: "Fecha Emision", key: "fechaEmision", width: 14 },
         { header: "Fecha Envio", key: "fechaEnvio", width: 20 },
+        { header: "Tipo", key: "tipoResumen", width: 12 },
         { header: "Serie", key: "serie", width: 16 },
         { header: "Rango Numeros", key: "rangoNumeros", width: 22 },
         { header: "SubTotal", key: "subTotal", width: 14 },
@@ -531,6 +550,7 @@ export default function BoletasSummaryPage() {
         const excelRow = worksheet.addRow({
           fechaEmision: toExcelSafeText(row.fechaEmision),
           fechaEnvio: toExcelSafeText(row.fechaEnvio),
+          tipoResumen: isCancelledSentSummary(row) ? "ANULADO" : "EMITIDO",
           serie: toExcelSafeText(row.serie),
           rangoNumeros: toExcelSafeText(row.rangoNumeros),
           subTotal: Number(parseAmount(row.subTotal).toFixed(2)),
@@ -545,8 +565,8 @@ export default function BoletasSummaryPage() {
         });
 
         excelRow.eachCell((cell, colNumber) => {
-          const isAmountColumn = colNumber >= 5 && colNumber <= 7;
-          const isSunatCodeColumn = colNumber === 9;
+          const isAmountColumn = colNumber >= 6 && colNumber <= 8;
+          const isSunatCodeColumn = colNumber === 10;
           cell.border = {
             top: { style: "thin", color: { argb: "FFE2E8F0" } },
             left: { style: "thin", color: { argb: "FFE2E8F0" } },
@@ -739,14 +759,11 @@ export default function BoletasSummaryPage() {
         row.passSolEmpresa ?? user.claveSol ?? loginPayload.claveSol,
       );
       const secuencia = safeTrim(row.secuencia ?? row.serie);
-      const tipoDocumento = safeTrim(row.tipoDocumento || "RC");
-      const normalizedEstado = safeTrim(row.estado).toUpperCase();
-      const estado =
-        normalizedEstado === "B" ||
-        normalizedEstado.includes("BAJA") ||
-        normalizedEstado.includes("ANUL")
-          ? "B"
-          : "P";
+      const isCancelled = isCancelledSentSummary(row);
+      const estado = isCancelled ? "B" : "P";
+      const tipoDocumento = safeTrim(
+        row.tipoDocumento || (isCancelled ? "RA" : "RC"),
+      );
 
       const tipoProcesoRaw = Number(
         row.tipoProceso ?? user.entorno ?? loginPayload.entorno ?? 3,
@@ -776,7 +793,7 @@ export default function BoletasSummaryPage() {
 
       setConsultingSummaryId(resumenId);
       try {
-        const response = await consultSummary({
+        const payload = {
           RESUMEN_ID: resumenId,
           TICKET: ticket,
           CODIGO_SUNAT: "",
@@ -789,7 +806,10 @@ export default function BoletasSummaryPage() {
           TIPO_DOCUMENTO: tipoDocumento,
           TIPO_PROCESO: tipoProceso,
           INTENTOS: intentos,
-        });
+        };
+        const response = isCancelled
+          ? await consultSummaryBaja(payload)
+          : await consultSummary(payload);
 
         const action = safeTrim(response.accion).toLowerCase();
         const code = safeTrim(response.cod_sunat);
@@ -800,14 +820,26 @@ export default function BoletasSummaryPage() {
             const nextTry =
               response.intentos !== null ? response.intentos : intentos + 1;
             toast.warning(message || `Intente nuevamente ${nextTry} de 3`);
+          } else if (action === "retornar_boletas" || response.requiere_reenvio) {
+            toast.warning(
+              message ||
+                "Ticket inválido. Se retornaron comprobantes a pendiente para reenviar.",
+            );
           } else if (code === "0" || action === "consultado_correctamente") {
             toast.success(
               message ||
                 safeTrim(response.msj_sunat) ||
-                "Se consultó correctamente el ticket.",
+                (isCancelled
+                  ? "Se consultó correctamente la baja."
+                  : "Se consultó correctamente el ticket."),
             );
           } else {
-            toast.info(message || "Consulta realizada.");
+            toast.info(
+              message ||
+                (isCancelled
+                  ? "Consulta de baja realizada."
+                  : "Consulta realizada."),
+            );
           }
 
           void fetchSentSummaries({
@@ -821,12 +853,23 @@ export default function BoletasSummaryPage() {
           toast.error(`${code} - ${message}`);
           return;
         }
-        toast.error(message || "No se pudo consultar el resumen.");
+        toast.error(
+          message ||
+            (isCancelled
+              ? "No se pudo consultar la baja."
+              : "No se pudo consultar el resumen."),
+        );
       } finally {
         setConsultingSummaryId(null);
       }
     },
-    [consultSummary, fetchSentSummaries, sentDateFrom, sentDateTo],
+    [
+      consultSummary,
+      consultSummaryBaja,
+      fetchSentSummaries,
+      sentDateFrom,
+      sentDateTo,
+    ],
   );
 
   const columns = useMemo(
@@ -933,6 +976,25 @@ export default function BoletasSummaryPage() {
       sentColumnHelper.accessor("fechaEnvio", {
         header: "Fecha Envío",
         cell: (info) => info.getValue(),
+      }),
+      sentColumnHelper.display({
+        id: "tipoResumen",
+        header: "Tipo",
+        cell: ({ row }) => {
+          const isCancelled = isCancelledSentSummary(row.original);
+          const label = isCancelled ? "ANULADO" : "EMITIDO";
+          const badgeClass = isCancelled
+            ? "bg-rose-100 text-rose-700 border-rose-200"
+            : "bg-blue-100 text-blue-700 border-blue-200";
+
+          return (
+            <span
+              className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass}`}
+            >
+              {label}
+            </span>
+          );
+        },
       }),
       sentColumnHelper.accessor("serie", {
         header: "Serie",

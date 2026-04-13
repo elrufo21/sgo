@@ -742,24 +742,6 @@ export default function ShoppingFormBase({
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                title="Guardar"
-              >
-                <Save className="w-4 h-4" />
-              </button>
-              {mode === "create" && (
-                <button
-                  type="button"
-                  onClick={handleNew}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                  title="Nuevo"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              )}
               {mode === "edit" && onDelete && (
                 <button
                   type="button"
@@ -770,6 +752,24 @@ export default function ShoppingFormBase({
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
+              {mode === "create" && (
+                <button
+                  type="button"
+                  onClick={handleNew}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                  title="Nuevo"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                title="Guardar"
+              >
+                <Save className="w-4 h-4" />
+              </button>
             </div>
           </div>
 

@@ -126,10 +126,10 @@ const CashFlowList = () => {
       cell: (info) => {
         const id = info.getValue();
         return (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link
               to={`/cash_flow_control/${id}/edit`}
-              className="text-green-600 hover:text-green-800 transition-colors"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition-colors hover:bg-emerald-100"
               title="Editar"
             >
               <Pencil className="w-4 h-4" />
@@ -146,7 +146,7 @@ const CashFlowList = () => {
                   toast.success("Flujo de caja eliminado correctamente");
                 }
               }}
-              className="text-red-600 hover:text-red-800 transition-colors"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100"
               title="Eliminar"
             >
               <Trash2 className="w-4 h-4" />
@@ -159,14 +159,14 @@ const CashFlowList = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-[40vh] items-center justify-center">
         <div className="text-gray-600 text-lg">Cargando flujos de caja...</div>
       </div>
     );
   }
 
   return (
-    <div className="p-4">
+    <div className="p-3 sm:p-4">
       <div className="mb-3">
         <h1 className="text-2xl font-semibold text-[#0f2748]">Flujo de Caja</h1>
       </div>

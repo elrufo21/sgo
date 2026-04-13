@@ -116,7 +116,21 @@ const AutocompleteTableCell = ({ getValue, row, column, table }) => {
           applyProductToRow(null);
         }
       }}
-      renderInput={(params) => <TextField {...params} label="Buscar..." />}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          placeholder="Buscar..."
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              minHeight: "2.25rem",
+            },
+            "& .MuiInputBase-input": {
+              fontSize: "0.875rem",
+              py: 0.5,
+            },
+          }}
+        />
+      )}
     />
   );
 };

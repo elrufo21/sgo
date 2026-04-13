@@ -239,28 +239,6 @@ export default function UserFormBase({
                   </h1>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
-                    title="Guardar"
-                  >
-                    <Save className="w-4 h-4" />
-                    <span className="hidden sm:inline">Guardar</span>
-                  </button>
-
-                  {mode !== "edit" && (
-                    <button
-                      type="button"
-                      onClick={handleNew}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
-                      title="Nuevo"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span className="hidden sm:inline">Nuevo</span>
-                    </button>
-                  )}
-
                   {mode === "edit" && onDelete && (
                     <button
                       type="button"
@@ -272,6 +250,26 @@ export default function UserFormBase({
                       <span className="hidden sm:inline">Eliminar</span>
                     </button>
                   )}
+                  {mode !== "edit" && (
+                    <button
+                      type="button"
+                      onClick={handleNew}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                      title="Nuevo"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Nuevo</span>
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 disabled:opacity-70 transition-colors"
+                    title="Guardar"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">Guardar</span>
+                  </button>
                 </div>
               </div>
             )}

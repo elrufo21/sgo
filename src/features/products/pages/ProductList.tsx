@@ -232,7 +232,7 @@ const ProductList = () => {
             onChange={(e) =>
               setEstadoFilter(e.target.value as "ACTIVO" | "INACTIVO")
             }
-            className="border border-gray-300 rounded px-2 py-1 text-sm"
+            className="h-11 min-w-[9.5rem] rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
           >
             <option value="ACTIVO">Activos</option>
             <option value="INACTIVO">Inactivos</option>

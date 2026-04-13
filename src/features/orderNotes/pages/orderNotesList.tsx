@@ -266,7 +266,7 @@ const OrderNotesList = () => {
   );
 
   return (
-    <div className="p-4">
+    <div className="p-3 sm:p-4">
       <div className="mb-3">
         <h1 className="text-2xl font-semibold text-[#0f2748]">Nota Pedidos</h1>
       </div>

@@ -1,4 +1,4 @@
-import { FileBadge2 } from "lucide-react";
+import { ArrowRight, FileBadge2 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 export default function ConfigurationDashboard() {
@@ -14,27 +14,41 @@ export default function ConfigurationDashboard() {
   ];
 
   return (
-    <div className="p-6">
-      <h1 className="mb-6 text-2xl font-semibold">Configuración</h1>
+    <div className="space-y-4 px-2 py-2 sm:px-1">
+      <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+        <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">
+          Configuración
+        </h1>
+        <p className="mt-1 text-sm text-slate-600">
+          Ajusta parametros clave de operacion y facturacion electronica.
+        </p>
+      </section>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4 xl:grid-cols-3">
         {items.map((item) => (
-          <div
+          <button
+            type="button"
             key={item.title}
             onClick={() => navigate(item.route)}
-            className="cursor-pointer rounded-xl border border-gray-200 bg-white p-6 shadow-md transition hover:shadow-xl"
+            className="group rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#B23636]/35 hover:shadow-md sm:p-5"
           >
-            <div className="flex items-center gap-4">
-              {item.icon}
-              <div>
-                <h2 className="text-lg font-bold">{item.title}</h2>
-                <p className="text-sm text-gray-600">{item.desc}</p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="shrink-0 rounded-xl bg-slate-50 p-2.5">
+                  {item.icon}
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-base font-semibold text-slate-900 sm:text-lg">
+                    {item.title}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-600">{item.desc}</p>
+                </div>
               </div>
+              <ArrowRight className="mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-[#B23636]" />
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
   );
 }
-

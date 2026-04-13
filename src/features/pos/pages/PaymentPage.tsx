@@ -31,6 +31,13 @@ import { useDialogStore } from "@/store/app/dialog.store";
 import type { PosCartItem } from "@/types/pos";
 import type { Client } from "@/types/customer";
 import { buildApiUrl } from "@/config";
+import {
+  IGV_FACTOR,
+  buildSaleMonetarySummary,
+  normalizeSunatUnitCode,
+  roundCurrency,
+  validateSaleMonetarySummary,
+} from "@/shared/helpers/saleMonetary";
 
 type NotaDetallePayload = {
   detalleId?: number;
@@ -49,11 +56,7 @@ const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
 const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
   const quantity = Number(item.cantidad ?? 0);
   if (!Number.isFinite(quantity) || quantity <= 0) return true;
-
-  const stock =
-    typeof item.stock === "number" ? Math.max(item.stock, 0) : undefined;
-  if (stock === undefined) return false;
-  return quantity > stock || stock <= 0;
+  return false;
 };
 
 const PaymentPage = () => {
@@ -652,9 +655,10 @@ const PaymentPage = () => {
       : docTypeCode === "101"
         ? "proforma"
         : "boleta";
+  const isFactura = docTypeCode === "01";
   const isProforma = docTypeCode === "101";
   const formLocked = isConfirmed || isReadOnlyNoteView;
-  const totalAmount = totalsToRender?.total ?? 0;
+  const totalAmount = roundCurrency(totalsToRender?.total ?? 0);
   const maxDiscount = Math.max(0, Number(discountMaxFromSession) || 0);
   const clampDiscount = useCallback(
     (value: unknown) => {
@@ -664,14 +668,66 @@ const PaymentPage = () => {
     },
     [maxDiscount],
   );
-  const descuento = applyDiscount ? clampDiscount(discountInput) : 0;
-  const discountedTotal = Math.max(0, totalAmount - descuento);
-  const gravada = isProforma ? discountedTotal : discountedTotal / 1.18;
-  const igvAmount = isProforma ? 0 : discountedTotal - gravada;
+  const descuento = roundCurrency(
+    applyDiscount ? clampDiscount(discountInput) : 0,
+  );
+  const discountedTotal = roundCurrency(Math.max(0, totalAmount - descuento));
+  const safeItemsForFiscal = useMemo(
+    () => (itemsToRender.length ? itemsToRender : purchasedItems),
+    [itemsToRender, purchasedItems],
+  );
+  const monetarySummary = useMemo(() => {
+    if (isProforma) {
+      const proformaLines = safeItemsForFiscal.map((item) => {
+        const quantity = Number(item.cantidad ?? 0);
+        const safeQuantity =
+          Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
+        const unitPriceWithoutIgv = roundCurrency(Number(item.precio ?? 0));
+        const importeWithoutIgv = roundCurrency(safeQuantity * unitPriceWithoutIgv);
+        return {
+          quantity: safeQuantity,
+          unitCode: normalizeSunatUnitCode(item.unidadMedida ?? "UND"),
+          unitPriceWithoutIgv,
+          importeWithoutIgv,
+          igv: 0,
+          totalWithIgv: importeWithoutIgv,
+        };
+      });
+
+      const subtotalWithoutIgv = roundCurrency(
+        proformaLines.reduce((acc, line) => acc + line.importeWithoutIgv, 0),
+      );
+      return {
+        subtotalWithoutIgv,
+        igv: 0,
+        totalWithIgv: subtotalWithoutIgv,
+        lines: proformaLines,
+      };
+    }
+
+    return buildSaleMonetarySummary({
+      lines: safeItemsForFiscal.map((item) => ({
+        quantity: Number(item.cantidad ?? 0),
+        unitPrice: Number(item.precio ?? 0),
+        unitMeasure: item.unidadMedida ?? "UND",
+      })),
+      pricesIncludeIgv: true,
+      targetTotalWithIgv: discountedTotal,
+    });
+  }, [discountedTotal, isProforma, safeItemsForFiscal]);
+  const gravada = isProforma
+    ? discountedTotal
+    : roundCurrency(monetarySummary.subtotalWithoutIgv);
+  const igvAmount = isProforma
+    ? 0
+    : roundCurrency(monetarySummary.igv);
+  const documentTotalWithIgv = isProforma
+    ? discountedTotal
+    : roundCurrency(monetarySummary.totalWithIgv);
 
   const notaAdicional =
-    paymentMethod === "TARJETA" ? discountedTotal * 0.05 : 0;
-  const totalAPagar = discountedTotal + notaAdicional;
+    paymentMethod === "TARJETA" ? documentTotalWithIgv * 0.05 : 0;
+  const totalAPagar = documentTotalWithIgv + notaAdicional;
   const isCash = paymentMethod === "EFECTIVO";
   const isCard = paymentMethod === "TARJETA";
   const requiresBankSelection =
@@ -823,7 +879,8 @@ const PaymentPage = () => {
         Number(curr.detalleCantidad ?? 0) !== Number(prev.cantidad ?? 0) ||
         Number(curr.detallePrecio ?? 0) !== Number(prev.precio ?? 0) ||
         safeTrim(curr.detalleDescripcion) !== safeTrim(prev.nombre) ||
-        safeTrim(curr.detalleUm) !== safeTrim(prev.unidadMedida ?? "UND") ||
+        normalizeSunatUnitCode(curr.detalleUm) !==
+          normalizeSunatUnitCode(prev.unidadMedida ?? "UND") ||
         Number(curr.valorUM ?? 1) !== Number(prev.valorUM ?? 1)
       );
     };
@@ -832,7 +889,7 @@ const PaymentPage = () => {
       const detalleIdRaw = Number(detalle.detalleId ?? 0);
       const detalleId =
         Number.isFinite(detalleIdRaw) && detalleIdRaw > 0 ? detalleIdRaw : 0;
-      const unidadUpper = safeTrim(detalle.detalleUm ?? "UND").toUpperCase();
+      const unidadUpper = normalizeSunatUnitCode(detalle.detalleUm ?? "UND");
       const payloadBase = {
         DetalleId: detalleId,
         productId: detalle.idProducto,
@@ -870,7 +927,7 @@ const PaymentPage = () => {
         DetalleId: item.detalleId ?? 0,
         productId: item.productId,
         cantidad: item.cantidad,
-        unidad: safeTrim(item.unidadMedida ?? "UND").toUpperCase(),
+        unidad: normalizeSunatUnitCode(item.unidadMedida ?? "UND"),
         producto: item.nombre,
         costo: item.precio,
         precio: item.precio,
@@ -1646,7 +1703,7 @@ const PaymentPage = () => {
         operacionGravada: Number(gravada.toFixed(2)),
         descuento: Number(descuento.toFixed(2)),
         showDiscount: applyDiscount,
-        subtotal: Number(discountedTotal.toFixed(2)),
+        subtotal: Number(documentTotalWithIgv.toFixed(2)),
         igv: Number(igvAmount.toFixed(2)),
         total: Number(totalAPagar.toFixed(2)),
       },
@@ -1675,7 +1732,7 @@ const PaymentPage = () => {
     gravada,
     descuento,
     applyDiscount,
-    discountedTotal,
+    documentTotalWithIgv,
     igvAmount,
     totalAPagar,
     companyCommercialFromSession,
@@ -1711,7 +1768,7 @@ const PaymentPage = () => {
   const notaPayload = useMemo(() => {
     const now = new Date();
     const today = getLocalDateISO(now);
-    const safeItems = itemsToRender.length ? itemsToRender : purchasedItems;
+    const safeItems = safeItemsForFiscal;
     const base = gravada;
     const clienteIdNumber = Number(clienteId ?? 1) || 1;
 
@@ -1733,9 +1790,9 @@ const PaymentPage = () => {
         notaSubtotal: Number(base.toFixed(2)),
         notaMovilidad: 0,
         notaDescuento: Number(descuento.toFixed(2)),
-        notaTotal: Number(discountedTotal.toFixed(2)),
+        notaTotal: Number(documentTotalWithIgv.toFixed(2)),
         notaAcuenta: 0,
-        notaSaldo: Number(discountedTotal.toFixed(2)),
+        notaSaldo: Number(documentTotalWithIgv.toFixed(2)),
         notaAdicional: Number(notaAdicional.toFixed(2)),
         notaTarjeta: 0,
         notaPagar: Number(totalAPagar.toFixed(2)),
@@ -1754,26 +1811,42 @@ const PaymentPage = () => {
         efectivo: isCash ? Number(totalAPagar.toFixed(2)) : 0,
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
-      detalles: safeItems.map((item) => ({
-        detalleId:
-          Number.isFinite(Number((item as any).detalleId)) &&
-          Number((item as any).detalleId) > 0
-            ? Number((item as any).detalleId)
-            : 0,
-        idProducto: item.productId,
-        detalleCantidad: item.cantidad,
-        detalleUm: safeTrim(item.unidadMedida ?? "UND").toUpperCase(),
-        detalleDescripcion: item.nombre,
-        detalleCosto: item.precio,
-        detallePrecio: item.precio,
-        detalleImporte: Number((item.precio * item.cantidad).toFixed(2)),
-        detalleEstado: "PENDIENTE",
-        cantidadSaldo: 0,
-        valorUM:
-          Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
-            ? Number(item.valorUM)
-            : 1,
-      })),
+      detalles: safeItems.map((item, index) => {
+        const computedLine = monetarySummary.lines[index];
+        const detalleCantidad = Number(
+          (computedLine?.quantity ?? Number(item.cantidad ?? 0)).toFixed(4),
+        );
+        const detallePrecio = Number(
+          (computedLine?.unitPriceWithoutIgv ?? 0).toFixed(6),
+        );
+        const detalleImporte = Number(
+          (computedLine?.importeWithoutIgv ?? 0).toFixed(2),
+        );
+        const detalleUnidad =
+          computedLine?.unitCode ??
+          normalizeSunatUnitCode(item.unidadMedida ?? "UND");
+
+        return {
+          detalleId:
+            Number.isFinite(Number((item as any).detalleId)) &&
+            Number((item as any).detalleId) > 0
+              ? Number((item as any).detalleId)
+              : 0,
+          idProducto: item.productId,
+          detalleCantidad,
+          detalleUm: detalleUnidad,
+          detalleDescripcion: item.nombre,
+          detalleCosto: detallePrecio,
+          detallePrecio,
+          detalleImporte,
+          detalleEstado: "PENDIENTE",
+          cantidadSaldo: 0,
+          valorUM:
+            Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
+              ? Number(item.valorUM)
+              : 1,
+        };
+      }),
     };
   }, [
     bankEntity,
@@ -1784,14 +1857,14 @@ const PaymentPage = () => {
     docTypeName,
     paddedNotaNumero,
     descuento,
-    discountedTotal,
+    documentTotalWithIgv,
     gravada,
-    itemsToRender,
     notaAdicional,
     nroOperacion,
     resolvedNotaUsuario,
     paymentMethod,
-    purchasedItems,
+    monetarySummary,
+    safeItemsForFiscal,
     totalAPagar,
     isCash,
   ]);
@@ -1891,6 +1964,38 @@ const PaymentPage = () => {
         };
       },
     );
+
+    if (!isProforma) {
+      const validation = validateSaleMonetarySummary({
+        subtotalWithoutIgv: Number(editNota.notaSubtotal ?? 0),
+        totalWithIgv: Number(editNota.notaTotal ?? 0),
+        igv: igvAmount,
+        lines: detallesPayload.map((detalle) => ({
+          quantity: Number(detalle.detalleCantidad ?? 0),
+          unitPriceWithoutIgv: Number(detalle.detallePrecio ?? 0),
+          importeWithoutIgv: Number(detalle.detalleImporte ?? 0),
+        })),
+      });
+
+      if (!validation.ok) {
+        const prefix = isFactura ? "Factura inconsistente" : "Documento inconsistente";
+        toast.error(`${prefix}: ${validation.errors[0]}`);
+        return;
+      }
+    }
+
+    if (isFactura) {
+      const notaSubtotal = roundCurrency(Number(editNota.notaSubtotal ?? 0));
+      const notaTotal = roundCurrency(Number(editNota.notaTotal ?? 0));
+      const expectedSubtotalByTotal = roundCurrency(notaTotal / IGV_FACTOR);
+
+      if (notaSubtotal !== expectedSubtotalByTotal) {
+        toast.error(
+          "Factura inconsistente: subtotal debe ser round(total / 1.18, 2).",
+        );
+        return;
+      }
+    }
 
     const basePayload = {
       nota: editNota,
@@ -2015,8 +2120,14 @@ const PaymentPage = () => {
         (val as any)?.notaId ??
         (val as any)?.nota?.notaId ??
         (val as any)?.idNota ??
+        (val as any)?.resultado ??
+        (val as any)?.Resultado ??
+        (val as any)?.result ??
+        (val as any)?.Result ??
         (val as any)?.data?.notaId ??
         (val as any)?.data?.idNota ??
+        (val as any)?.data?.resultado ??
+        (val as any)?.data?.Resultado ??
         (val as any)?.data;
 
       if (typeof nested === "number") {
@@ -2051,6 +2162,19 @@ const PaymentPage = () => {
 
       const resolveString = (): string => {
         if (typeof val === "string") return val;
+        if (val && typeof (val as any).resultado === "string")
+          return (val as any).resultado;
+        if (val && typeof (val as any).Resultado === "string")
+          return (val as any).Resultado;
+        if (val && typeof (val as any).result === "string")
+          return (val as any).result;
+        if (
+          val &&
+          (val as any).data &&
+          typeof (val as any).data.resultado === "string"
+        ) {
+          return (val as any).data.resultado;
+        }
         if (val && typeof (val as any).data === "string")
           return (val as any).data;
         if (val && typeof (val as any).message === "string")
@@ -2114,6 +2238,84 @@ const PaymentPage = () => {
 
     setIsConfirmed(true);
 
+    const parseBooleanLike = (value: unknown): boolean => {
+      if (typeof value === "boolean") return value;
+      const normalized = safeTrim(value).toLowerCase();
+      return (
+        normalized === "true" ||
+        normalized === "1" ||
+        normalized === "si" ||
+        normalized === "verdadero" ||
+        normalized === "yes" ||
+        normalized === "ok"
+      );
+    };
+
+    const parseRecordLike = (value: unknown): Record<string, unknown> | null => {
+      if (!value) return null;
+      if (typeof value === "object") return value as Record<string, unknown>;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        try {
+          const parsed = JSON.parse(trimmed) as unknown;
+          return parsed && typeof parsed === "object"
+            ? (parsed as Record<string, unknown>)
+            : null;
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    };
+
+    const createResponse =
+      !isEditing && result && typeof result === "object"
+        ? (result as Record<string, unknown>)
+        : null;
+    const sunatResponse = parseRecordLike(
+      createResponse?.sunat ?? createResponse?.Sunat,
+    );
+    const facturaCodSunat = safeTrim(
+      createResponse?.cod_sunat ??
+        createResponse?.codSunat ??
+        createResponse?.COD_SUNAT ??
+        createResponse?.CodSunat ??
+        sunatResponse?.cod_sunat ??
+        sunatResponse?.codSunat ??
+        sunatResponse?.COD_SUNAT ??
+        sunatResponse?.CodSunat ??
+        "",
+    );
+    const facturaMsjSunat = safeTrim(
+      createResponse?.msj_sunat ??
+        createResponse?.msjSunat ??
+        createResponse?.MSJ_SUNAT ??
+        createResponse?.MsjSunat ??
+        sunatResponse?.msj_sunat ??
+        sunatResponse?.msjSunat ??
+        sunatResponse?.MSJ_SUNAT ??
+        sunatResponse?.MsjSunat ??
+        sunatResponse?.mensaje ??
+        sunatResponse?.Mensaje ??
+        "",
+    );
+    const facturaAceptada =
+      parseBooleanLike(
+        createResponse?.aceptado ??
+          createResponse?.Aceptado ??
+          createResponse?.ACEPTADO ??
+          sunatResponse?.aceptado ??
+          sunatResponse?.Aceptado ??
+          sunatResponse?.ACEPTADO,
+      ) ||
+      parseBooleanLike(
+        sunatResponse?.ok ?? sunatResponse?.Ok ?? sunatResponse?.OK,
+      ) ||
+      safeTrim(sunatResponse?.flg_rta ?? sunatResponse?.FlgRta) === "1" ||
+      facturaCodSunat === "0" ||
+      facturaCodSunat === "0000";
+
     if (!isEditing && isPosSaleDraftFlow) {
       const finalNoteId = parsedNotaId ? Number(parsedNotaId) : null;
       try {
@@ -2141,7 +2343,27 @@ const PaymentPage = () => {
 
     setConfirmedFlowType(isEditing ? "edit" : "create");
     shouldCleanupOnExitAfterConfirmRef.current = !isEditing;
-    toast.success(isEditing ? "Orden actualizada" : "Pago registrado");
+    if (isEditing) {
+      toast.success("Orden actualizada");
+    } else if (docTypeCode === "01") {
+      if (facturaAceptada) {
+        toast.success(facturaMsjSunat || "Factura creada y aceptada por SUNAT.");
+      } else if (facturaCodSunat || facturaMsjSunat) {
+        const detail = [facturaCodSunat, facturaMsjSunat]
+          .filter(Boolean)
+          .join(" - ");
+        toast.warning(
+          detail ||
+            "Factura creada, pero quedó pendiente de envío o reintento en SUNAT.",
+        );
+      } else {
+        toast.warning(
+          "Factura creada. El envío a OCE/SUNAT quedó pendiente de confirmación.",
+        );
+      }
+    } else {
+      toast.success("Pago registrado");
+    }
     void handlePrint({ skipConfirmedCheck: true });
   };
 
@@ -2661,7 +2883,7 @@ const PaymentPage = () => {
       </div>
 
       <div className="hidden sm:block max-h-[min(58vh,620px)] md:max-h-[60vh] overflow-auto">
-        <div className="min-w-[640px]">
+        <div className="min-w-[560px] lg:min-w-[640px]">
           <div className="sticky top-0 z-10 grid grid-cols-[96px_minmax(0,1fr)_120px_130px] border-b-2 border-slate-800 bg-white px-3 py-2 text-sm font-semibold tracking-wide text-slate-800">
             <div className="text-center">Cantidad</div>
             <div>Descripción</div>
@@ -2842,7 +3064,7 @@ const PaymentPage = () => {
         preventSubmitOnEnter
         className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
       >
-        <div className="fixed inset-x-0 top-15 z-[90] px-3 pt-2 md:hidden">
+        <div className="fixed inset-x-0 top-[calc(var(--app-shell-header-h)+0.35rem)] z-[90] px-3 pt-2 md:hidden">
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 p-2 shadow-lg backdrop-blur">
             <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {!formLocked && (

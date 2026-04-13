@@ -98,22 +98,6 @@ export function FormRenderer({
           {mode === "create" ? config.title.create : config.title.edit}
         </h1>
         <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-70"
-          >
-            Guardar
-          </button>
-          {mode !== "edit" && onNew && config.actions?.showNew !== false && (
-            <button
-              type="button"
-              onClick={onNew}
-              className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors"
-            >
-              Nuevo
-            </button>
-          )}
           {mode === "edit" &&
             onDelete &&
             config.actions?.showDelete !== false && (
@@ -125,6 +109,22 @@ export function FormRenderer({
                 Eliminar
               </button>
             )}
+          {mode !== "edit" && onNew && config.actions?.showNew !== false && (
+            <button
+              type="button"
+              onClick={onNew}
+              className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              Nuevo
+            </button>
+          )}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-70"
+          >
+            Guardar
+          </button>
         </div>
       </div>
 

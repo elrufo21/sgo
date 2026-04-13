@@ -39,11 +39,11 @@ const ShoppingEdit = () => {
   }, [details, fetchShoppingDetails, shopping]);
 
   if (!shopping) {
-    return <div className="p-6">Cargando compra...</div>;
+    return <div className="p-4 sm:p-6">Cargando compra...</div>;
   }
 
   if (loadingDetails && details === null) {
-    return <div className="p-6">Cargando detalle de compra...</div>;
+    return <div className="p-4 sm:p-6">Cargando detalle de compra...</div>;
   }
 
   const handleSave = async (data: ShoppingFormData) => {

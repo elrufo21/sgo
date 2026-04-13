@@ -64,7 +64,7 @@ export default function CategoryEdit() {
   };
 
   if (!category) {
-    return <p className="p-6">Cargando categoria...</p>;
+    return <p className="p-4 sm:p-6">Cargando categoria...</p>;
   }
 
   return (

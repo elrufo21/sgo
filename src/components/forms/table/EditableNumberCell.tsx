@@ -35,7 +35,7 @@ const EditableNumberCell = ({ getValue, row, column, table }) => {
       onFocus={() => setIsFocused(true)}
       onChange={handleChange}
       onBlur={handleBlur}
-      className="w-full px-2 py-1 border border-gray-300 text-right rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+      className="w-full min-w-[84px] px-2 py-1 border border-gray-300 text-right rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
     />
   );
 };

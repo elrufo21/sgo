@@ -26,7 +26,7 @@ const SendNoteEdit = () => {
   };
 
   if (!current) {
-    return <div className="p-6">Cargando nota...</div>;
+    return <div className="p-4 sm:p-6">Cargando nota...</div>;
   }
 
   return (

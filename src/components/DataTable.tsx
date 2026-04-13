@@ -351,12 +351,12 @@ export default function DataTable<T extends RowData>({
     <section className="w-full rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)]">
       <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             {toolbarLeading ? (
               <div className="shrink-0">{toolbarLeading}</div>
             ) : null}
             {showSearch ? (
-              <div className="relative w-full xl:w-[34rem]">
+              <div className="relative w-full lg:w-[26rem] xl:w-[34rem]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   ref={searchRef}
@@ -388,11 +388,6 @@ export default function DataTable<T extends RowData>({
           <div className="flex flex-wrap items-center justify-end gap-2 xl:justify-end">
             {renderFilters ? <div className="">{renderFilters}</div> : null}
           </div>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-600">
-          <span className=""></span>
-          {globalFilter ? <span></span> : <></>}
         </div>
       </div>
 
@@ -470,7 +465,7 @@ export default function DataTable<T extends RowData>({
         className="hidden overflow-auto md:block"
         style={{ maxHeight: tableMaxHeight }}
       >
-        <table className="w-full min-w-[44rem] border-collapse">
+        <table className="w-full min-w-[38rem] border-collapse lg:min-w-[44rem]">
           <thead
             className={`bg-slate-50 text-xs uppercase tracking-wide text-slate-600 ${
               stickyHeader ? "sticky top-0 z-10" : ""
@@ -572,7 +567,7 @@ export default function DataTable<T extends RowData>({
       </div>
 
       <footer className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600 sm:px-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <span>Filas por página:</span>
             <select
@@ -591,7 +586,7 @@ export default function DataTable<T extends RowData>({
             </span>
           </div>
 
-          <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:w-auto sm:justify-end">
+          <div className="flex w-full flex-wrap items-center justify-center gap-2 lg:w-auto lg:justify-end">
             <span className="min-w-[7.5rem] text-center text-slate-700">
               Página {currentPage} de {totalPages}
             </span>

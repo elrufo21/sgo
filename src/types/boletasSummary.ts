@@ -71,7 +71,16 @@ export interface BoletaSummarySendDetailPayload {
   notaId?: number;
 }
 
-export interface BoletaSummaryBasePayload {
+export interface BoletaSummarySendBajaDetailPayload {
+  item: number;
+  tipoComprobante: string;
+  nroComprobante: string;
+  descripcion: string;
+  docuId: number;
+  notaId?: number;
+}
+
+interface BoletaSummaryBasePayload {
   NRO_DOCUMENTO_EMPRESA: string;
   RAZON_SOCIAL: string;
   USUARIO?: string;
@@ -90,10 +99,10 @@ export interface BoletaSummaryBasePayload {
   PASS_SOL_EMPRESA: string;
   RUTA_PFX: string;
   COMPANIA_ID: number;
-  detalle: BoletaSummarySendDetailPayload[];
 }
 
 export interface BoletaSummarySendPayload extends BoletaSummaryBasePayload {
+  detalle: BoletaSummarySendDetailPayload[];
   RANGO_NUMEROS: string;
   SUBTOTAL: number;
   IGV: number;
@@ -101,7 +110,10 @@ export interface BoletaSummarySendPayload extends BoletaSummaryBasePayload {
   TOTAL: number;
 }
 
-export type BoletaSummarySendBajaPayload = BoletaSummaryBasePayload;
+export interface BoletaSummarySendBajaPayload
+  extends BoletaSummaryBasePayload {
+  detalle: BoletaSummarySendBajaDetailPayload[];
+}
 
 export interface BoletaSummarySendResponse {
   ok: boolean;
@@ -145,4 +157,7 @@ export interface BoletaSummaryConsultResponse {
   msj_sunat: string;
   hash_cdr: string;
   hash_cpe: string;
+  cdr_recibido: boolean;
+  cdr_base64: string;
+  requiere_reenvio: boolean;
 }

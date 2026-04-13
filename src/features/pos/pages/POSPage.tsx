@@ -326,12 +326,21 @@ const POSPage = () => {
 
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    if (term.length < 2) return catalogProducts;
-    return catalogProducts.filter(
-      (p) =>
-        p.codigo?.toLowerCase().includes(term) ||
-        p.nombre?.toLowerCase().includes(term) ||
-        p.unidadMedida?.toLowerCase().includes(term),
+    const source =
+      term.length < 2
+        ? catalogProducts
+        : catalogProducts.filter(
+            (p) =>
+              p.codigo?.toLowerCase().includes(term) ||
+              p.nombre?.toLowerCase().includes(term) ||
+              p.unidadMedida?.toLowerCase().includes(term),
+          );
+
+    return [...source].sort((a, b) =>
+      String(a.codigo ?? "").localeCompare(String(b.codigo ?? ""), undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
     );
   }, [catalogProducts, searchTerm]);
 
@@ -731,7 +740,7 @@ const POSPage = () => {
             </div>
             <button
               type="button"
-              className="fixed top-21 right-4 z-30 flex items-center gap-2 text-sm bg-slate-700 text-white px-3 py-2 rounded-lg shadow-lg xl:static xl:z-auto xl:shadow-sm"
+              className="fixed right-3 top-[calc(var(--app-shell-header-h)+0.75rem)] z-30 flex items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm text-white shadow-lg xl:static xl:z-auto xl:shadow-sm"
               onClick={handleCartShortcut}
               aria-label="Abrir carrito"
             >
@@ -747,7 +756,7 @@ const POSPage = () => {
             }`}
           >
             {isCardsView && (
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-col items-stretch justify-between gap-2 sm:flex-row sm:items-center sm:gap-3">
                 <input
                   ref={searchInputRef}
                   autoFocus
@@ -758,7 +767,7 @@ const POSPage = () => {
                   placeholder="Buscar por código o nombre"
                   className="w-full border px-3 py-2 rounded-lg focus:ring focus:ring-slate-200 text-sm"
                 />
-                <span className="text-xs text-gray-500 whitespace-nowrap">
+                <span className="text-xs text-gray-500 sm:whitespace-nowrap">
                   {filteredProducts.length} resultados
                 </span>
               </div>
@@ -896,7 +905,7 @@ const POSPage = () => {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="h-[calc(100%-2.75rem)]">
+            <div className="h-[calc(100%-2.75rem)] pb-[max(env(safe-area-inset-bottom),0.5rem)]">
               {renderCartPanel({ mobile: true })}
             </div>
           </div>
