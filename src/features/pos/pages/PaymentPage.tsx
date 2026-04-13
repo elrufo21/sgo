@@ -61,7 +61,7 @@ const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
 
 const PaymentPage = () => {
   const { notaId: notaIdParam } = useParams<{ notaId?: string }>();
-  const { pathname, search } = useLocation();
+  const { pathname, search, state } = useLocation();
   const navigate = useNavigate();
   const items = usePosStore((s) => s.items);
   const totals = usePosStore(selectTotals);
@@ -108,6 +108,11 @@ const PaymentPage = () => {
     [pathname, searchParams],
   );
   const isReadOnlyNoteView = isOrderNotesFlow && forcedMode === "view";
+  const cameFromOrderNotesViewButton = useMemo(() => {
+    if (!pathname.toLowerCase().includes("/sales/order_notes/")) return false;
+    if (!state || typeof state !== "object") return false;
+    return (state as Record<string, unknown>).fromOrderNotesViewButton === true;
+  }, [pathname, state]);
   const backRoute = "/sales/pos";
   const backLabel = "Volver al POS";
   const initialItems =
@@ -3509,7 +3514,7 @@ const PaymentPage = () => {
           </h1>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {hasTicketId && (
+          {hasTicketId && cameFromOrderNotesViewButton && (
             <button
               type="button"
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 py-2 text-sm text-[#B23636] transition-colors hover:bg-[#B23636]/15 disabled:cursor-not-allowed disabled:opacity-60"

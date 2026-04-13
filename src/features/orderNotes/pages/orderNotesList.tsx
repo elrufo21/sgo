@@ -49,6 +49,34 @@ const formatAmount = (value: number) =>
     maximumFractionDigits: 2,
   });
 
+const splitDocumentLabel = (value: unknown) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return { tipoDocumento: "", numeroDocumento: "" };
+  }
+
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  if (tokens.length === 1) {
+    return { tipoDocumento: tokens[0], numeroDocumento: "" };
+  }
+
+  const lastToken = tokens[tokens.length - 1] ?? "";
+  const looksLikeDocumentNumber =
+    /[A-Z0-9]+-\d+/i.test(lastToken) || lastToken.includes("-");
+
+  if (looksLikeDocumentNumber) {
+    return {
+      tipoDocumento: tokens.slice(0, -1).join(" "),
+      numeroDocumento: lastToken,
+    };
+  }
+
+  return {
+    tipoDocumento: tokens[0],
+    numeroDocumento: tokens.slice(1).join(" "),
+  };
+};
+
 const OrderNotesList = () => {
   const navigate = useNavigate();
   const { notes, fetchNotes, loading } = useOrderNoteStore();
@@ -197,7 +225,11 @@ const OrderNotesList = () => {
             <button
               type="button"
               className="text-sm font-medium text-blue-600 hover:underline"
-              onClick={() => navigate(`/sales/order_notes/${noteId}/view`)}
+              onClick={() =>
+                navigate(`/sales/order_notes/${noteId}/view`, {
+                  state: { fromOrderNotesViewButton: true },
+                })
+              }
             >
               Ver
             </button>
@@ -208,9 +240,17 @@ const OrderNotesList = () => {
         header: "ID Nota",
         cell: (info) => info.getValue(),
       }),
-      columnHelper.accessor("documento", {
-        header: "Documento",
-        cell: (info) => info.getValue(),
+      columnHelper.display({
+        id: "tipoDocumento",
+        header: "Tipo Documento",
+        cell: ({ row }) =>
+          splitDocumentLabel(row.original.documento).tipoDocumento || "-",
+      }),
+      columnHelper.display({
+        id: "numeroDocumento",
+        header: "N° Documento",
+        cell: ({ row }) =>
+          splitDocumentLabel(row.original.documento).numeroDocumento || "-",
       }),
       columnHelper.accessor("fecha", {
         header: "Fecha",
@@ -264,7 +304,6 @@ const OrderNotesList = () => {
     ],
     [navigate],
   );
-
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3">
