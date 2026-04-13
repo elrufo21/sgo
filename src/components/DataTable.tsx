@@ -80,6 +80,7 @@ const normalizeSearchText = (value: unknown) =>
   String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, " ")
     .toLowerCase()
     .trim();
 
@@ -217,8 +218,10 @@ export default function DataTable<T extends RowData>({
   }, [globalFilter, globalFilterStorageKey]);
 
   const filteredData = useMemo(() => {
-    const term = normalizeSearchText(globalFilter);
-    if (!term) return data;
+    const terms = normalizeSearchText(globalFilter)
+      .split(" ")
+      .filter(Boolean);
+    if (terms.length === 0) return data;
 
     return data.filter((rowItem) => {
       const original = rowItem as Record<string, unknown>;
@@ -227,9 +230,12 @@ export default function DataTable<T extends RowData>({
           ? filterKeys
           : (Object.keys(original) as (keyof T & string)[]);
 
-      return keysToSearch.some((key) =>
-        getSearchableText(original[key]).includes(term),
-      );
+      const searchableText = keysToSearch
+        .map((key) => getSearchableText(original[key]))
+        .filter(Boolean)
+        .join(" ");
+
+      return terms.every((term) => searchableText.includes(term));
     });
   }, [data, filterKeys, globalFilter]);
 

@@ -729,7 +729,7 @@ export default function SendNoteFormBase({
               <button
                 type="submit"
                 disabled={readOnly || isSubmitting || !isEditable}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-white/10 hover:bg-white/20 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm rounded bg-red-600 hover:bg-red-700 transition-colors"
                 title="Guardar"
               >
                 <Save className="w-4 h-4" />

@@ -121,7 +121,7 @@ export function FormRenderer({
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors disabled:opacity-70"
+            className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-70"
           >
             Guardar
           </button>

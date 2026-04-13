@@ -271,7 +271,7 @@ export default function CashFlowForm({
         </div>
         <div className="flex gap-1 sm:gap-2">
           <button
-            className="p-1 hover:bg-slate-700 rounded disabled:opacity-50"
+            className="p-1 rounded bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors"
             title="Guardar"
           >
             <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
