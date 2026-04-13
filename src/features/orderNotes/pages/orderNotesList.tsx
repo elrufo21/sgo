@@ -242,12 +242,12 @@ const OrderNotesList = () => {
       }),
       columnHelper.display({
         id: "tipoDocumento",
-        header: "Tipo Documento",
+        header: "Documento",
         cell: ({ row }) =>
           splitDocumentLabel(row.original.documento).tipoDocumento || "-",
       }),
       columnHelper.display({
-        id: "numeroDocumento",
+        id: "Número",
         header: "N° Documento",
         cell: ({ row }) =>
           splitDocumentLabel(row.original.documento).numeroDocumento || "-",

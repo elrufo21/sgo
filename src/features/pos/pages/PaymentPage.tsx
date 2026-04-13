@@ -10,6 +10,7 @@ import {
   MessageCircle,
   UserPlus,
   Trash2,
+  Loader2,
 } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
@@ -57,6 +58,124 @@ const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
   const quantity = Number(item.cantidad ?? 0);
   if (!Number.isFinite(quantity) || quantity <= 0) return true;
   return false;
+};
+
+const UNITS = [
+  "",
+  "UNO",
+  "DOS",
+  "TRES",
+  "CUATRO",
+  "CINCO",
+  "SEIS",
+  "SIETE",
+  "OCHO",
+  "NUEVE",
+];
+
+const TENS = [
+  "",
+  "DIEZ",
+  "VEINTE",
+  "TREINTA",
+  "CUARENTA",
+  "CINCUENTA",
+  "SESENTA",
+  "SETENTA",
+  "OCHENTA",
+  "NOVENTA",
+];
+
+const SPECIALS: Record<number, string> = {
+  10: "DIEZ",
+  11: "ONCE",
+  12: "DOCE",
+  13: "TRECE",
+  14: "CATORCE",
+  15: "QUINCE",
+  20: "VEINTE",
+};
+
+const HUNDREDS = [
+  "",
+  "CIENTO",
+  "DOSCIENTOS",
+  "TRESCIENTOS",
+  "CUATROCIENTOS",
+  "QUINIENTOS",
+  "SEISCIENTOS",
+  "SETECIENTOS",
+  "OCHOCIENTOS",
+  "NOVECIENTOS",
+];
+
+const threeDigitsToWords = (n: number) => {
+  if (n === 0) return "";
+  if (n === 100) return "CIEN";
+  const hundreds = Math.floor(n / 100);
+  const tens = Math.floor((n % 100) / 10);
+  const units = n % 10;
+
+  const hundredPart = HUNDREDS[hundreds];
+  const twoDigit = n % 100;
+
+  if (SPECIALS[twoDigit]) {
+    return [hundredPart, SPECIALS[twoDigit]].filter(Boolean).join(" ").trim();
+  }
+
+  const tensPart = TENS[tens];
+  const unitPart = units === 1 && tens === 0 ? "UNO" : UNITS[units];
+
+  if (!tensPart) {
+    return [hundredPart, unitPart].filter(Boolean).join(" ").trim();
+  }
+
+  if (tens === 2 && units > 0) {
+    return [hundredPart, `VEINTI${unitPart.toLowerCase()}`]
+      .filter(Boolean)
+      .join(" ")
+      .trim()
+      .toUpperCase();
+  }
+
+  const tensUnits =
+    units > 0 ? `${tensPart} Y ${unitPart}` : `${tensPart}`.trim();
+
+  return [hundredPart, tensUnits].filter(Boolean).join(" ").trim();
+};
+
+const numberToWords = (amount: number, currencyLabel = "SOLES") => {
+  if (Number.isNaN(amount)) return "";
+  const value = Math.max(0, Math.floor(amount * 100)) / 100;
+  const integerPart = Math.floor(value);
+  const cents = Math.round((value - integerPart) * 100)
+    .toString()
+    .padStart(2, "0");
+
+  if (integerPart === 0) {
+    return `CERO CON ${cents}/100 ${currencyLabel}`;
+  }
+
+  const millions = Math.floor(integerPart / 1_000_000);
+  const thousands = Math.floor((integerPart % 1_000_000) / 1_000);
+  const hundreds = integerPart % 1_000;
+
+  const parts: string[] = [];
+  if (millions > 0) {
+    parts.push(
+      millions === 1 ? "UN MILLON" : `${threeDigitsToWords(millions)} MILLONES`,
+    );
+  }
+  if (thousands > 0) {
+    parts.push(
+      thousands === 1 ? "MIL" : `${threeDigitsToWords(thousands)} MIL`,
+    );
+  }
+  if (hundreds > 0) {
+    parts.push(threeDigitsToWords(hundreds));
+  }
+
+  return `${parts.join(" ").trim()} CON ${cents}/100 ${currencyLabel}`.toUpperCase();
 };
 
 const PaymentPage = () => {
@@ -130,6 +249,8 @@ const PaymentPage = () => {
   const [isDownloadingComprobante, setIsDownloadingComprobante] =
     useState(false);
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
+  const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
+  const [notaEstadoActual, setNotaEstadoActual] = useState("");
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [confirmedFlowType, setConfirmedFlowType] = useState<
     "create" | "edit" | null
@@ -248,6 +369,12 @@ const PaymentPage = () => {
     companyRucFromSession,
     companyUbigeoNameFromSession,
     companyAddressSunatFromSession,
+    companyUbigeoCodeFromSession,
+    usuarioSolFromSession,
+    claveSolFromSession,
+    claveCertificadoFromSession,
+    certificadoBase64FromSession,
+    entornoFromSession,
   } = useMemo(() => {
     if (typeof window === "undefined") {
       return {
@@ -259,6 +386,12 @@ const PaymentPage = () => {
         companyRucFromSession: "",
         companyUbigeoNameFromSession: "",
         companyAddressSunatFromSession: "",
+        companyUbigeoCodeFromSession: "",
+        usuarioSolFromSession: "",
+        claveSolFromSession: "",
+        claveCertificadoFromSession: "",
+        certificadoBase64FromSession: "",
+        entornoFromSession: "",
       };
     }
 
@@ -305,9 +438,45 @@ const PaymentPage = () => {
         parsedSession?.companiaNomUbg ??
         "",
     );
+    const companyUbigeoCode = safeTrim(
+      parsedSession?.user?.companyUbigeoCode ??
+        parsedSession?.companiaCodUbg ??
+        parsedSession?.companiaUbg ??
+        "",
+    );
     const companySunatAddress = safeTrim(
       parsedSession?.user?.companySunatAddress ??
         parsedSession?.companiaDirecSunat ??
+        "",
+    );
+    const usuarioSol = safeTrim(
+      parsedSession?.user?.usuarioSol ??
+        parsedSession?.usuarioSol ??
+        parsedSession?.loginPayload?.usuarioSol ??
+        "",
+    );
+    const claveSol = safeTrim(
+      parsedSession?.user?.claveSol ??
+        parsedSession?.claveSol ??
+        parsedSession?.loginPayload?.claveSol ??
+        "",
+    );
+    const claveCertificado = safeTrim(
+      parsedSession?.user?.claveCertificado ??
+        parsedSession?.claveCertificado ??
+        parsedSession?.loginPayload?.claveCertificado ??
+        "",
+    );
+    const certificadoBase64 = safeTrim(
+      parsedSession?.user?.certificadoBase64 ??
+        parsedSession?.certificadoBase64 ??
+        parsedSession?.loginPayload?.certificadoBase64 ??
+        "",
+    );
+    const entorno = safeTrim(
+      parsedSession?.user?.entorno ??
+        parsedSession?.entorno ??
+        parsedSession?.loginPayload?.entorno ??
         "",
     );
 
@@ -320,6 +489,12 @@ const PaymentPage = () => {
       companyRucFromSession: companyRuc,
       companyUbigeoNameFromSession: companyUbigeoName,
       companyAddressSunatFromSession: companySunatAddress,
+      companyUbigeoCodeFromSession: companyUbigeoCode,
+      usuarioSolFromSession: usuarioSol,
+      claveSolFromSession: claveSol,
+      claveCertificadoFromSession: claveCertificado,
+      certificadoBase64FromSession: certificadoBase64,
+      entornoFromSession: entorno,
     };
   }, []);
 
@@ -662,7 +837,30 @@ const PaymentPage = () => {
         : "boleta";
   const isFactura = docTypeCode === "01";
   const isProforma = docTypeCode === "101";
+  const normalizedNotaEstado = safeTrim(notaEstadoActual).toUpperCase();
+  const canVoidBoletaFromOrderNotes =
+    hasTicketId &&
+    cameFromOrderNotesViewButton &&
+    docTypeCode === "03" &&
+    normalizedNotaEstado.length > 0 &&
+    normalizedNotaEstado !== "CANCELADO" &&
+    normalizedNotaEstado !== "ANULADO";
+  const canCreateCreditNoteFromOrderNotes =
+    hasTicketId &&
+    cameFromOrderNotesViewButton &&
+    docTypeCode === "01" &&
+    (normalizedNotaEstado === "EMITIDO" ||
+      normalizedNotaEstado === "PENDIENTE");
   const formLocked = isConfirmed || isReadOnlyNoteView;
+  const isPersistingToDb =
+    isSubmitting || isVoidingTicket || isSendingCreditNote;
+  const persistDbMessage = isSubmitting
+    ? "Guardando..."
+    : isVoidingTicket
+      ? "Anulando documento..."
+      : isSendingCreditNote
+        ? "Enviando nota de credito..."
+        : "Procesando...";
   const totalAmount = roundCurrency(totalsToRender?.total ?? 0);
   const maxDiscount = Math.max(0, Number(discountMaxFromSession) || 0);
   const clampDiscount = useCallback(
@@ -688,7 +886,9 @@ const PaymentPage = () => {
         const safeQuantity =
           Number.isFinite(quantity) && quantity > 0 ? quantity : 0;
         const unitPriceWithoutIgv = roundCurrency(Number(item.precio ?? 0));
-        const importeWithoutIgv = roundCurrency(safeQuantity * unitPriceWithoutIgv);
+        const importeWithoutIgv = roundCurrency(
+          safeQuantity * unitPriceWithoutIgv,
+        );
         return {
           quantity: safeQuantity,
           unitCode: normalizeSunatUnitCode(item.unidadMedida ?? "UND"),
@@ -723,9 +923,7 @@ const PaymentPage = () => {
   const gravada = isProforma
     ? discountedTotal
     : roundCurrency(monetarySummary.subtotalWithoutIgv);
-  const igvAmount = isProforma
-    ? 0
-    : roundCurrency(monetarySummary.igv);
+  const igvAmount = isProforma ? 0 : roundCurrency(monetarySummary.igv);
   const documentTotalWithIgv = isProforma
     ? discountedTotal
     : roundCurrency(monetarySummary.totalWithIgv);
@@ -829,6 +1027,13 @@ const PaymentPage = () => {
             detalle?.codigoProducto ??
             "",
         ) || String(productId || ""),
+      codigoSunat: safeTrim(
+        detalle?.codigoSunat ??
+          detalle?.CodigoSunat ??
+          detalle?.codigoSUNAT ??
+          detalle?.codigo_sunat ??
+          "",
+      ),
       nombre:
         safeTrim(
           detalle?.detalleDescripcion ??
@@ -950,6 +1155,7 @@ const PaymentPage = () => {
   };
   const fetchNotaFromServer = async (notaIdToLoad: number) => {
     if (!Number.isFinite(notaIdToLoad) || notaIdToLoad <= 0) return;
+    setNotaEstadoActual("");
 
     try {
       const [notaResponse, detallesResponse] = await Promise.all([
@@ -993,6 +1199,12 @@ const PaymentPage = () => {
           ? notaRaw
           : null;
       if (notaData) {
+        setNotaEstadoActual(
+          safeTrim(
+            (notaData as any).notaEstado ?? (notaData as any).estado ?? "",
+          ),
+        );
+
         const notaDocu = safeTrim(
           (notaData as any).notaDocu ??
             (notaData as any).docu ??
@@ -1983,7 +2195,9 @@ const PaymentPage = () => {
       });
 
       if (!validation.ok) {
-        const prefix = isFactura ? "Factura inconsistente" : "Documento inconsistente";
+        const prefix = isFactura
+          ? "Factura inconsistente"
+          : "Documento inconsistente";
         toast.error(`${prefix}: ${validation.errors[0]}`);
         return;
       }
@@ -2256,7 +2470,9 @@ const PaymentPage = () => {
       );
     };
 
-    const parseRecordLike = (value: unknown): Record<string, unknown> | null => {
+    const parseRecordLike = (
+      value: unknown,
+    ): Record<string, unknown> | null => {
       if (!value) return null;
       if (typeof value === "object") return value as Record<string, unknown>;
       if (typeof value === "string") {
@@ -2352,7 +2568,9 @@ const PaymentPage = () => {
       toast.success("Orden actualizada");
     } else if (docTypeCode === "01") {
       if (facturaAceptada) {
-        toast.success(facturaMsjSunat || "Factura creada y aceptada por SUNAT.");
+        toast.success(
+          facturaMsjSunat || "Factura creada y aceptada por SUNAT.",
+        );
       } else if (facturaCodSunat || facturaMsjSunat) {
         const detail = [facturaCodSunat, facturaMsjSunat]
           .filter(Boolean)
@@ -2546,8 +2764,7 @@ const PaymentPage = () => {
       const resultadoTexto = safeTrim(
         resultObj?.resultado ?? (typeof result === "string" ? result : ""),
       ).toLowerCase();
-      const isSuccess =
-        Boolean(resultObj?.ok) || resultadoTexto === "true";
+      const isSuccess = Boolean(resultObj?.ok) || resultadoTexto === "true";
 
       if (
         !isSuccess ||
@@ -2566,6 +2783,274 @@ const PaymentPage = () => {
       toast.error("No se pudo anular el ticket.");
     } finally {
       setIsVoidingTicket(false);
+    }
+  };
+
+  const handleOpenCreditNote = async () => {
+    if (!hasTicketId) {
+      toast.info("No hay documento para generar nota de credito.");
+      return;
+    }
+
+    const detallesFuente: PosCartItem[] = serverItems.length
+      ? serverItems
+      : purchasedItems.length
+        ? purchasedItems
+        : itemsToRender;
+
+    if (!detallesFuente.length) {
+      toast.error("No hay detalle para generar la nota de credito.");
+      return;
+    }
+
+    const now = new Date();
+    const fechaIso = getLocalDateISO(now);
+    const horaRegistro = `${String(now.getHours()).padStart(2, "0")}:${String(
+      now.getMinutes(),
+    ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+
+    const originalDoc =
+      safeTrim(documentNumber) ||
+      `${safeTrim(notaSerie) || "FA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+    const serieDigits = (safeTrim(notaSerie).match(/\d+/)?.[0] ?? "01")
+      .padStart(2, "0")
+      .slice(-2);
+    const nroComprobanteNc = `FC${serieDigits}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+
+    const clienteDocumento = safeTrim(selectedDocument) || safeTrim(customerId);
+    const tipoDocumentoCliente =
+      clienteDocumento.length === 11
+        ? "6"
+        : clienteDocumento.length === 8
+          ? "1"
+          : "0";
+
+    const tipoProcesoParsed = Number(entornoFromSession);
+    const tipoProceso =
+      Number.isFinite(tipoProcesoParsed) && tipoProcesoParsed > 0
+        ? Math.floor(tipoProcesoParsed)
+        : 3;
+
+    const missingCodigoSunat = detallesFuente
+      .map((item, index) => ({
+        index,
+        codigo: safeTrim(item.codigo) || `ITEM-${index + 1}`,
+        nombre: safeTrim(item.nombre) || `Producto ${index + 1}`,
+        codigoSunat: safeTrim((item as any).codigoSunat ?? ""),
+      }))
+      .filter((row) => !row.codigoSunat);
+
+    if (missingCodigoSunat.length) {
+      const resume = missingCodigoSunat
+        .slice(0, 3)
+        .map((row) => `${row.codigo} - ${row.nombre}`)
+        .join(", ");
+      const suffix =
+        missingCodigoSunat.length > 3
+          ? ` y ${missingCodigoSunat.length - 3} mas`
+          : "";
+      toast.warning(
+        `Falta Codigo SUNAT en ${missingCodigoSunat.length} item(s): ${resume}${suffix}. Se usara 01010101 temporalmente.`,
+      );
+    }
+
+    const detalle = detallesFuente.map((item, index) => {
+      const line = monetarySummary.lines[index];
+      const quantity = Number(item.cantidad ?? 0);
+      const safeQuantity =
+        Number.isFinite(quantity) && quantity > 0
+          ? quantity
+          : Number(line?.quantity ?? 0);
+
+      const safeUnitPriceWithIgv =
+        line && safeQuantity > 0
+          ? roundCurrency(Number(line.totalWithIgv ?? 0) / safeQuantity)
+          : roundCurrency(Number(item.precio ?? 0));
+      const safeSubtotalWithoutIgv = line
+        ? roundCurrency(Number(line.importeWithoutIgv ?? 0))
+        : roundCurrency((safeUnitPriceWithIgv / IGV_FACTOR) * safeQuantity);
+      const safeIgv = line
+        ? roundCurrency(Number(line.igv ?? 0))
+        : roundCurrency(
+            safeUnitPriceWithIgv * safeQuantity - safeSubtotalWithoutIgv,
+          );
+
+      return {
+        item: index + 1,
+        unidadMedida:
+          line?.unitCode ?? normalizeSunatUnitCode(item.unidadMedida),
+        cantidad: safeQuantity,
+        precio: safeUnitPriceWithIgv,
+        importe: safeSubtotalWithoutIgv,
+        precioSinImpuesto:
+          line?.unitPriceWithoutIgv ??
+          (safeQuantity > 0
+            ? roundCurrency(safeSubtotalWithoutIgv / safeQuantity)
+            : 0),
+        igv: safeIgv,
+        codTipoOperacion: "10",
+        codigo:
+          safeTrim(item.codigo) || String(Number(item.productId ?? 0) || ""),
+        codigoSunat: safeTrim((item as any).codigoSunat ?? "") || "01010101",
+        descripcion: safeTrim(item.nombre) || "Producto",
+        descuento: 0,
+        subTotal: safeSubtotalWithoutIgv,
+      };
+    });
+
+    const payload = {
+      DOCU_ID: ticketIdNumber,
+      TIPO_OPERACION: "0101",
+      HORA_REGISTRO: horaRegistro,
+      NRO_COMPROBANTE: nroComprobanteNc,
+      FECHA_DOCUMENTO: fechaIso,
+      FECHA_VTO: fechaIso,
+      COD_TIPO_DOCUMENTO: "07",
+      COD_MONEDA: "PEN",
+      TIPO_COMPROBANTE_MODIFICA: docTypeCode === "01" ? "01" : "03",
+      NRO_DOCUMENTO_MODIFICA: originalDoc,
+      COD_TIPO_MOTIVO: "01",
+      DESCRIPCION_MOTIVO: "ANULACION DE LA OPERACION",
+      NRO_DOCUMENTO_EMPRESA: safeTrim(companyRucFromSession),
+      TIPO_DOCUMENTO_EMPRESA: "6",
+      RAZON_SOCIAL_EMPRESA:
+        safeTrim(companyNameFromSession) ||
+        safeTrim(companyCommercialFromSession) ||
+        "EMPRESA",
+      NOMBRE_COMERCIAL_EMPRESA:
+        safeTrim(companyCommercialFromSession) ||
+        safeTrim(companyNameFromSession) ||
+        "EMPRESA",
+      CODIGO_UBIGEO_EMPRESA: safeTrim(companyUbigeoCodeFromSession) || "150101",
+      DIRECCION_EMPRESA: safeTrim(companyAddressSunatFromSession) || "-",
+      DEPARTAMENTO_EMPRESA: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      PROVINCIA_EMPRESA: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      DISTRITO_EMPRESA: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      CODIGO_PAIS_EMPRESA: "PE",
+      NRO_DOCUMENTO_CLIENTE: clienteDocumento || "00000000",
+      TIPO_DOCUMENTO_CLIENTE: tipoDocumentoCliente,
+      RAZON_SOCIAL_CLIENTE: safeTrim(customerName) || "CLIENTE VARIOS",
+      DIRECCION_CLIENTE: "-",
+      CIUDAD_CLIENTE: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      COD_PAIS_CLIENTE: "PE",
+      COD_UBIGEO_CLIENTE: safeTrim(companyUbigeoCodeFromSession) || "150101",
+      DEPARTAMENTO_CLIENTE: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      PROVINCIA_CLIENTE: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      DISTRITO_CLIENTE: safeTrim(companyUbigeoNameFromSession) || "LIMA",
+      USUARIO_SOL_EMPRESA: safeTrim(usuarioSolFromSession),
+      PASS_SOL_EMPRESA: safeTrim(claveSolFromSession),
+      CONTRA_FIRMA: safeTrim(claveCertificadoFromSession),
+      TIPO_PROCESO: tipoProceso,
+      RUTA_PFX: safeTrim(certificadoBase64FromSession),
+      SUB_TOTAL: Number(gravada.toFixed(2)),
+      TOTAL_IGV: Number(igvAmount.toFixed(2)),
+      TOTAL: Number(documentTotalWithIgv.toFixed(2)),
+      TOTAL_GRAVADAS: Number(gravada.toFixed(2)),
+      TOTAL_EXONERADAS: 0,
+      TOTAL_INAFECTA: 0,
+      TOTAL_GRATUITAS: 0,
+      TOTAL_DESCUENTO: Number(descuento.toFixed(2)),
+      TOTAL_ICBPER: 0,
+      TOTAL_OTR_IMP: 0,
+      POR_IGV: 18,
+      TOTAL_LETRAS: numberToWords(documentTotalWithIgv, "SOLES"),
+      FORMA_PAGO: "Contado",
+      GLOSA: "NC por anulacion",
+      detalle,
+    };
+
+    const confirmed = window.confirm(
+      `Se enviara la Nota de Credito ${nroComprobanteNc} para ${originalDoc}.`,
+    );
+    if (!confirmed) return;
+
+    setIsSendingCreditNote(true);
+    try {
+      const response = await apiRequest({
+        url: buildApiUrl("/Nota/credito/enviar"),
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      const responseObj =
+        response && typeof response === "object"
+          ? (response as {
+              ok?: unknown;
+              flg_rta?: unknown;
+              FlgRta?: unknown;
+              cod_sunat?: unknown;
+              codSunat?: unknown;
+              COD_SUNAT?: unknown;
+              mensaje?: unknown;
+              message?: unknown;
+              Message?: unknown;
+              msj_sunat?: unknown;
+              MSJ_SUNAT?: unknown;
+              isAxiosError?: unknown;
+              response?: {
+                data?: {
+                  mensaje?: unknown;
+                  message?: unknown;
+                };
+              };
+            })
+          : null;
+
+      const sunatCode = safeTrim(
+        responseObj?.cod_sunat ??
+          responseObj?.codSunat ??
+          responseObj?.COD_SUNAT ??
+          "",
+      );
+      const responseMessage = safeTrim(
+        responseObj?.mensaje ??
+          responseObj?.message ??
+          responseObj?.Message ??
+          responseObj?.msj_sunat ??
+          responseObj?.MSJ_SUNAT ??
+          responseObj?.response?.data?.mensaje ??
+          responseObj?.response?.data?.message ??
+          (typeof response === "string" ? response : ""),
+      );
+      const isSuccess =
+        Boolean(responseObj?.ok) ||
+        safeTrim(responseObj?.flg_rta ?? responseObj?.FlgRta) === "1" ||
+        sunatCode === "0" ||
+        sunatCode === "0000";
+
+      if (
+        !isSuccess ||
+        !response ||
+        response === false ||
+        Boolean(responseObj?.isAxiosError)
+      ) {
+        toast.error(responseMessage || "No se pudo enviar la nota de credito.");
+        return;
+      }
+
+      if (sunatCode) {
+        toast.success(
+          `${responseMessage || "Nota de credito enviada correctamente."} Codigo SUNAT: ${sunatCode}`,
+        );
+      } else {
+        toast.success(
+          responseMessage || "Nota de credito enviada correctamente.",
+        );
+      }
+
+      await fetchNotaFromServer(ticketIdNumber);
+    } catch (error) {
+      console.error("Error al enviar nota de credito", error);
+      toast.error("No se pudo enviar la nota de credito.");
+    } finally {
+      setIsSendingCreditNote(false);
     }
   };
 
@@ -3076,10 +3561,14 @@ const PaymentPage = () => {
                 <button
                   type="submit"
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg bg-green-700 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
-                  disabled={isSubmitting}
+                  disabled={isPersistingToDb}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Confirmar
+                  {isSubmitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4" />
+                  )}
+                  {isSubmitting ? "Guardando..." : "Confirmar"}
                 </button>
               )}
               {isConfirmed && isProforma && (
@@ -3444,10 +3933,14 @@ const PaymentPage = () => {
           <button
             type="submit"
             className="hidden w-full items-center justify-center gap-2 rounded-lg bg-slate-700 py-3 font-semibold text-white transition-colors hover:bg-slate-800 md:inline-flex"
-            disabled={isSubmitting}
+            disabled={isPersistingToDb}
           >
-            <CheckCircle2 className="w-5 h-5" />
-            Confirmar pago
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <CheckCircle2 className="w-5 h-5" />
+            )}
+            {isSubmitting ? "Guardando..." : "Confirmar pago"}
           </button>
         )}
       </HookForm>
@@ -3514,17 +4007,37 @@ const PaymentPage = () => {
           </h1>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {hasTicketId && cameFromOrderNotesViewButton && (
+          {(canVoidBoletaFromOrderNotes ||
+            canCreateCreditNoteFromOrderNotes) && (
             <button
               type="button"
               className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 py-2 text-sm text-[#B23636] transition-colors hover:bg-[#B23636]/15 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => {
+                if (canCreateCreditNoteFromOrderNotes) {
+                  void handleOpenCreditNote();
+                  return;
+                }
                 void handleVoidTicket();
               }}
-              disabled={isVoidingTicket}
+              disabled={
+                isPersistingToDb ||
+                (canCreateCreditNoteFromOrderNotes
+                  ? isSendingCreditNote
+                  : isVoidingTicket)
+              }
             >
-              <Trash2 className="w-4 h-4" />
-              {isVoidingTicket ? "Anulando..." : "Anular ticket"}
+              {canCreateCreditNoteFromOrderNotes ? (
+                <Receipt className="w-4 h-4" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
+              {canCreateCreditNoteFromOrderNotes
+                ? isSendingCreditNote
+                  ? "Enviando..."
+                  : "Nota de credito"
+                : isVoidingTicket
+                  ? "Anulando..."
+                  : "Anular boleta"}
             </button>
           )}
           <Link
@@ -3537,6 +4050,16 @@ const PaymentPage = () => {
           </Link>
         </div>
       </div>
+      {isPersistingToDb && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-[1px]">
+          <div className="mx-4 inline-flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-xl border border-slate-200">
+            <Loader2 className="h-5 w-5 animate-spin text-slate-700" />
+            <span className="text-sm font-medium text-slate-800">
+              {persistDbMessage}
+            </span>
+          </div>
+        </div>
+      )}
       {/* Layout móvil/mediano: tabs combinados + formulario */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr] lg:gap-5 min-[1405px]:hidden">
         <section className="space-y-4">

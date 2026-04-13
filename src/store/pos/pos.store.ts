@@ -11,6 +11,8 @@ const toNumber = (value: unknown, fallback = 0): number => {
 const toNonNegative = (value: unknown): number => Math.max(toNumber(value, 0), 0);
 const normalizeText = (value: unknown): string =>
   String(value ?? "").trim().toLowerCase();
+const normalizeOptionalText = (value: unknown): string =>
+  String(value ?? "").trim();
 const getItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">): number =>
   toNumber(item.detalleId, 0) || toNumber(item.productId, 0);
 
@@ -134,6 +136,9 @@ export const usePosStore = create<PosState>()(
             return Number.isFinite(raw) && raw > 0 ? raw : 1;
           })();
           const productDetailId = toNumber((product as any).detalleId, 0);
+          const productCodigoSunat = normalizeOptionalText(
+            (product as any).codigoSunat,
+          );
           const normalizedDetailId =
             Number.isFinite(productDetailId) && productDetailId !== 0
               ? productDetailId
@@ -175,6 +180,7 @@ export const usePosStore = create<PosState>()(
                       precio: nextPrice,
                       precioMinimo: minPrice,
                       valorUM: reductionValue,
+                      codigoSunat: item.codigoSunat || productCodigoSunat || undefined,
                     }
                   : item
               )
@@ -183,6 +189,7 @@ export const usePosStore = create<PosState>()(
                 {
                   productId: product.id,
                   codigo: product.codigo,
+                  codigoSunat: productCodigoSunat || undefined,
                   nombre: product.nombre,
                   unidadMedida: product.unidadMedida,
                   detalleId: normalizedDetailId,

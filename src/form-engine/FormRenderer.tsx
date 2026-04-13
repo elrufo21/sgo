@@ -104,7 +104,7 @@ export function FormRenderer({
               <button
                 type="button"
                 onClick={onDelete}
-                className="px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 transition-colors"
+                className="px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 transition-colors"
               >
                 Eliminar
               </button>
