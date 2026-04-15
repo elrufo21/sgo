@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
 import { useLocation, useNavigate, useParams, Link } from "react-router";
 import {
   CheckCircle2,
@@ -37,7 +37,6 @@ import {
   buildSaleMonetarySummary,
   normalizeSunatUnitCode,
   roundCurrency,
-  validateSaleMonetarySummary,
 } from "@/shared/helpers/saleMonetary";
 
 type NotaDetallePayload = {
@@ -52,6 +51,13 @@ type NotaDetallePayload = {
   detalleEstado?: string;
   valorUM?: number;
 };
+
+type LoadedNotaMonetaryTotals = {
+  subtotalWithoutIgv: number;
+  totalWithIgv: number;
+  totalToPay: number;
+};
+
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
   Number(item.detalleId ?? 0) || Number(item.productId ?? 0);
 const hasInvalidQuantityOrStockForPayment = (item: PosCartItem) => {
@@ -232,8 +238,11 @@ const PaymentPage = () => {
     if (!state || typeof state !== "object") return false;
     return (state as Record<string, unknown>).fromOrderNotesViewButton === true;
   }, [pathname, state]);
-  const backRoute = "/sales/pos";
-  const backLabel = "Volver al POS";
+  const shouldBackToOrderNotesList = isReadOnlyNoteView;
+  const backRoute = shouldBackToOrderNotesList
+    ? "/sales/order_notes"
+    : "/sales/pos";
+  const backLabel = shouldBackToOrderNotesList ? "Volver" : "Volver al POS";
   const initialItems =
     serverItemsFromStore.length > 0 ? serverItemsFromStore : items;
   const [purchasedItems, setPurchasedItems] = useState(initialItems);
@@ -251,6 +260,10 @@ const PaymentPage = () => {
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
   const [notaEstadoActual, setNotaEstadoActual] = useState("");
+  const [loadedNotaMonetaryTotals, setLoadedNotaMonetaryTotals] =
+    useState<LoadedNotaMonetaryTotals | null>(null);
+  const [loadedNotePricesIncludeIgv, setLoadedNotePricesIncludeIgv] =
+    useState(true);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [confirmedFlowType, setConfirmedFlowType] = useState<
     "create" | "edit" | null
@@ -534,6 +547,8 @@ const PaymentPage = () => {
       setPurchasedItems([]);
       setServerItems([]);
       setPaidTotals({ subTotal: 0, total: 0, itemCount: 0 });
+      setLoadedNotaMonetaryTotals(null);
+      setLoadedNotePricesIncludeIgv(true);
     }
 
     setNotaId(routeNotaId);
@@ -838,16 +853,17 @@ const PaymentPage = () => {
   const isFactura = docTypeCode === "01";
   const isProforma = docTypeCode === "101";
   const normalizedNotaEstado = safeTrim(notaEstadoActual).toUpperCase();
+  const canManageDocumentFromOrderNotes =
+    isReadOnlyNoteView || cameFromOrderNotesViewButton;
+  const isNotaAnulada = normalizedNotaEstado.includes("ANUL");
   const canVoidBoletaFromOrderNotes =
     hasTicketId &&
-    cameFromOrderNotesViewButton &&
+    canManageDocumentFromOrderNotes &&
     docTypeCode === "03" &&
-    normalizedNotaEstado.length > 0 &&
-    normalizedNotaEstado !== "CANCELADO" &&
-    normalizedNotaEstado !== "ANULADO";
+    !isNotaAnulada;
   const canCreateCreditNoteFromOrderNotes =
     hasTicketId &&
-    cameFromOrderNotesViewButton &&
+    canManageDocumentFromOrderNotes &&
     docTypeCode === "01" &&
     (normalizedNotaEstado === "EMITIDO" ||
       normalizedNotaEstado === "PENDIENTE");
@@ -861,7 +877,30 @@ const PaymentPage = () => {
       : isSendingCreditNote
         ? "Enviando nota de credito..."
         : "Procesando...";
-  const totalAmount = roundCurrency(totalsToRender?.total ?? 0);
+  const safeItemsForFiscal = useMemo(
+    () => (itemsToRender.length ? itemsToRender : purchasedItems),
+    [itemsToRender, purchasedItems],
+  );
+  const totalAmount = useMemo(() => {
+    if (!(isOrderNotesFlow && !loadedNotePricesIncludeIgv)) {
+      return roundCurrency(totalsToRender?.total ?? 0);
+    }
+
+    const grossSummary = buildSaleMonetarySummary({
+      lines: safeItemsForFiscal.map((item) => ({
+        quantity: Number(item.cantidad ?? 0),
+        unitPrice: Number(item.precio ?? 0),
+        unitMeasure: item.unidadMedida ?? "UND",
+      })),
+      pricesIncludeIgv: false,
+    });
+    return roundCurrency(grossSummary.totalWithIgv);
+  }, [
+    isOrderNotesFlow,
+    loadedNotePricesIncludeIgv,
+    safeItemsForFiscal,
+    totalsToRender,
+  ]);
   const maxDiscount = Math.max(0, Number(discountMaxFromSession) || 0);
   const clampDiscount = useCallback(
     (value: unknown) => {
@@ -871,14 +910,16 @@ const PaymentPage = () => {
     },
     [maxDiscount],
   );
-  const descuento = roundCurrency(
-    applyDiscount ? clampDiscount(discountInput) : 0,
-  );
-  const discountedTotal = roundCurrency(Math.max(0, totalAmount - descuento));
-  const safeItemsForFiscal = useMemo(
-    () => (itemsToRender.length ? itemsToRender : purchasedItems),
-    [itemsToRender, purchasedItems],
-  );
+  const viewTotalsOverride =
+    isReadOnlyNoteView && loadedNotaMonetaryTotals
+      ? loadedNotaMonetaryTotals
+      : null;
+  const descuento = viewTotalsOverride
+    ? roundCurrency(Number(discountInput ?? 0))
+    : roundCurrency(applyDiscount ? clampDiscount(discountInput) : 0);
+  const discountedTotal = viewTotalsOverride
+    ? viewTotalsOverride.totalWithIgv
+    : roundCurrency(Math.max(0, totalAmount - descuento));
   const monetarySummary = useMemo(() => {
     if (isProforma) {
       const proformaLines = safeItemsForFiscal.map((item) => {
@@ -916,21 +957,56 @@ const PaymentPage = () => {
         unitPrice: Number(item.precio ?? 0),
         unitMeasure: item.unidadMedida ?? "UND",
       })),
-      pricesIncludeIgv: true,
+      pricesIncludeIgv: isOrderNotesFlow ? loadedNotePricesIncludeIgv : true,
       targetTotalWithIgv: discountedTotal,
     });
-  }, [discountedTotal, isProforma, safeItemsForFiscal]);
-  const gravada = isProforma
-    ? discountedTotal
-    : roundCurrency(monetarySummary.subtotalWithoutIgv);
-  const igvAmount = isProforma ? 0 : roundCurrency(monetarySummary.igv);
-  const documentTotalWithIgv = isProforma
-    ? discountedTotal
-    : roundCurrency(monetarySummary.totalWithIgv);
+  }, [
+    discountedTotal,
+    isOrderNotesFlow,
+    isProforma,
+    loadedNotePricesIncludeIgv,
+    safeItemsForFiscal,
+  ]);
+  const gravada = viewTotalsOverride
+    ? viewTotalsOverride.subtotalWithoutIgv
+    : isProforma
+      ? discountedTotal
+      : roundCurrency(monetarySummary.subtotalWithoutIgv);
+  const igvAmount = viewTotalsOverride
+    ? roundCurrency(
+        viewTotalsOverride.totalWithIgv - viewTotalsOverride.subtotalWithoutIgv,
+      )
+    : isProforma
+      ? 0
+      : roundCurrency(monetarySummary.igv);
+  const documentTotalWithIgv = viewTotalsOverride
+    ? viewTotalsOverride.totalWithIgv
+    : isProforma
+      ? discountedTotal
+      : roundCurrency(monetarySummary.totalWithIgv);
 
-  const notaAdicional =
-    paymentMethod === "TARJETA" ? documentTotalWithIgv * 0.05 : 0;
-  const totalAPagar = documentTotalWithIgv + notaAdicional;
+  const notaAdicional = viewTotalsOverride
+    ? roundCurrency(
+        Math.max(
+          viewTotalsOverride.totalToPay - viewTotalsOverride.totalWithIgv,
+          0,
+        ),
+      )
+    : paymentMethod === "TARJETA"
+      ? documentTotalWithIgv * 0.05
+      : 0;
+  const totalAPagar = viewTotalsOverride
+    ? viewTotalsOverride.totalToPay
+    : documentTotalWithIgv + notaAdicional;
+  const getDisplayLineAmounts = (item: PosCartItem, rowIndex?: number) => {
+    void rowIndex;
+    const unitPrice = roundCurrency(Number(item.precio ?? 0));
+    const totalWithIgv = roundCurrency(unitPrice * Number(item.cantidad ?? 0));
+    return {
+      unitPriceWithIgv: unitPrice,
+      totalWithIgv,
+    };
+  };
   const isCash = paymentMethod === "EFECTIVO";
   const isCard = paymentMethod === "TARJETA";
   const requiresBankSelection =
@@ -1000,6 +1076,9 @@ const PaymentPage = () => {
         detalle?.Precio ??
         0,
     );
+    const detalleImporte = Number(
+      detalle?.detalleImporte ?? detalle?.importe ?? detalle?.Importe ?? 0,
+    );
     const precioMinimo = Number(
       detalle?.precioMinimo ??
         detalle?.preVentaB ??
@@ -1017,6 +1096,12 @@ const PaymentPage = () => {
     const valorUM = Number(
       detalle?.valorUM ?? detalle?.ValorUM ?? detalle?.factor ?? 1,
     );
+    const precioFromImporte =
+      Number.isFinite(detalleImporte) &&
+      Number.isFinite(cantidad) &&
+      cantidad > 0
+        ? Number((detalleImporte / cantidad).toFixed(6))
+        : Number.NaN;
 
     return {
       productId: Number.isFinite(productId) ? productId : 0,
@@ -1044,7 +1129,11 @@ const PaymentPage = () => {
       unidadMedida:
         safeTrim(detalle?.detalleUm ?? detalle?.unidadMedida ?? "") || "UND",
       precio: Math.max(
-        Number.isFinite(precio) ? precio : 0,
+        Number.isFinite(precioFromImporte)
+          ? precioFromImporte
+          : Number.isFinite(precio)
+            ? precio
+            : 0,
         Number.isFinite(precioMinimo) ? Math.max(precioMinimo, 0) : 0,
       ),
       precioMinimo: Number.isFinite(precioMinimo)
@@ -1056,6 +1145,73 @@ const PaymentPage = () => {
       detalleId:
         Number.isFinite(detalleId) && detalleId > 0 ? detalleId : undefined,
     };
+  };
+
+  const getNotaAmount = (
+    notaData: Record<string, unknown> | null,
+    keys: string[],
+  ) => {
+    if (!notaData) return 0;
+    for (const key of keys) {
+      const rawValue = (notaData as any)?.[key];
+      if (rawValue === null || rawValue === undefined || rawValue === "") {
+        continue;
+      }
+      const value = Number(rawValue);
+      if (Number.isFinite(value) && value >= 0) {
+        return roundCurrency(value);
+      }
+    }
+    return 0;
+  };
+
+  const amountsAreClose = (left: number, right: number, tolerance = 0.05) =>
+    Math.abs(roundCurrency(left) - roundCurrency(right)) <= tolerance;
+
+  const shouldConvertDetailPricesToIgvIncluded = (
+    sourceItems: PosCartItem[],
+    notaData: Record<string, unknown> | null,
+    notaDocuRaw: string,
+  ) => {
+    if (!sourceItems.length) return false;
+    if (safeTrim(notaDocuRaw).toUpperCase().includes("PROFORMA")) return false;
+
+    const rawDetailTotal = roundCurrency(
+      sourceItems.reduce(
+        (acc, item) =>
+          acc + Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
+        0,
+      ),
+    );
+    if (!(rawDetailTotal > 0)) return false;
+
+    const notaSubtotal = getNotaAmount(notaData, [
+      "notaSubtotal",
+      "subTotal",
+      "subtotal",
+      "SubTotal",
+    ]);
+    const notaTotal = getNotaAmount(notaData, [
+      "notaTotal",
+      "total",
+      "Total",
+      "notaPagar",
+      "pagar",
+      "Pagar",
+    ]);
+    const subtotalDerivedFromTotal =
+      notaTotal > 0 ? roundCurrency(notaTotal / IGV_FACTOR) : 0;
+
+    const alreadyIgvIncluded =
+      notaTotal > 0 && amountsAreClose(rawDetailTotal, notaTotal);
+    const looksLikeWithoutIgv =
+      (notaSubtotal > 0 && amountsAreClose(rawDetailTotal, notaSubtotal)) ||
+      (subtotalDerivedFromTotal > 0 &&
+        amountsAreClose(rawDetailTotal, subtotalDerivedFromTotal)) ||
+      (notaTotal > 0 &&
+        amountsAreClose(roundCurrency(rawDetailTotal * IGV_FACTOR), notaTotal));
+
+    return looksLikeWithoutIgv && !alreadyIgvIncluded;
   };
 
   function computeTotalsFromItems(itemsList: PosCartItem[]) {
@@ -1085,9 +1241,21 @@ const PaymentPage = () => {
     const requestDetalle: Array<Record<string, any>> = [];
 
     const isDifferent = (curr: NotaDetallePayload, prev: PosCartItem) => {
+      const currPrice = Number(curr.detallePrecio ?? 0);
+      const prevPrice = Number(prev.precio ?? 0);
+      const currPriceNorm = Number(currPrice.toFixed(6));
+      const prevPriceNorm = Number(prevPrice.toFixed(6));
+      const prevPriceWithoutIgvNorm = Number(
+        (prevPrice / IGV_FACTOR).toFixed(6),
+      );
+      const samePrice =
+        currPriceNorm === prevPriceNorm ||
+        currPriceNorm === prevPriceWithoutIgvNorm;
+
       return (
-        Number(curr.detalleCantidad ?? 0) !== Number(prev.cantidad ?? 0) ||
-        Number(curr.detallePrecio ?? 0) !== Number(prev.precio ?? 0) ||
+        Number(curr.detalleCantidad ?? 0).toFixed(4) !==
+          Number(prev.cantidad ?? 0).toFixed(4) ||
+        !samePrice ||
         safeTrim(curr.detalleDescripcion) !== safeTrim(prev.nombre) ||
         normalizeSunatUnitCode(curr.detalleUm) !==
           normalizeSunatUnitCode(prev.unidadMedida ?? "UND") ||
@@ -1177,40 +1345,87 @@ const PaymentPage = () => {
         throw new Error("No se pudo obtener los detalles de la nota.");
       }
 
-      const mappedItems = detallesResponse.map(mapApiDetalleToItem);
-      setPurchasedItems(mappedItems);
-      setPaidTotals(computeTotalsFromItems(mappedItems));
-      setServerItems(mappedItems);
-      setServerItemsInStore(mappedItems);
-      setEditingNotaInStore(notaIdToLoad);
-      const shouldSeedStoreForEdit =
-        !isOrderNotesFlow && (forcedMode === "edit" || isEditingMode);
-      if (shouldSeedStoreForEdit) {
-        const currentStoreItems = usePosStore.getState().items;
-        if (!currentStoreItems.length && mappedItems.length) {
-          setStoreItems(mappedItems);
-        }
-      }
-
       const notaRaw =
         (notaResponse as any)?.nota ?? (notaResponse as any) ?? null;
       const notaData =
         notaRaw && typeof notaRaw === "object" && !(notaRaw instanceof Error)
           ? notaRaw
           : null;
+
+      const notaDocuRaw = safeTrim(
+        (notaData as any)?.notaDocu ??
+          (notaData as any)?.docu ??
+          (notaData as any)?.notaTipo ??
+          "",
+      );
+      const mappedServerItems = detallesResponse.map(mapApiDetalleToItem);
+      const serverLooksWithoutIgv = shouldConvertDetailPricesToIgvIncluded(
+        mappedServerItems,
+        notaData,
+        notaDocuRaw,
+      );
+      // En flujo de notas no reconvertimos precios en frontend:
+      // usamos exactamente lo guardado en detalle para evitar descuadres.
+      const mappedDisplayItems = mappedServerItems;
+      setLoadedNotePricesIncludeIgv(!serverLooksWithoutIgv);
+
+      setPurchasedItems(mappedDisplayItems);
+      setPaidTotals(computeTotalsFromItems(mappedDisplayItems));
+      setServerItems(mappedServerItems);
+      setServerItemsInStore(mappedServerItems);
+      setEditingNotaInStore(notaIdToLoad);
+      const shouldSeedStoreForEdit =
+        !isOrderNotesFlow && (forcedMode === "edit" || isEditingMode);
+      if (shouldSeedStoreForEdit) {
+        const currentStoreItems = usePosStore.getState().items;
+        if (!currentStoreItems.length && mappedDisplayItems.length) {
+          setStoreItems(mappedDisplayItems);
+        }
+      }
+
       if (notaData) {
+        const loadedSubtotal = getNotaAmount(notaData, [
+          "notaSubtotal",
+          "subTotal",
+          "subtotal",
+          "SubTotal",
+        ]);
+        const loadedTotal = getNotaAmount(notaData, [
+          "notaTotal",
+          "total",
+          "Total",
+        ]);
+        const loadedPagar = getNotaAmount(notaData, [
+          "notaPagar",
+          "pagar",
+          "Pagar",
+        ]);
+        const finalTotal = loadedTotal > 0 ? loadedTotal : loadedPagar;
+        if (finalTotal > 0) {
+          const finalSubtotal =
+            loadedSubtotal > 0
+              ? loadedSubtotal
+              : roundCurrency(finalTotal / IGV_FACTOR);
+          const rawToPay = loadedPagar > 0 ? loadedPagar : finalTotal;
+          const finalToPay = amountsAreClose(rawToPay, finalTotal)
+            ? finalTotal
+            : rawToPay;
+          setLoadedNotaMonetaryTotals({
+            subtotalWithoutIgv: finalSubtotal,
+            totalWithIgv: finalTotal,
+            totalToPay: finalToPay,
+          });
+        } else {
+          setLoadedNotaMonetaryTotals(null);
+        }
+
         setNotaEstadoActual(
           safeTrim(
             (notaData as any).notaEstado ?? (notaData as any).estado ?? "",
           ),
         );
 
-        const notaDocu = safeTrim(
-          (notaData as any).notaDocu ??
-            (notaData as any).docu ??
-            (notaData as any).notaTipo ??
-            "",
-        );
+        const notaDocu = notaDocuRaw;
         if (notaDocu) {
           const match = Object.entries(docTypeConfig).find(
             ([, cfg]) =>
@@ -1299,6 +1514,8 @@ const PaymentPage = () => {
     } catch (error) {
       console.error("Error al cargar la nota por id", error);
       toast.error("No se pudo sincronizar la nota creada.");
+      setLoadedNotaMonetaryTotals(null);
+      setLoadedNotePricesIncludeIgv(true);
     }
   };
 
@@ -1576,6 +1793,35 @@ const PaymentPage = () => {
     setClienteIdFromOption,
     setValue,
   ]);
+
+  const confirmWithAppDialog = useCallback(
+    ({
+      title,
+      content,
+      confirmText,
+      cancelText = "Cancelar",
+    }: {
+      title: string;
+      content: ReactNode;
+      confirmText: string;
+      cancelText?: string;
+    }) =>
+      new Promise<boolean>((resolve) => {
+        openDialog({
+          title,
+          content,
+          confirmText,
+          cancelText,
+          onConfirm: () => {
+            resolve(true);
+          },
+          onCancel: () => {
+            resolve(false);
+          },
+        });
+      }),
+    [openDialog],
+  );
 
   const uniqueClients = useMemo(() => {
     const seen = new Set<string>();
@@ -1920,7 +2166,7 @@ const PaymentPage = () => {
         operacionGravada: Number(gravada.toFixed(2)),
         descuento: Number(descuento.toFixed(2)),
         showDiscount: applyDiscount,
-        subtotal: Number(documentTotalWithIgv.toFixed(2)),
+        subtotal: Number(gravada.toFixed(2)),
         igv: Number(igvAmount.toFixed(2)),
         total: Number(totalAPagar.toFixed(2)),
       },
@@ -2028,19 +2274,20 @@ const PaymentPage = () => {
         efectivo: isCash ? Number(totalAPagar.toFixed(2)) : 0,
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
-      detalles: safeItems.map((item, index) => {
-        const computedLine = monetarySummary.lines[index];
-        const detalleCantidad = Number(
-          (computedLine?.quantity ?? Number(item.cantidad ?? 0)).toFixed(4),
-        );
+      detalles: safeItems.map((item) => {
+        const detalleCantidadRaw = Number(item.cantidad ?? 0);
+        const detalleCantidad =
+          Number.isFinite(detalleCantidadRaw) && detalleCantidadRaw > 0
+            ? Number(detalleCantidadRaw.toFixed(4))
+            : 0;
+        const detallePrecioRaw = Number(item.precio ?? 0);
         const detallePrecio = Number(
-          (computedLine?.unitPriceWithoutIgv ?? 0).toFixed(6),
+          (Number.isFinite(detallePrecioRaw) ? detallePrecioRaw : 0).toFixed(2),
         );
         const detalleImporte = Number(
-          (computedLine?.importeWithoutIgv ?? 0).toFixed(2),
+          (detallePrecio * detalleCantidad).toFixed(2),
         );
         const detalleUnidad =
-          computedLine?.unitCode ??
           normalizeSunatUnitCode(item.unidadMedida ?? "UND");
 
         return {
@@ -2183,34 +2430,22 @@ const PaymentPage = () => {
     );
 
     if (!isProforma) {
-      const validation = validateSaleMonetarySummary({
-        subtotalWithoutIgv: Number(editNota.notaSubtotal ?? 0),
-        totalWithIgv: Number(editNota.notaTotal ?? 0),
-        igv: igvAmount,
-        lines: detallesPayload.map((detalle) => ({
-          quantity: Number(detalle.detalleCantidad ?? 0),
-          unitPriceWithoutIgv: Number(detalle.detallePrecio ?? 0),
-          importeWithoutIgv: Number(detalle.detalleImporte ?? 0),
-        })),
-      });
-
-      if (!validation.ok) {
-        const prefix = isFactura
-          ? "Factura inconsistente"
-          : "Documento inconsistente";
-        toast.error(`${prefix}: ${validation.errors[0]}`);
-        return;
-      }
-    }
-
-    if (isFactura) {
-      const notaSubtotal = roundCurrency(Number(editNota.notaSubtotal ?? 0));
-      const notaTotal = roundCurrency(Number(editNota.notaTotal ?? 0));
-      const expectedSubtotalByTotal = roundCurrency(notaTotal / IGV_FACTOR);
-
-      if (notaSubtotal !== expectedSubtotalByTotal) {
+      const totalDetalle = roundCurrency(
+        detallesPayload.reduce(
+          (acc, detalle) => acc + Number(detalle.detalleImporte ?? 0),
+          0,
+        ),
+      );
+      const descuentoCabecera = roundCurrency(
+        Number(editNota.notaDescuento ?? 0),
+      );
+      const totalEsperadoDocumento = roundCurrency(
+        Math.max(totalDetalle - descuentoCabecera, 0),
+      );
+      const totalCabecera = roundCurrency(Number(editNota.notaTotal ?? 0));
+      if (Math.abs(totalEsperadoDocumento - totalCabecera) > 0.05) {
         toast.error(
-          "Factura inconsistente: subtotal debe ser round(total / 1.18, 2).",
+          "Documento inconsistente: (items - descuento) no coincide con total.",
         );
         return;
       }
@@ -2592,6 +2827,11 @@ const PaymentPage = () => {
 
   const handleBackToPos = (ev?: MouseEvent) => {
     ev?.preventDefault();
+    if (shouldBackToOrderNotesList || cameFromOrderNotesViewButton) {
+      clearEditingNota();
+      navigate("/sales/order_notes");
+      return;
+    }
     if (isOrderNotesFlow) {
       clearEditingNota();
       navigate(backRoute);
@@ -2666,9 +2906,11 @@ const PaymentPage = () => {
       return;
     }
 
-    const confirmed = window.confirm(
-      `¿Seguro que deseas anular el ticket #${ticketIdNumber}?`,
-    );
+    const confirmed = await confirmWithAppDialog({
+      title: "Anular ticket",
+      content: <p>¿Seguro que deseas anular el ticket #{ticketIdNumber}?</p>,
+      confirmText: "Anular",
+    });
     if (!confirmed) return;
 
     setIsVoidingTicket(true);
@@ -2849,9 +3091,6 @@ const PaymentPage = () => {
         missingCodigoSunat.length > 3
           ? ` y ${missingCodigoSunat.length - 3} mas`
           : "";
-      toast.warning(
-        `Falta Codigo SUNAT en ${missingCodigoSunat.length} item(s): ${resume}${suffix}. Se usara 01010101 temporalmente.`,
-      );
     }
 
     const detalle = detallesFuente.map((item, index) => {
@@ -2889,9 +3128,8 @@ const PaymentPage = () => {
             : 0),
         igv: safeIgv,
         codTipoOperacion: "10",
-        codigo:
-          safeTrim(item.codigo) || String(Number(item.productId ?? 0) || ""),
-        codigoSunat: safeTrim((item as any).codigoSunat ?? "") || "01010101",
+        codigo: "50161509",
+        codigoSunat: "50161509",
         descripcion: safeTrim(item.nombre) || "Producto",
         descuento: 0,
         subTotal: safeSubtotalWithoutIgv,
@@ -2959,9 +3197,11 @@ const PaymentPage = () => {
       detalle,
     };
 
-    const confirmed = window.confirm(
-      `Se enviara la Nota de Credito ${nroComprobanteNc} para ${originalDoc}.`,
-    );
+    const confirmed = await confirmWithAppDialog({
+      title: "Enviar nota de crédito",
+      content: <p>Se enviará la Nota de Crédito {nroComprobanteNc} .</p>,
+      confirmText: "Enviar",
+    });
     if (!confirmed) return;
 
     setIsSendingCreditNote(true);
@@ -3247,10 +3487,11 @@ const PaymentPage = () => {
       className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
     >
       <div className="sm:hidden max-h-[62vh] overflow-y-auto divide-y divide-slate-200">
-        {itemsToRender.map((item) => {
+        {itemsToRender.map((item, rowIndex) => {
           const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
           const isStockNegative = Number(item.stock ?? 0) < 0;
           const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+          const displayLine = getDisplayLineAmounts(item, rowIndex);
 
           return (
             <article
@@ -3347,7 +3588,7 @@ const PaymentPage = () => {
                     </div>
                   ) : (
                     <p className="mt-1 text-base font-semibold text-slate-800">
-                      S/ {item.precio.toFixed(2)}
+                      S/ {displayLine.unitPriceWithIgv.toFixed(2)}
                     </p>
                   )}
                 </div>
@@ -3362,7 +3603,7 @@ const PaymentPage = () => {
                         isZeroOrNegative ? "text-red-600" : "text-slate-900"
                       }`}
                     >
-                      S/ {(item.precio * item.cantidad).toFixed(2)}
+                      S/ {displayLine.totalWithIgv.toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -3386,6 +3627,7 @@ const PaymentPage = () => {
               const isZeroOrNegative = (item.cantidad ?? 0) <= 0;
               const isStockNegative = Number(item.stock ?? 0) < 0;
               const minPrice = Math.max(0, Number(item.precioMinimo ?? 0) || 0);
+              const displayLine = getDisplayLineAmounts(item, rowIndex);
 
               return (
                 <div
@@ -3486,7 +3728,7 @@ const PaymentPage = () => {
                       </div>
                     ) : (
                       <span className="inline-block pt-1 text-xl leading-none text-slate-900">
-                        {item.precio.toFixed(2)}
+                        {displayLine.unitPriceWithIgv.toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -3498,7 +3740,7 @@ const PaymentPage = () => {
                           isZeroOrNegative ? "text-red-600" : "text-slate-900"
                         }`}
                       >
-                        {(item.precio * item.cantidad).toFixed(2)}
+                        {displayLine.totalWithIgv.toFixed(2)}
                       </p>
                       <button
                         type="button"
@@ -3985,13 +4227,6 @@ const PaymentPage = () => {
         >
           <Printer className="w-5 h-5" />
           {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
-        </button>
-        <button
-          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50"
-          onClick={handleBackToPos}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          {backLabel}
         </button>
       </div>
     </>

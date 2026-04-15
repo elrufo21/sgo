@@ -77,6 +77,14 @@ const splitDocumentLabel = (value: unknown) => {
   };
 };
 
+const isAnnulledStatus = (value: unknown) =>
+  String(value ?? "").toUpperCase().includes("ANULAD");
+
+const getSignedTotal = (note: Pick<OrderNote, "estado">, value: unknown) => {
+  const amount = parseAmount(value);
+  return isAnnulledStatus(note.estado) ? -Math.abs(amount) : amount;
+};
+
 const OrderNotesList = () => {
   const navigate = useNavigate();
   const { notes, fetchNotes, loading } = useOrderNoteStore();
@@ -163,7 +171,7 @@ const OrderNotesList = () => {
         note.fecha,
         note.cliente,
         note.formaPago,
-        note.total,
+        formatAmount(getSignedTotal(note, note.total)),
         note.acuenta,
         note.saldo,
         note.usuario,
@@ -192,7 +200,7 @@ const OrderNotesList = () => {
   const solesTotals = useMemo(() => {
     const totals = notes.reduce(
       (acc, note) => {
-        const amount = parseAmount(note.total);
+        const amount = getSignedTotal(note, note.total);
         const formaPago = String(note.formaPago ?? "").toUpperCase();
         const isCash =
           formaPago.includes("EFECT") || formaPago.includes("CONTADO");
@@ -266,7 +274,7 @@ const OrderNotesList = () => {
       }),
       columnHelper.accessor("total", {
         header: "Total",
-        cell: (info) => info.getValue(),
+        cell: ({ row }) => formatAmount(getSignedTotal(row.original, row.original.total)),
         meta: { tdClassName: "text-right" },
       }),
       columnHelper.accessor("acuenta", {
@@ -289,7 +297,9 @@ const OrderNotesList = () => {
           const value = info.getValue();
           const normalized = String(value).toUpperCase();
           const stateClass =
-            normalized === "PENDIENTE"
+            isAnnulledStatus(normalized)
+              ? "bg-red-100 text-red-700 border-red-200"
+              : normalized === "PENDIENTE"
               ? "bg-amber-100 text-amber-700 border-amber-200"
               : "bg-emerald-100 text-emerald-700 border-emerald-200";
           return (

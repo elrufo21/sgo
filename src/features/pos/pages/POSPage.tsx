@@ -37,6 +37,13 @@ const PAGE_SIZE = 24;
 
 const priceLabel = (product: Product) =>
   Number(product.preVenta ?? product.preVentaB ?? 0).toFixed(2);
+const sortCatalogProductsByCode = (products: PosCatalogProduct[]) =>
+  [...products].sort((a, b) =>
+    String(a.codigo ?? "").localeCompare(String(b.codigo ?? ""), undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }),
+  );
 const buildVariationDetailId = (baseId: number, index: number) =>
   -1 * (baseId * 1000 + (index + 1));
 const getCartItemKey = (item: Pick<PosCartItem, "productId" | "detalleId">) =>
@@ -46,7 +53,9 @@ const hasInvalidQuantityForPayment = (item: PosCartItem) => {
   return !Number.isFinite(quantity) || quantity <= 0;
 };
 const normalizeUnitLabel = (value: unknown) =>
-  String(value ?? "").trim().toUpperCase();
+  String(value ?? "")
+    .trim()
+    .toUpperCase();
 const canonicalUnit = (value: unknown) => {
   const unit = normalizeUnitLabel(value);
   if (["L", "LT", "LTS", "LITRO", "LITROS"].includes(unit)) return "LITRO";
@@ -315,7 +324,7 @@ const POSPage = () => {
           preCosto: Number(variation.preCosto ?? product.preCosto ?? 0),
           preVenta: Number(variation.preVenta ?? product.preVenta ?? 0),
           preVentaB: Number(variation.preVentaB ?? product.preVentaB ?? 0),
-          images: variationImage ? [variationImage] : product.images ?? [],
+          images: variationImage ? [variationImage] : (product.images ?? []),
           catalogKey: `var-${product.id}-${index}`,
         });
       });
@@ -324,25 +333,25 @@ const POSPage = () => {
     return expanded;
   }, [products]);
 
+  const sortedCatalogProducts = useMemo(
+    () => sortCatalogProductsByCode(catalogProducts),
+    [catalogProducts],
+  );
+
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
     const source =
       term.length < 2
-        ? catalogProducts
-        : catalogProducts.filter(
+        ? sortedCatalogProducts
+        : sortedCatalogProducts.filter(
             (p) =>
               p.codigo?.toLowerCase().includes(term) ||
               p.nombre?.toLowerCase().includes(term) ||
               p.unidadMedida?.toLowerCase().includes(term),
           );
 
-    return [...source].sort((a, b) =>
-      String(a.codigo ?? "").localeCompare(String(b.codigo ?? ""), undefined, {
-        numeric: true,
-        sensitivity: "base",
-      }),
-    );
-  }, [catalogProducts, searchTerm]);
+    return source;
+  }, [searchTerm, sortedCatalogProducts]);
 
   const visibleProducts = useMemo(() => {
     if (viewMode !== "cards") return filteredProducts;
@@ -490,7 +499,7 @@ const POSPage = () => {
       header: "U.M.",
       cell: ({ row }) => {
         const unit = row.original.unidadMedida ?? "UND";
-        return row.original.isVariation ? `${unit} (VAR)` : unit;
+        return row.original.isVariation ? `${unit}` : unit;
       },
     }),
     columnHelper.display({
@@ -621,10 +630,7 @@ const POSPage = () => {
                       value={priceDrafts[getCartItemKey(item)] ?? item.precio}
                       onChange={(value) => handlePriceChange(item, value)}
                       onBlur={(event) =>
-                        handlePriceBlur(
-                          item,
-                          event.currentTarget.value,
-                        )
+                        handlePriceBlur(item, event.currentTarget.value)
                       }
                       navGroup="pos-price-input"
                       className="w-full text-right border rounded-md px-2 py-1 text-sm"
@@ -855,7 +861,7 @@ const POSPage = () => {
                   </div>
                 ) : (
                   <DataTable
-                    data={catalogProducts}
+                    data={sortedCatalogProducts}
                     columns={productColumns}
                     filterKeys={["codigo", "nombre", "unidadMedida"]}
                     onRowClick={handleAddProduct}
