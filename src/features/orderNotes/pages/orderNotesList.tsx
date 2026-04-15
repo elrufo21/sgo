@@ -78,11 +78,31 @@ const splitDocumentLabel = (value: unknown) => {
 };
 
 const isAnnulledStatus = (value: unknown) =>
-  String(value ?? "").toUpperCase().includes("ANULAD");
+  String(value ?? "")
+    .toUpperCase()
+    .includes("ANULAD");
 
-const getSignedTotal = (note: Pick<OrderNote, "estado">, value: unknown) => {
+const isCreditNoteDocument = (value: unknown) => {
+  const normalized = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return (
+    normalized.includes("CREDITO") ||
+    normalized.includes("N/C") ||
+    normalized.startsWith("NC")
+  );
+};
+
+const getSignedTotal = (
+  note: Pick<OrderNote, "estado" | "documento">,
+  value: unknown,
+) => {
   const amount = parseAmount(value);
-  return isAnnulledStatus(note.estado) ? -Math.abs(amount) : amount;
+  if (isCreditNoteDocument(note.documento)) {
+    return Math.abs(amount);
+  }
+  return amount;
 };
 
 const OrderNotesList = () => {
@@ -277,7 +297,8 @@ const OrderNotesList = () => {
       }),
       columnHelper.accessor("total", {
         header: "Total",
-        cell: ({ row }) => formatAmount(getSignedTotal(row.original, row.original.total)),
+        cell: ({ row }) =>
+          formatAmount(getSignedTotal(row.original, row.original.total)),
         meta: { tdClassName: "text-right" },
       }),
       columnHelper.accessor("acuenta", {
@@ -299,10 +320,9 @@ const OrderNotesList = () => {
         cell: (info) => {
           const value = info.getValue();
           const normalized = String(value).toUpperCase();
-          const stateClass =
-            isAnnulledStatus(normalized)
-              ? "bg-red-100 text-red-700 border-red-200"
-              : normalized === "PENDIENTE"
+          const stateClass = isAnnulledStatus(normalized)
+            ? "bg-red-100 text-red-700 border-red-200"
+            : normalized === "PENDIENTE"
               ? "bg-amber-100 text-amber-700 border-amber-200"
               : "bg-emerald-100 text-emerald-700 border-emerald-200";
           return (
@@ -317,6 +337,7 @@ const OrderNotesList = () => {
     ],
     [navigate],
   );
+
   return (
     <div className="p-3 sm:p-4">
       <div className="mb-3">

@@ -134,14 +134,22 @@ const resolveSessionUsername = () => {
 
 const mapApiToOrderNote = (item: OrderNoteApiItem, index: number): OrderNote => {
   const notaId = normalizeText(item?.notaId ?? item?.NotaId, "0");
-  const notaDocu = normalizeText(item?.notaDocu ?? item?.NotaDocu, "");
+  const notaDocu = normalizeText(
+    item?.notaDocu ?? item?.NotaDocu ?? item?.documento,
+    "",
+  );
   const notaSerie = normalizeText(item?.notaSerie ?? item?.NotaSerie, "");
   const notaNumero = normalizeText(item?.notaNumero ?? item?.NotaNumero, "");
   const documentNumber =
     notaSerie || notaNumero
       ? `${notaSerie}${notaSerie && notaNumero ? "-" : ""}${notaNumero}`.trim()
       : "";
-  const documento = [notaDocu, documentNumber].filter(Boolean).join(" ").trim();
+  const docAlreadyHasNumber =
+    Boolean(documentNumber) &&
+    notaDocu.toUpperCase().includes(documentNumber.toUpperCase());
+  const documento = docAlreadyHasNumber
+    ? notaDocu
+    : [notaDocu, documentNumber].filter(Boolean).join(" ").trim();
 
   const rawFecha = normalizeText(
     item?.notaFecha ?? item?.NotaFecha ?? item?.fecha,

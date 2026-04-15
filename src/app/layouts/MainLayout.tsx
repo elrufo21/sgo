@@ -436,6 +436,11 @@ export default function MainLayout() {
       to: "/sales/boletas_summary",
       icon: <CopySlashIcon size={18} />,
     },
+    {
+      label: "Control de flujo de caja",
+      to: "/cash_flow_control",
+      icon: <StoreIcon />,
+    },
     { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
     { label: "Productos", to: "/products", icon: <Package size={18} /> },
     { label: "Cliente", to: "/customers", icon: <UserCheck size={18} /> },
@@ -448,11 +453,6 @@ export default function MainLayout() {
       label: "Configuración",
       to: "/configuration",
       icon: <SlidersHorizontal size={18} />,
-    },
-    {
-      label: "Control de flujo de caja",
-      to: "/cash_flow_control",
-      icon: <StoreIcon />,
     },
   ];
 

@@ -63,12 +63,10 @@ const readCompanyPhoneFromStorage = (): string => {
     const rawSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (!rawSession) return "";
 
-    const parsed = JSON.parse(rawSession) as
-      | {
-          user?: { companyPhone?: unknown } | null;
-          loginPayload?: { companiaTelefono?: unknown } | null;
-        }
-      | null;
+    const parsed = JSON.parse(rawSession) as {
+      user?: { companyPhone?: unknown } | null;
+      loginPayload?: { companiaTelefono?: unknown } | null;
+    } | null;
 
     const rawPhone =
       parsed?.user?.companyPhone ?? parsed?.loginPayload?.companiaTelefono;
@@ -329,23 +327,16 @@ const styles = StyleSheet.create({
     width: "55%",
     fontWeight: "bold",
   },
-  summaryValue: {
-    width: "45%",
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
   summaryCurrency: {
-    marginRight: 8,
+    width: "10%",
+    textAlign: "center",
   },
   summaryAmount: {
-    minWidth: 52,
+    width: "35%",
     textAlign: "right",
   },
   totalRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     marginTop: 6,
     paddingTop: 6,
     borderTopWidth: 1,
@@ -353,22 +344,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   totalLabel: {
+    width: "55%",
     fontSize: 11,
     fontWeight: "bold",
   },
-  totalValue: {
+  totalCurrency: {
+    width: "10%",
     fontSize: 12,
     fontWeight: "bold",
-    display: "flex",
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-  },
-  totalCurrency: {
-    marginRight: 8,
+    textAlign: "center",
   },
   totalAmount: {
-    minWidth: 58,
+    width: "35%",
+    fontSize: 12,
+    fontWeight: "bold",
     textAlign: "right",
   },
   footer: {
@@ -413,7 +402,10 @@ const TicketDocument = ({
   preGeneratedQrBase64,
 }: TicketDocumentProps) => {
   const [generatedQrBase64, setGeneratedQrBase64] = useState("");
-  const companyPhoneFromStorage = useMemo(() => readCompanyPhoneFromStorage(), []);
+  const companyPhoneFromStorage = useMemo(
+    () => readCompanyPhoneFromStorage(),
+    [],
+  );
 
   const ticketData = useMemo(() => {
     const hasItems = Boolean(items?.length);
@@ -651,51 +643,41 @@ const TicketDocument = ({
           <>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
-              <View style={styles.summaryValue}>
-                <Text style={styles.summaryCurrency}>S/</Text>
-                <Text style={styles.summaryAmount}>
-                  {ticketData.operacionGravada.toFixed(2)}
-                </Text>
-              </View>
+              <Text style={styles.summaryCurrency}>S/</Text>
+              <Text style={styles.summaryAmount}>
+                {ticketData.operacionGravada.toFixed(2)}
+              </Text>
             </View>
             {ticketData.showDiscount && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>DESCUENTO :</Text>
-                <View style={styles.summaryValue}>
-                  <Text style={styles.summaryCurrency}>S/</Text>
-                  <Text style={styles.summaryAmount}>
-                    {ticketData.descuento.toFixed(2)}
-                  </Text>
-                </View>
+                <Text style={styles.summaryCurrency}>S/</Text>
+                <Text style={styles.summaryAmount}>
+                  {ticketData.descuento.toFixed(2)}
+                </Text>
               </View>
             )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>SUBTOTAL :</Text>
-              <View style={styles.summaryValue}>
-                <Text style={styles.summaryCurrency}>S/</Text>
-                <Text style={styles.summaryAmount}>
-                  {ticketData.subtotal.toFixed(2)}
-                </Text>
-              </View>
+              <Text style={styles.summaryCurrency}>S/</Text>
+              <Text style={styles.summaryAmount}>
+                {ticketData.subtotal.toFixed(2)}
+              </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>I.G.V. :</Text>
-              <View style={styles.summaryValue}>
-                <Text style={styles.summaryCurrency}>S/</Text>
-                <Text style={styles.summaryAmount}>
-                  {ticketData.igv.toFixed(2)}
-                </Text>
-              </View>
+              <Text style={styles.summaryCurrency}>S/</Text>
+              <Text style={styles.summaryAmount}>
+                {ticketData.igv.toFixed(2)}
+              </Text>
             </View>
           </>
         )}
         {/* Totals are still shown for all document types */}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL :</Text>
-          <View style={styles.totalValue}>
-            <Text style={styles.totalCurrency}>S/</Text>
-            <Text style={styles.totalAmount}>{ticketData.total.toFixed(2)}</Text>
-          </View>
+          <Text style={styles.totalCurrency}>S/</Text>
+          <Text style={styles.totalAmount}>{ticketData.total.toFixed(2)}</Text>
         </View>
 
         <View style={styles.footer}>

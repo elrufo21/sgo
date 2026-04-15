@@ -2921,9 +2921,13 @@ const PaymentPage = () => {
       return;
     }
 
+    const documento =
+      safeTrim(documentNumber) ||
+      `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+
     const confirmed = await confirmWithAppDialog({
-      title: "Anular ticket",
-      content: <p>¿Seguro que deseas anular su boleta {ticketIdNumber}?</p>,
+      title: "Anular boleta",
+      content: <p>¿Seguro que deseas anular su boleta {documento}?</p>,
       confirmText: "Anular",
     });
     if (!confirmed) return;
@@ -2941,9 +2945,6 @@ const PaymentPage = () => {
         return;
       }
 
-      const documento =
-        safeTrim(documentNumber) ||
-        `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
       const usuarioAnulacion = safeTrim(resolvedNotaUsuario) || "USUARIO";
       const docuIdParaAnular =
         Number.isFinite(Number(docuIdActual)) && Number(docuIdActual) > 0
@@ -3089,6 +3090,7 @@ const PaymentPage = () => {
       Number.isFinite(tipoProcesoParsed) && tipoProcesoParsed > 0
         ? Math.floor(tipoProcesoParsed)
         : 3;
+    const formaPagoNc = safeTrim(paymentMethod) || "EFECTIVO";
 
     const missingCodigoSunat = detallesFuente
       .map((item, index) => ({
@@ -3209,8 +3211,8 @@ const PaymentPage = () => {
       TOTAL_OTR_IMP: 0,
       POR_IGV: 18,
       TOTAL_LETRAS: numberToWords(documentTotalWithIgv, "SOLES"),
-      FORMA_PAGO: "-",
-      formaPago: "-",
+      FORMA_PAGO: formaPagoNc,
+      formaPago: formaPagoNc,
       docuSerie: docuSerieNc,
       DocuSerie: docuSerieNc,
       DOCU_SERIE: docuSerieNc,
@@ -3222,7 +3224,11 @@ const PaymentPage = () => {
 
     const confirmed = await confirmWithAppDialog({
       title: "Enviar nota de crédito",
-      content: <p>¿Desea anular la factura {nroComprobanteNc}?</p>,
+      content: (
+        <p>
+          ¿Desea generar la nota de crédito para la factura {originalDoc}?
+        </p>
+      ),
       confirmText: "Enviar",
     });
     if (!confirmed) return;
