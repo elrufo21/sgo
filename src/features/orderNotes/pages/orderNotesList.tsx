@@ -200,7 +200,10 @@ const OrderNotesList = () => {
   const solesTotals = useMemo(() => {
     const totals = notes.reduce(
       (acc, note) => {
-        const amount = getSignedTotal(note, note.total);
+        if (isAnnulledStatus(note.estado)) {
+          return acc;
+        }
+        const amount = parseAmount(note.total);
         const formaPago = String(note.formaPago ?? "").toUpperCase();
         const isCash =
           formaPago.includes("EFECT") || formaPago.includes("CONTADO");

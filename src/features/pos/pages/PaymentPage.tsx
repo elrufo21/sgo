@@ -255,11 +255,11 @@ const PaymentPage = () => {
   );
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const [isDownloadingComprobante, setIsDownloadingComprobante] =
-    useState(false);
+  const isDownloadingComprobante = false;
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
   const [notaEstadoActual, setNotaEstadoActual] = useState("");
+  const [docuIdActual, setDocuIdActual] = useState<number | null>(null);
   const [loadedNotaMonetaryTotals, setLoadedNotaMonetaryTotals] =
     useState<LoadedNotaMonetaryTotals | null>(null);
   const [loadedNotePricesIncludeIgv, setLoadedNotePricesIncludeIgv] =
@@ -1267,20 +1267,16 @@ const PaymentPage = () => {
       const detalleIdRaw = Number(detalle.detalleId ?? 0);
       const detalleId =
         Number.isFinite(detalleIdRaw) && detalleIdRaw > 0 ? detalleIdRaw : 0;
-      const unidadUpper = normalizeSunatUnitCode(detalle.detalleUm ?? "UND");
+      const unidadRaw = safeTrim(detalle.detalleUm ?? "") || "UND";
       const payloadBase = {
         DetalleId: detalleId,
         productId: detalle.idProducto,
         cantidad: detalle.detalleCantidad,
-        unidad: unidadUpper,
+        unidad: unidadRaw,
         producto: detalle.detalleDescripcion,
         costo: detalle.detalleCosto,
         precio: detalle.detallePrecio,
-        importe: Number(
-          (detalle.detalleImporte ?? 0).toFixed?.(2) ??
-            detalle.detalleImporte ??
-            0,
-        ),
+        importe: Number(detalle.detalleImporte ?? 0),
         valorUM: detalle.valorUM ?? 1,
         DetalleEstado: detalle.detalleEstado ?? "PENDIENTE",
       };
@@ -1299,13 +1295,15 @@ const PaymentPage = () => {
 
     serverById.forEach((item) => {
       const importe = Number(
-        ((item.precio ?? 0) * (item.cantidad ?? 0)).toFixed(2),
+        (item as any).detalleImporte ??
+          (item as any).importe ??
+          Number(item.precio ?? 0) * Number(item.cantidad ?? 0),
       );
       requestDetalle.push({
         DetalleId: item.detalleId ?? 0,
         productId: item.productId,
         cantidad: item.cantidad,
-        unidad: normalizeSunatUnitCode(item.unidadMedida ?? "UND"),
+        unidad: safeTrim(item.unidadMedida ?? "") || "UND",
         producto: item.nombre,
         costo: item.precio,
         precio: item.precio,
@@ -1324,6 +1322,7 @@ const PaymentPage = () => {
   const fetchNotaFromServer = async (notaIdToLoad: number) => {
     if (!Number.isFinite(notaIdToLoad) || notaIdToLoad <= 0) return;
     setNotaEstadoActual("");
+    setDocuIdActual(null);
 
     try {
       const [notaResponse, detallesResponse] = await Promise.all([
@@ -1384,6 +1383,21 @@ const PaymentPage = () => {
       }
 
       if (notaData) {
+        const resolvedDocuId = Number(
+          (notaData as any).docuId ??
+            (notaData as any).DocuId ??
+            (notaData as any).documentoVentaId ??
+            (notaData as any).DocumentoVentaId ??
+            (notaData as any).idDocumentoVenta ??
+            (notaData as any).IdDocumentoVenta ??
+            0,
+        );
+        setDocuIdActual(
+          Number.isFinite(resolvedDocuId) && resolvedDocuId > 0
+            ? resolvedDocuId
+            : null,
+        );
+
         const loadedSubtotal = getNotaAmount(notaData, [
           "notaSubtotal",
           "subTotal",
@@ -2275,20 +2289,23 @@ const PaymentPage = () => {
         deposito: isCash ? 0 : Number(totalAPagar.toFixed(2)),
       },
       detalles: safeItems.map((item) => {
-        const detalleCantidadRaw = Number(item.cantidad ?? 0);
-        const detalleCantidad =
-          Number.isFinite(detalleCantidadRaw) && detalleCantidadRaw > 0
-            ? Number(detalleCantidadRaw.toFixed(4))
-            : 0;
-        const detallePrecioRaw = Number(item.precio ?? 0);
-        const detallePrecio = Number(
-          (Number.isFinite(detallePrecioRaw) ? detallePrecioRaw : 0).toFixed(2),
-        );
+        const detalleCantidad = Number(item.cantidad ?? 0);
+        const detallePrecio = Number(item.precio ?? 0);
         const detalleImporte = Number(
-          (detallePrecio * detalleCantidad).toFixed(2),
+          (item as any).detalleImporte ??
+            (item as any).importe ??
+            detallePrecio * detalleCantidad,
         );
-        const detalleUnidad =
-          normalizeSunatUnitCode(item.unidadMedida ?? "UND");
+        const detalleUnidad = safeTrim(item.unidadMedida ?? "") || "UND";
+        const detalleCosto = Number(
+          (item as any).detalleCosto ?? (item as any).costo ?? item.precio ?? 0,
+        );
+        const detalleEstado =
+          safeTrim((item as any).detalleEstado ?? "") || "PENDIENTE";
+        const cantidadSaldo = Number(
+          (item as any).cantidadSaldo ?? item.stock ?? 0,
+        );
+        const valorUMRaw = Number(item.valorUM ?? 1);
 
         return {
           detalleId:
@@ -2300,15 +2317,13 @@ const PaymentPage = () => {
           detalleCantidad,
           detalleUm: detalleUnidad,
           detalleDescripcion: item.nombre,
-          detalleCosto: detallePrecio,
+          detalleCosto,
           detallePrecio,
           detalleImporte,
-          detalleEstado: "PENDIENTE",
-          cantidadSaldo: 0,
+          detalleEstado,
+          cantidadSaldo,
           valorUM:
-            Number.isFinite(Number(item.valorUM)) && Number(item.valorUM) > 0
-              ? Number(item.valorUM)
-              : 1,
+            Number.isFinite(valorUMRaw) && valorUMRaw > 0 ? valorUMRaw : 1,
         };
       }),
     };
@@ -2908,7 +2923,7 @@ const PaymentPage = () => {
 
     const confirmed = await confirmWithAppDialog({
       title: "Anular ticket",
-      content: <p>¿Seguro que deseas anular el ticket #{ticketIdNumber}?</p>,
+      content: <p>¿Seguro que deseas anular su boleta {ticketIdNumber}?</p>,
       confirmText: "Anular",
     });
     if (!confirmed) return;
@@ -2930,6 +2945,10 @@ const PaymentPage = () => {
         safeTrim(documentNumber) ||
         `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
       const usuarioAnulacion = safeTrim(resolvedNotaUsuario) || "USUARIO";
+      const docuIdParaAnular =
+        Number.isFinite(Number(docuIdActual)) && Number(docuIdActual) > 0
+          ? Number(docuIdActual)
+          : ticketIdNumber;
 
       const detalleCadena = detallesParaAnular
         .map((item) => {
@@ -2956,7 +2975,7 @@ const PaymentPage = () => {
         .join(";");
 
       const listaOrden =
-        `${ticketIdNumber}|${ticketIdNumber}|${usuarioAnulacion}|${documento}` +
+        `${docuIdParaAnular}|${ticketIdNumber}|${usuarioAnulacion}|${documento}` +
         `[${detalleCadena}[`;
 
       const result = await apiRequest({
@@ -3054,10 +3073,8 @@ const PaymentPage = () => {
     const originalDoc =
       safeTrim(documentNumber) ||
       `${safeTrim(notaSerie) || "FA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
-    const serieDigits = (safeTrim(notaSerie).match(/\d+/)?.[0] ?? "01")
-      .padStart(2, "0")
-      .slice(-2);
-    const nroComprobanteNc = `FC${serieDigits}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+    const docuSerieNc = "FN01";
+    const nroComprobanteNc = `${docuSerieNc}-${safeTrim(paddedNotaNumero) || "00000000"}`;
 
     const clienteDocumento = safeTrim(selectedDocument) || safeTrim(customerId);
     const tipoDocumentoCliente =
@@ -3192,14 +3209,20 @@ const PaymentPage = () => {
       TOTAL_OTR_IMP: 0,
       POR_IGV: 18,
       TOTAL_LETRAS: numberToWords(documentTotalWithIgv, "SOLES"),
-      FORMA_PAGO: "Contado",
-      GLOSA: "NC por anulacion",
+      FORMA_PAGO: "-",
+      formaPago: "-",
+      docuSerie: docuSerieNc,
+      DocuSerie: docuSerieNc,
+      DOCU_SERIE: docuSerieNc,
+      DocuConcepto: "ANULACION DE LA OPERACION",
+      docuConcepto: "ANULACION DE LA OPERACION",
+      GLOSA: "ANULACION DE LA OPERACION",
       detalle,
     };
 
     const confirmed = await confirmWithAppDialog({
       title: "Enviar nota de crédito",
-      content: <p>Se enviará la Nota de Crédito {nroComprobanteNc} .</p>,
+      content: <p>¿Desea anular la factura {nroComprobanteNc}?</p>,
       confirmText: "Enviar",
     });
     if (!confirmed) return;
@@ -3345,17 +3368,6 @@ const PaymentPage = () => {
     return `${safeCorrelative}.pdf`;
   }, [documentNumber]);
 
-  const downloadComprobante = useCallback((blob: Blob, fileName: string) => {
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }, []);
-
   const shareByWhatsApp = useCallback(async () => {
     const safeDocNumber = safeTrim(documentNumber) || "SIN-NUMERO";
     const message = [
@@ -3391,34 +3403,18 @@ const PaymentPage = () => {
       }
     }
 
-    downloadComprobante(blob, fileName);
-    toast.info(
-      "No se pudo abrir el panel de compartir. Se descargo el PDF para enviarlo manualmente.",
-    );
+    toast.info("No se pudo abrir el panel de compartir en este dispositivo.");
   }, [
     createComprobanteBlob,
     customerName,
     documentNumber,
-    downloadComprobante,
     getComprobanteFileName,
     totalAPagar,
   ]);
 
   const handleDownloadComprobante = useCallback(async () => {
-    try {
-      setIsDownloadingComprobante(true);
-      const blob = await createComprobanteBlob();
-      const fileName = getComprobanteFileName();
-      downloadComprobante(blob, fileName);
-      toast.success("Comprobante descargado.");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "No se pudo descargar";
-      toast.error(message);
-    } finally {
-      setIsDownloadingComprobante(false);
-    }
-  }, [createComprobanteBlob, downloadComprobante, getComprobanteFileName]);
+    toast.info("La descarga de PDF está deshabilitada.");
+  }, []);
 
   const handlePrint = async (options?: { skipConfirmedCheck?: boolean }) => {
     const skipConfirmedCheck = options?.skipConfirmedCheck === true;
@@ -3763,14 +3759,14 @@ const PaymentPage = () => {
   );
 
   const PdfViewerCard = (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white">
       {isPdfEnabled ? (
         canPreviewPdf ? (
           <div className="h-[68vh] min-h-[420px] sm:h-[620px]">
             <PDFViewer
               key={previewKey}
               style={{ width: "100%", height: "100%" }}
-              showToolbar={isConfirmed}
+              showToolbar={false}
             >
               <TicketDocument {...ticketPreviewProps} />
             </PDFViewer>
@@ -3785,6 +3781,13 @@ const PaymentPage = () => {
           Vista PDF deshabilitada en celular.
         </div>
       )}
+      {isNotaAnulada ? (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <span className="select-none rounded-xl border-4 border-red-500/70 bg-white/45 px-8 py-3 text-5xl font-black tracking-[0.22em] text-red-600/85 [transform:rotate(-24deg)]">
+            ANULADO
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 
@@ -3841,10 +3844,10 @@ const PaymentPage = () => {
                   onClick={() => {
                     void handleDownloadComprobante();
                   }}
-                  disabled={isDownloadingComprobante}
+                  disabled
                 >
                   <Download className="h-4 w-4" />
-                  {isDownloadingComprobante ? "Descargando..." : "Descargar"}
+                  Descarga deshabilitada
                 </button>
               )}
               {isPdfEnabled && (
@@ -4212,12 +4215,10 @@ const PaymentPage = () => {
             onClick={() => {
               void handleDownloadComprobante();
             }}
-            disabled={isDownloadingComprobante}
+            disabled
           >
             <Download className="w-5 h-5" />
-            {isDownloadingComprobante
-              ? "Descargando..."
-              : "Descargar comprobante"}
+            Descarga deshabilitada
           </button>
         )}
         <button

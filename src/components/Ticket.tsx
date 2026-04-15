@@ -331,6 +331,16 @@ const styles = StyleSheet.create({
   },
   summaryValue: {
     width: "45%",
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  summaryCurrency: {
+    marginRight: 8,
+  },
+  summaryAmount: {
+    minWidth: 52,
     textAlign: "right",
   },
   totalRow: {
@@ -349,6 +359,16 @@ const styles = StyleSheet.create({
   totalValue: {
     fontSize: 12,
     fontWeight: "bold",
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+  },
+  totalCurrency: {
+    marginRight: 8,
+  },
+  totalAmount: {
+    minWidth: 58,
     textAlign: "right",
   },
   footer: {
@@ -631,38 +651,51 @@ const TicketDocument = ({
           <>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
-              <Text style={styles.summaryValue}>
-                S/ {ticketData.operacionGravada.toFixed(2)}
-              </Text>
+              <View style={styles.summaryValue}>
+                <Text style={styles.summaryCurrency}>S/</Text>
+                <Text style={styles.summaryAmount}>
+                  {ticketData.operacionGravada.toFixed(2)}
+                </Text>
+              </View>
             </View>
             {ticketData.showDiscount && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>DESCUENTO :</Text>
-                <Text style={styles.summaryValue}>
-                  S/ {ticketData.descuento.toFixed(2)}
-                </Text>
+                <View style={styles.summaryValue}>
+                  <Text style={styles.summaryCurrency}>S/</Text>
+                  <Text style={styles.summaryAmount}>
+                    {ticketData.descuento.toFixed(2)}
+                  </Text>
+                </View>
               </View>
             )}
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>SUBTOTAL :</Text>
-              <Text style={styles.summaryValue}>
-                S/ {ticketData.subtotal.toFixed(2)}
-              </Text>
+              <View style={styles.summaryValue}>
+                <Text style={styles.summaryCurrency}>S/</Text>
+                <Text style={styles.summaryAmount}>
+                  {ticketData.subtotal.toFixed(2)}
+                </Text>
+              </View>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>I.G.V. :</Text>
-              <Text style={styles.summaryValue}>
-                S/ {ticketData.igv.toFixed(2)}
-              </Text>
+              <View style={styles.summaryValue}>
+                <Text style={styles.summaryCurrency}>S/</Text>
+                <Text style={styles.summaryAmount}>
+                  {ticketData.igv.toFixed(2)}
+                </Text>
+              </View>
             </View>
           </>
         )}
         {/* Totals are still shown for all document types */}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL :</Text>
-          <Text style={styles.totalValue}>
-            S/ {ticketData.total.toFixed(2)}
-          </Text>
+          <View style={styles.totalValue}>
+            <Text style={styles.totalCurrency}>S/</Text>
+            <Text style={styles.totalAmount}>{ticketData.total.toFixed(2)}</Text>
+          </View>
         </View>
 
         <View style={styles.footer}>
