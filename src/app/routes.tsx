@@ -10,6 +10,7 @@ import shoppingRoutes from "../features/shopping/routes";
 import sendNoteRoutes from "../features/sendNote/routes";
 import boletasSummaryRoutes from "../features/boletasSummary/routes";
 import configurationRoutes from "../features/configuration/routes";
+import accountingRoutes from "../features/accounting/routes";
 import MainLayout from "./layouts/MainLayout";
 import { RedirectIfAuthenticated, RequireAuth } from "./guards/AuthGuard";
 import LoginPage from "@/features/auth/LoginPage";
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
       ...sendNoteRoutes, // legacy direct routes
       ...boletasSummaryRoutes,
       ...configurationRoutes,
+      ...accountingRoutes,
       ...maintenanceRoutes,
       ...cashFlowRoutes,
       { path: "*", element: <h1>404 - Not Found</h1> },

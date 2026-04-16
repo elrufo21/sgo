@@ -11,6 +11,7 @@ import { esES } from "@mui/x-date-pickers/locales";
 import { createColumnHelper } from "@tanstack/react-table";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/es";
+import { Workbook } from "exceljs";
 import { FileSpreadsheet, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -161,60 +162,194 @@ const OrderNotesList = () => {
     const formatted = value?.format("YYYY-MM-DD") ?? "";
     return formatted.trim();
   }, []);
-
-  const handleExportExcel = useCallback(() => {
+  const toExcelSafeText = (value: unknown) => {
+    const text = String(value ?? "").trim();
+    if (!text) return "";
+    return /^[=+\-@]/.test(text) ? `'${text}` : text;
+  };
+  const handleExportExcel = useCallback(async () => {
     if (!notes.length) {
       toast.info("No hay datos para exportar.");
       return;
     }
 
-    const headers = [
-      "ID Nota",
-      "Documento",
-      "Fecha",
-      "Cliente",
-      "Forma Pago",
-      "Total",
-      "A cuenta",
-      "Saldo",
-      "Usuario",
-      "Estado",
-    ];
+    try {
+      const workbook = new Workbook();
+      workbook.creator = "SGO";
+      workbook.created = new Date();
 
-    const escapeCsvValue = (value: unknown) =>
-      `"${String(value ?? "").replace(/"/g, '""')}"`;
+      const worksheet = workbook.addWorksheet("Notas de Pedido", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
 
-    const rows = notes.map((note) =>
-      [
-        note.notaId,
-        note.documento,
-        note.fecha,
-        note.cliente,
-        note.formaPago,
-        formatAmount(getSignedTotal(note, note.total)),
-        note.acuenta,
-        note.saldo,
-        note.usuario,
-        note.estado,
-      ]
-        .map(escapeCsvValue)
-        .join(","),
-    );
+      worksheet.columns = [
+        { header: "ID Nota", key: "notaId", width: 12 },
+        { header: "Tipo Documento", key: "tipoDocumento", width: 20 },
+        { header: "N° Documento", key: "numeroDocumento", width: 18 },
+        { header: "Fecha", key: "fecha", width: 14 },
+        { header: "Cliente", key: "cliente", width: 34 },
+        { header: "Forma Pago", key: "formaPago", width: 18 },
+        { header: "Total", key: "total", width: 14 },
+        { header: "A cuenta", key: "acuenta", width: 14 },
+        { header: "Saldo", key: "saldo", width: 14 },
+        { header: "Usuario", key: "usuario", width: 18 },
+        { header: "Estado", key: "estado", width: 14 },
+      ];
 
-    const csv = `\uFEFF${[headers.map(escapeCsvValue).join(","), ...rows].join("\n")}`;
-    const fileFrom = fechaInicio || "sin-inicio";
-    const fileTo = fechaFin || "sin-fin";
-    const fileName = `notas-pedido_${fileFrom}_${fileTo}.csv`;
+      worksheet.autoFilter = {
+        from: { row: 1, column: 1 },
+        to: { row: 1, column: worksheet.columnCount },
+      };
 
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 22;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "B23636" },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE2E8F0" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      });
+
+      notes.forEach((note, index) => {
+        const { tipoDocumento, numeroDocumento } = splitDocumentLabel(
+          note.documento,
+        );
+
+        const excelRow = worksheet.addRow({
+          notaId: toExcelSafeText(note.notaId),
+          tipoDocumento: toExcelSafeText(tipoDocumento || "-"),
+          numeroDocumento: toExcelSafeText(numeroDocumento || "-"),
+          fecha: toExcelSafeText(note.fecha),
+          cliente: toExcelSafeText(note.cliente),
+          formaPago: toExcelSafeText(note.formaPago),
+          total: Number(getSignedTotal(note, note.total).toFixed(2)),
+          acuenta: Number(parseAmount(note.acuenta).toFixed(2)),
+          saldo: Number(parseAmount(note.saldo).toFixed(2)),
+          usuario: toExcelSafeText(note.usuario),
+          estado: toExcelSafeText(note.estado),
+        });
+
+        excelRow.eachCell((cell, colNumber) => {
+          const isAmountColumn = colNumber >= 7 && colNumber <= 9;
+
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+
+          cell.alignment = {
+            vertical: "top",
+            horizontal: isAmountColumn ? "right" : "left",
+            wrapText: colNumber === 5,
+          };
+
+          if (isAmountColumn) {
+            cell.numFmt = "#,##0.00";
+          }
+        });
+
+        if (index % 2 === 1) {
+          excelRow.eachCell((cell) => {
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF8FAFC" },
+            };
+          });
+        }
+      });
+
+      const totalGeneral = notes.reduce(
+        (acc, note) => acc + getSignedTotal(note, note.total),
+        0,
+      );
+
+      const acuentaGeneral = notes.reduce(
+        (acc, note) => acc + parseAmount(note.acuenta),
+        0,
+      );
+
+      const saldoGeneral = notes.reduce(
+        (acc, note) => acc + parseAmount(note.saldo),
+        0,
+      );
+
+      worksheet.addRow({});
+
+      const totalsRow = worksheet.addRow({
+        notaId: `Items: ${notes.length}`,
+        formaPago: "Totales S/",
+        total: Number(totalGeneral.toFixed(2)),
+        acuenta: Number(acuentaGeneral.toFixed(2)),
+        saldo: Number(saldoGeneral.toFixed(2)),
+      });
+
+      totalsRow.eachCell((cell, colNumber) => {
+        const isAmountColumn = colNumber >= 7 && colNumber <= 9;
+        const isLabelColumn = colNumber === 1 || colNumber === 6;
+
+        cell.font = { bold: true };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFCBD5E1" } },
+          left: { style: "thin", color: { argb: "FFCBD5E1" } },
+          bottom: { style: "thin", color: { argb: "FFCBD5E1" } },
+          right: { style: "thin", color: { argb: "FFCBD5E1" } },
+        };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFE2E8F0" },
+        };
+        cell.alignment = {
+          vertical: "middle",
+          horizontal: isAmountColumn ? "right" : "left",
+        };
+
+        if (isLabelColumn) {
+          cell.alignment = { vertical: "middle", horizontal: "left" };
+        }
+
+        if (isAmountColumn) {
+          cell.numFmt = "#,##0.00";
+        }
+      });
+
+      const safeFilePart = (value?: string) =>
+        String(value || "sin-fecha").replace(/[\/\\:*?"<>|]/g, "-");
+
+      const fileFrom = safeFilePart(fechaInicio);
+      const fileTo = safeFilePart(fechaFin);
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `notas-pedido_${fileFrom}_${fileTo}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+      toast.success("Excel generado correctamente.");
+    } catch (error) {
+      console.error("Error al exportar Excel de notas de pedido", error);
+      toast.error("No se pudo exportar el archivo Excel.");
+    }
   }, [fechaFin, fechaInicio, notes]);
 
   const solesTotals = useMemo(() => {

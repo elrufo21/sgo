@@ -10,6 +10,7 @@ import {
   StoreIcon,
   ChevronDown,
   CopySlashIcon,
+  Landmark,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/shared/ui/toast";
@@ -453,6 +454,11 @@ export default function MainLayout() {
       label: "Configuración",
       to: "/configuration",
       icon: <SlidersHorizontal size={18} />,
+    },
+    {
+      label: "Contabilidad",
+      to: "/accounting",
+      icon: <Landmark size={18} />,
     },
   ];
 

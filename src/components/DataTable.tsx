@@ -59,6 +59,7 @@ interface DataTableProps<T extends RowData> {
   onGlobalFilterValueChange?: (value: string) => void;
   footerContent?: ReactNode;
   onFilteredDataChange?: (rows: T[]) => void;
+  renderHeaderFilterCell?: (columnId: string) => ReactNode;
 }
 
 const alignmentClass: Record<"left" | "center" | "right", string> = {
@@ -150,6 +151,7 @@ export default function DataTable<T extends RowData>({
   onGlobalFilterValueChange,
   footerContent,
   onFilteredDataChange,
+  renderHeaderFilterCell,
 }: DataTableProps<T>) {
   const location = useLocation();
   const searchScope = useMemo(
@@ -501,6 +503,24 @@ export default function DataTable<T extends RowData>({
                 })}
               </tr>
             ))}
+            {renderHeaderFilterCell ? (
+              <tr className="border-b border-slate-200 bg-white normal-case tracking-normal text-slate-700">
+                {table.getVisibleLeafColumns().map((column) => {
+                  const align = column.columnDef.meta?.align;
+                  const thClass = column.columnDef.meta?.thClassName ?? "";
+
+                  return (
+                    <th
+                      key={`header-filter-${column.id}`}
+                      className={`px-2 py-2 font-normal ${resolveAlignmentClass(align)} ${thClass}`}
+                      scope="col"
+                    >
+                      {renderHeaderFilterCell(column.id)}
+                    </th>
+                  );
+                })}
+              </tr>
+            ) : null}
           </thead>
 
           <tbody>
