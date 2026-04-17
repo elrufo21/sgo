@@ -211,6 +211,20 @@ const parseDelimitedDataset = (rawValue: string): DelimitedDataset | null => {
   };
 };
 
+const resolveSalesStatus = (documento: string, estado: string) => {
+  const docNormalized = normalizeFilterText(documento);
+  const statusNormalized = normalizeFilterText(estado);
+  const isFactura = docNormalized.includes("factura") || docNormalized === "01";
+  const isCancelledOrDropped =
+    statusNormalized.includes("anul") || statusNormalized.includes("baja");
+
+  if (isFactura && isCancelledOrDropped) {
+    return "EMITIDO";
+  }
+
+  return estado;
+};
+
 const mapSalesRow = (
   rowParts: string[],
   headerIndex: Record<string, number>,
@@ -226,7 +240,10 @@ const mapSalesRow = (
   icbper: readField(rowParts, headerIndex, ["ICBPER"], 8),
   total: readField(rowParts, headerIndex, ["Total"], 9),
   usuario: readField(rowParts, headerIndex, ["Usuario"], 10),
-  estado: readField(rowParts, headerIndex, ["Estado"], 11),
+  estado: resolveSalesStatus(
+    readField(rowParts, headerIndex, ["Documento"], 1),
+    readField(rowParts, headerIndex, ["Estado"], 11),
+  ),
   referencia: readField(rowParts, headerIndex, ["Referencia"], 12),
   codigo: readField(rowParts, headerIndex, ["Codigo", "CDSunat"], 13),
   mensaje: readField(rowParts, headerIndex, ["Mensaje"], 14),
@@ -447,15 +464,21 @@ const purchaseFilterFields: Array<{
 ];
 
 export default function PdtCompanyPage() {
-  const todayIso = useMemo(() => toLocalIsoDate(new Date()), []);
-  const firstDayOfMonthIso = useMemo(
-    () => `${todayIso.slice(0, 8)}01`,
-    [todayIso],
-  );
+  const currentMonthRangeIso = useMemo(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    return {
+      firstDay: toLocalIsoDate(firstDay),
+      lastDay: toLocalIsoDate(lastDay),
+    };
+  }, []);
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("ventas");
-  const [fechaInicio, setFechaInicio] = useState(firstDayOfMonthIso);
-  const [fechaFin, setFechaFin] = useState(todayIso);
+  const [fechaInicio, setFechaInicio] = useState(currentMonthRangeIso.firstDay);
+  const [fechaFin, setFechaFin] = useState(currentMonthRangeIso.lastDay);
 
   const [salesRows, setSalesRows] = useState<SalesDocument[]>([]);
   const [purchaseRows, setPurchaseRows] = useState<PurchaseDocument[]>([]);
@@ -1148,7 +1171,8 @@ export default function PdtCompanyPage() {
           const value = normalizeText(info.getValue(), "-");
           const normalized = value.toUpperCase();
 
-          const stateClass = normalized.includes("ANUL")
+          const stateClass =
+            normalized.includes("ANUL") || normalized.includes("BAJA")
             ? "bg-red-100 text-red-700 border-red-200"
             : normalized.includes("PEND")
               ? "bg-amber-100 text-amber-700 border-amber-200"

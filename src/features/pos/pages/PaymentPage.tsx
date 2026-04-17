@@ -866,6 +866,7 @@ const PaymentPage = () => {
     canManageDocumentFromOrderNotes &&
     docTypeCode === "01" &&
     (normalizedNotaEstado === "EMITIDO" ||
+      normalizedNotaEstado === "CANCELADO" ||
       normalizedNotaEstado === "PENDIENTE");
   const formLocked = isConfirmed || isReadOnlyNoteView;
   const isPersistingToDb =
