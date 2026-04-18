@@ -3857,6 +3857,15 @@ const PaymentPage = () => {
   }, [documentNumber]);
 
   const shareByWhatsApp = useCallback(async () => {
+    if (isNotaAnulada) {
+      toast.error("Documento anulado. Envío por WhatsApp no permitido.");
+      return;
+    }
+    if (!isConfirmed) {
+      toast.error("Debe confirmar el documento antes de compartir.");
+      return;
+    }
+
     const safeDocNumber = safeTrim(documentNumber) || "SIN-NUMERO";
     const message = [
       `Comprobante: ${safeDocNumber}`,
@@ -3897,6 +3906,8 @@ const PaymentPage = () => {
     customerName,
     documentNumber,
     getComprobanteFileName,
+    isConfirmed,
+    isNotaAnulada,
     totalAPagar,
   ]);
 
@@ -3937,6 +3948,10 @@ const PaymentPage = () => {
 
   const handlePrint = async (options?: { skipConfirmedCheck?: boolean }) => {
     const skipConfirmedCheck = options?.skipConfirmedCheck === true;
+    if (isNotaAnulada) {
+      toast.error("Documento anulado. Impresión no permitida.");
+      return;
+    }
     if (!skipConfirmedCheck && !isConfirmed) {
       toast.error("Debe confirmar el documento antes de imprimir.");
       return;
@@ -4347,10 +4362,11 @@ const PaymentPage = () => {
               {isConfirmed && (
                 <button
                   type="button"
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 transition-colors hover:bg-green-100"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-xs font-medium text-green-800 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => {
                     void shareByWhatsApp();
                   }}
+                  disabled={isNotaAnulada}
                 >
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp
@@ -4378,7 +4394,7 @@ const PaymentPage = () => {
                   type="button"
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
                   onClick={() => handlePrint()}
-                  disabled={isPrinting || !isConfirmed}
+                  disabled={isPrinting || !isConfirmed || isNotaAnulada}
                 >
                   <Printer className="h-4 w-4" />
                   {isPrinting ? "Imprimiendo..." : "Imprimir"}
@@ -4730,10 +4746,11 @@ const PaymentPage = () => {
         )}
         {isConfirmed && (
           <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 py-2.5 text-green-800 transition-colors hover:bg-green-100"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 py-2.5 text-green-800 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               void shareByWhatsApp();
             }}
+            disabled={isNotaAnulada}
           >
             <MessageCircle className="w-5 h-5" />
             Enviar por WhatsApp
@@ -4758,7 +4775,7 @@ const PaymentPage = () => {
         <button
           className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-2.5 text-slate-800 transition-colors hover:bg-slate-50 disabled:opacity-50"
           onClick={() => handlePrint()}
-          disabled={isPrinting || !isConfirmed}
+          disabled={isPrinting || !isConfirmed || isNotaAnulada}
         >
           <Printer className="w-5 h-5" />
           {isPrinting ? "Imprimiendo..." : "Imprimir comprobante"}
