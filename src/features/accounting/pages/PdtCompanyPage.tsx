@@ -385,7 +385,9 @@ const resolveSalesRowsForExcel = (
       relatedDocumentMap.get(referenceToken) ??
       allRows.find((candidate) => {
         if (isCreditNoteDocument(candidate.documento)) return false;
-        const candidateToken = normalizeDocumentReferenceToken(candidate.nroDoc);
+        const candidateToken = normalizeDocumentReferenceToken(
+          candidate.nroDoc,
+        );
         if (!candidateToken) return false;
         return (
           referenceToken.includes(candidateToken) ||
@@ -400,7 +402,9 @@ const resolveSalesRowsForExcel = (
     if (!documentToken) return [] as SalesDocument[];
 
     return creditNotesRows.filter((creditRow) => {
-      const referenceToken = normalizeDocumentReferenceToken(creditRow.referencia);
+      const referenceToken = normalizeDocumentReferenceToken(
+        creditRow.referencia,
+      );
       if (!referenceToken) return false;
       return (
         referenceToken.includes(documentToken) ||
@@ -1228,10 +1232,10 @@ export default function PdtCompanyPage() {
 
           const stateClass =
             normalized.includes("ANUL") || normalized.includes("BAJA")
-            ? "bg-red-100 text-red-700 border-red-200"
-            : normalized.includes("PEND")
-              ? "bg-amber-100 text-amber-700 border-amber-200"
-              : "bg-emerald-100 text-emerald-700 border-emerald-200";
+              ? "bg-red-100 text-red-700 border-red-200"
+              : normalized.includes("PEND")
+                ? "bg-amber-100 text-amber-700 border-amber-200"
+                : "bg-emerald-100 text-emerald-700 border-emerald-200";
 
           return (
             <span
@@ -1382,16 +1386,6 @@ export default function PdtCompanyPage() {
               Exportar Excel
             </button>
           </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-3 text-xs text-slate-500">
-          <span>Ventas: {salesSourceLabel}</span>
-          <span>Compras: {purchaseSource}</span>
-          {purchaseUnavailable ? (
-            <span className="font-semibold text-amber-700">
-              Compras usa fallback temporal.
-            </span>
-          ) : null}
         </div>
       </section>
 
