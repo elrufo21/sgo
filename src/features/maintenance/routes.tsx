@@ -17,6 +17,7 @@ import ProviderCreate from "./providers/providerCreate";
 import ProviderEdit from "./providers/providerEdit";
 import HolidayCreate from "./holidays/holidayCreate";
 import HolidayEdit from "./holidays/holidayEdit";
+import BoletasSummaryPage from "@/features/boletasSummary/pages/BoletasSummaryPage";
 
 export default [
   {
@@ -254,6 +255,16 @@ export default [
         { label: "Mantenimiento", to: "/maintenance" },
         { label: "Usuarios", to: "/maintenance/users" },
         { label: "Editar usuario" },
+      ],
+    },
+  },
+  {
+    path: "maintenance/boletas_summary",
+    element: <BoletasSummaryPage />,
+    handle: {
+      breadcrumb: [
+        { label: "Mantenimiento", to: "/maintenance" },
+        { label: "Resumen de boletas" },
       ],
     },
   },

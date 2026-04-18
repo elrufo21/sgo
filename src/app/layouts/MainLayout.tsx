@@ -421,46 +421,54 @@ export default function MainLayout() {
     };
   }, [userMenuOpen]);
 
-  const navItems = [
-    {
-      label: "Ventas",
-      to: "/sales/pos",
-      icon: <DollarSign size={18} />,
-    },
-    {
-      label: "Lista de ventas ",
-      to: "/sales/order_notes",
-      icon: <CopySlashIcon size={18} />,
-    },
-    {
+  const navItems = useMemo(() => {
+    const boletasSummaryItem = {
       label: "Resumen de boletas",
       to: "/sales/boletas_summary",
       icon: <CopySlashIcon size={18} />,
-    },
-    {
-      label: "Control de flujo de caja",
-      to: "/cash_flow_control",
-      icon: <StoreIcon />,
-    },
-    { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
-    { label: "Productos", to: "/products", icon: <Package size={18} /> },
-    { label: "Cliente", to: "/customers", icon: <UserCheck size={18} /> },
-    {
-      label: "Mantenimiento",
-      to: "/maintenance",
-      icon: <Settings2 />,
-    },
-    {
-      label: "Configuración",
-      to: "/configuration",
-      icon: <SlidersHorizontal size={18} />,
-    },
-    {
-      label: "Contabilidad",
-      to: "/accounting",
-      icon: <Landmark size={18} />,
-    },
-  ];
+    };
+
+    const items = [
+      {
+        label: "Ventas",
+        to: "/sales/pos",
+        icon: <DollarSign size={18} />,
+      },
+      {
+        label: "Lista de ventas ",
+        to: "/sales/order_notes",
+        icon: <CopySlashIcon size={18} />,
+      },
+      {
+        label: "Control de flujo de caja",
+        to: "/cash_flow_control",
+        icon: <StoreIcon />,
+      },
+      { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
+      { label: "Productos", to: "/products", icon: <Package size={18} /> },
+      { label: "Cliente", to: "/customers", icon: <UserCheck size={18} /> },
+      {
+        label: "Contabilidad",
+        to: "/accounting",
+        icon: <Landmark size={18} />,
+      },
+      {
+        label: "Mantenimiento",
+        to: "/maintenance",
+        icon: <Settings2 />,
+      },
+      {
+        label: "Configuración",
+        to: "/configuration",
+        icon: <SlidersHorizontal size={18} />,
+      },
+    ];
+
+    if (user?.boletaPorLote !== false) {
+      items.splice(2, 0, boletasSummaryItem);
+    }
+    return items;
+  }, [user?.boletaPorLote]);
 
   const filteredItems = navItems.filter((item) =>
     item.label.toUpperCase().includes(search.toUpperCase()),

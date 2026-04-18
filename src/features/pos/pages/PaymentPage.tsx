@@ -29,6 +29,7 @@ import { usePosCartDraftPersistence } from "@/features/pos/hooks/usePosCartDraft
 import { useClientsStore } from "@/store/customers/customers.store";
 import { useProductsStore } from "@/store/products/products.store";
 import { useDialogStore } from "@/store/app/dialog.store";
+import { useBoletasSummaryStore } from "@/store/boletasSummary/boletasSummary.store";
 import type { PosCartItem } from "@/types/pos";
 import type { Client } from "@/types/customer";
 import { buildApiUrl } from "@/config";
@@ -205,6 +206,14 @@ const PaymentPage = () => {
   const openDialog = useDialogStore((s) => s.openDialog);
   const { clients, fetchClients, addClient } = useClientsStore();
   const { fetchProducts: refetchProducts } = useProductsStore();
+  const fetchBoletaSummaryDocuments = useBoletasSummaryStore(
+    (s) => s.fetchDocuments,
+  );
+  const fetchNextBoletaSummarySequence = useBoletasSummaryStore(
+    (s) => s.fetchNextSummarySequence,
+  );
+  const sendBoletaSummary = useBoletasSummaryStore((s) => s.sendSummary);
+  const consultBoletaSummary = useBoletasSummaryStore((s) => s.consultSummary);
   const safeTrim = (value: unknown) => String(value ?? "").trim();
   const routeNotaId = useMemo(() => {
     const parsed = Number(notaIdParam ?? 0);
@@ -388,6 +397,7 @@ const PaymentPage = () => {
     claveCertificadoFromSession,
     certificadoBase64FromSession,
     entornoFromSession,
+    boletaPorLoteFromSession,
   } = useMemo(() => {
     if (typeof window === "undefined") {
       return {
@@ -405,6 +415,7 @@ const PaymentPage = () => {
         claveCertificadoFromSession: "",
         certificadoBase64FromSession: "",
         entornoFromSession: "",
+        boletaPorLoteFromSession: false,
       };
     }
 
@@ -492,6 +503,42 @@ const PaymentPage = () => {
         parsedSession?.loginPayload?.entorno ??
         "",
     );
+    const boletaPorLoteRaw =
+      parsedSession?.user?.boletaPorLote ??
+      parsedSession?.user?.BoletaPorLote ??
+      parsedSession?.boletaPorLote ??
+      parsedSession?.BoletaPorLote ??
+      parsedSession?.loginPayload?.boletaPorLote ??
+      parsedSession?.loginPayload?.BoletaPorLote ??
+      false;
+    const boletaPorLoteFromSession = (() => {
+      if (typeof boletaPorLoteRaw === "boolean") return boletaPorLoteRaw;
+      const normalized = String(boletaPorLoteRaw ?? "")
+        .trim()
+        .toLowerCase();
+      if (
+        normalized === "true" ||
+        normalized === "1" ||
+        normalized === "si" ||
+        normalized === "yes" ||
+        normalized === "verdadero"
+      ) {
+        return true;
+      }
+      if (
+        normalized === "false" ||
+        normalized === "0" ||
+        normalized === "no" ||
+        normalized === "falso"
+      ) {
+        return false;
+      }
+      const numericValue = Number(boletaPorLoteRaw);
+      if (Number.isFinite(numericValue)) {
+        return numericValue === 1;
+      }
+      return false;
+    })();
 
     return {
       companyId: safeCompanyId,
@@ -508,6 +555,7 @@ const PaymentPage = () => {
       claveCertificadoFromSession: claveCertificado,
       certificadoBase64FromSession: certificadoBase64,
       entornoFromSession: entorno,
+      boletaPorLoteFromSession,
     };
   }, []);
 
@@ -787,7 +835,7 @@ const PaymentPage = () => {
 
   const formMethods = useForm({
     defaultValues: {
-      docTypeCode: "03" as "03" | "01" | "101",
+      docTypeCode: "SELECCIONAR" as "03" | "01" | "101" | "SELECCIONAR",
       paymentMethod: "EFECTIVO" as
         | "EFECTIVO"
         | "TARJETA"
@@ -830,7 +878,7 @@ const PaymentPage = () => {
   const discountInput = watch("discount");
 
   const docLabel = docTypeCode === "01" ? "RUC" : "DNI";
-  const docConfig = docTypeConfig[docTypeCode];
+  const docConfig = docTypeConfig[docTypeCode as keyof typeof docTypeConfig];
   const notaSerie = (notaSerieOverride || docConfig?.serie || "BA01").trim();
   const paddedNotaNumero = useMemo(() => {
     const digitsOnly = (notaNumero || "").replace(/\D/g, "");
@@ -868,6 +916,11 @@ const PaymentPage = () => {
     (normalizedNotaEstado === "EMITIDO" ||
       normalizedNotaEstado === "CANCELADO" ||
       normalizedNotaEstado === "PENDIENTE");
+  const canCreateBoletaCreditNoteFromOrderNotes =
+    canVoidBoletaFromOrderNotes && !boletaPorLoteFromSession;
+  const shouldShowCreditNoteAction =
+    canCreateCreditNoteFromOrderNotes ||
+    canCreateBoletaCreditNoteFromOrderNotes;
   const formLocked = isConfirmed || isReadOnlyNoteView;
   const isPersistingToDb =
     isSubmitting || isVoidingTicket || isSendingCreditNote;
@@ -2740,6 +2793,29 @@ const PaymentPage = () => {
       }
       return null;
     };
+    const parseAmountLike = (value: unknown): number => {
+      if (typeof value === "number") {
+        return Number.isFinite(value) ? value : 0;
+      }
+      const raw = safeTrim(value);
+      if (!raw) return 0;
+      const normalized = raw.replace(/,/g, "");
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const parseToIsoDate = (value: unknown): string => {
+      const raw = safeTrim(value);
+      if (!raw) return "";
+      const [datePart = ""] = raw.split(" ");
+      const slashMatch = datePart.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (slashMatch) {
+        const [, dd, mm, yyyy] = slashMatch;
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      const isoMatch = datePart.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (isoMatch) return datePart;
+      return "";
+    };
 
     const createResponse =
       !isEditing && result && typeof result === "object"
@@ -2787,6 +2863,200 @@ const PaymentPage = () => {
       safeTrim(sunatResponse?.flg_rta ?? sunatResponse?.FlgRta) === "1" ||
       facturaCodSunat === "0" ||
       facturaCodSunat === "0000";
+    let boletaLoteStatus: "success" | "warning" | null = null;
+    let boletaLoteMessage = "";
+
+    if (!isEditing && docTypeCode === "03" && boletaPorLoteFromSession) {
+      const todayIso = getLocalDateISO(new Date());
+      const tipoProcesoRaw = Number(entornoFromSession || 3);
+      const tipoProceso =
+        Number.isFinite(tipoProcesoRaw) && tipoProcesoRaw > 0
+          ? Math.floor(tipoProcesoRaw)
+          : 3;
+
+      try {
+        const nextSequence = await fetchNextBoletaSummarySequence(companyId);
+        if (!nextSequence) {
+          boletaLoteStatus = "warning";
+          boletaLoteMessage =
+            "Boleta registrada, pero no se obtuvo secuencia para enviar resumen.";
+        } else {
+          await fetchBoletaSummaryDocuments({ dataOverride: companyId });
+          const pendingRows = useBoletasSummaryStore.getState().documents ?? [];
+          const parsedNotaIdNumber = Number(parsedNotaId ?? 0);
+          const targetDocNumber = safeTrim(
+            `${safeTrim(notaSerie)}-${safeTrim(parsedNotaCorrelative || paddedNotaNumero)}`,
+          ).toUpperCase();
+          const rowsByNotaId =
+            parsedNotaIdNumber > 0
+              ? pendingRows.filter(
+                  (row) => Number(row.notaId || 0) === parsedNotaIdNumber,
+                )
+              : [];
+          const rowsByDocumentNumber = targetDocNumber
+            ? pendingRows.filter(
+                (row) =>
+                  safeTrim(row.serieNumero).toUpperCase() === targetDocNumber,
+              )
+            : [];
+          const rowsToSend = rowsByNotaId.length
+            ? rowsByNotaId
+            : rowsByDocumentNumber.length
+              ? rowsByDocumentNumber
+              : pendingRows;
+
+          if (!rowsToSend.length) {
+            boletaLoteStatus = "warning";
+            boletaLoteMessage =
+              "Boleta registrada, pero no se encontraron pendientes para resumen.";
+          } else {
+            const resumenSerie = todayIso.replaceAll("-", "");
+            const firstRowDateIso = parseToIsoDate(rowsToSend[0]?.fechaEmision);
+            const referenceDateIso = firstRowDateIso || todayIso;
+            const firstSerieNumero = safeTrim(rowsToSend[0]?.serieNumero);
+            const lastSerieNumero = safeTrim(
+              rowsToSend[rowsToSend.length - 1]?.serieNumero,
+            );
+            const rangoNumeros =
+              firstSerieNumero && lastSerieNumero
+                ? `${firstSerieNumero} al ${lastSerieNumero}`
+                : firstSerieNumero || lastSerieNumero || "";
+            const detailRows = rowsToSend.map((row, index) => ({
+              item: index + 1,
+              tipoComprobante: "03",
+              nroComprobante: safeTrim(row.serieNumero),
+              tipoDocumento: "1",
+              nroDocumento: safeTrim(row.clienteDni) || "00000000",
+              tipoComprobanteRef: "",
+              nroComprobanteRef: "",
+              statu: "1",
+              codMoneda: "PEN",
+              total: Number(parseAmountLike(row.total).toFixed(2)),
+              icbper: Number(parseAmountLike(row.icbper).toFixed(2)),
+              gravada: Number(parseAmountLike(row.subTotal).toFixed(2)),
+              isc: 0,
+              igv: Number(parseAmountLike(row.igv).toFixed(2)),
+              otros: 0,
+              cargoXAsignacion: 1,
+              montoCargoXAsig: 0,
+              exonerado: 0,
+              inafecto: 0,
+              exportacion: 0,
+              gratuitas: 0,
+              docuId: Number(row.docuId ?? 0),
+              notaId: Number(row.notaId ?? 0),
+            }));
+            const summarySubTotal = detailRows.reduce(
+              (acc, row) => acc + row.gravada,
+              0,
+            );
+            const summaryIgv = detailRows.reduce((acc, row) => acc + row.igv, 0);
+            const summaryIcbper = detailRows.reduce(
+              (acc, row) => acc + row.icbper,
+              0,
+            );
+            const summaryTotal = detailRows.reduce(
+              (acc, row) => acc + row.total,
+              0,
+            );
+
+            const summaryResponse = await sendBoletaSummary({
+              NRO_DOCUMENTO_EMPRESA: safeTrim(companyRucFromSession),
+              RAZON_SOCIAL:
+                safeTrim(companyNameFromSession) ||
+                safeTrim(companyCommercialFromSession) ||
+                "EMPRESA",
+              USUARIO: resolvedNotaUsuario || "USUARIO",
+              Usuario: resolvedNotaUsuario || "USUARIO",
+              usuario: resolvedNotaUsuario || "USUARIO",
+              USUARIO_REGISTRO: resolvedNotaUsuario || "USUARIO",
+              TIPO_DOCUMENTO: "6",
+              CODIGO: "RC",
+              SERIE: resumenSerie,
+              SECUENCIA: String(nextSequence),
+              FECHA_REFERENCIA: referenceDateIso,
+              FECHA_DOCUMENTO: todayIso,
+              TIPO_PROCESO: tipoProceso,
+              CONTRA_FIRMA: safeTrim(claveCertificadoFromSession),
+              USUARIO_SOL_EMPRESA: safeTrim(usuarioSolFromSession),
+              PASS_SOL_EMPRESA: safeTrim(claveSolFromSession),
+              RUTA_PFX: safeTrim(certificadoBase64FromSession),
+              COMPANIA_ID: companyId,
+              detalle: detailRows,
+              RANGO_NUMEROS: rangoNumeros,
+              SUBTOTAL: Number(summarySubTotal.toFixed(2)),
+              IGV: Number(summaryIgv.toFixed(2)),
+              ICBPER: Number(summaryIcbper.toFixed(2)),
+              TOTAL: Number(summaryTotal.toFixed(2)),
+            });
+            const summaryOk =
+              summaryResponse.ok || safeTrim(summaryResponse.flg_rta) === "1";
+            const summaryTicket = safeTrim(
+              summaryResponse.ticket || summaryResponse.msj_sunat,
+            );
+
+            if (!summaryOk) {
+              boletaLoteStatus = "warning";
+              boletaLoteMessage =
+                safeTrim(
+                  summaryResponse.msj_sunat ||
+                    summaryResponse.mensaje ||
+                    summaryResponse.registro_bd?.mensaje ||
+                    summaryResponse.registro_bd?.resultado,
+                ) || "Boleta registrada, pero no se pudo enviar el resumen.";
+            } else if (!summaryTicket) {
+              boletaLoteStatus = "warning";
+              boletaLoteMessage =
+                "Boleta registrada y resumen enviado, pero SUNAT no devolvió ticket.";
+            } else {
+              const resumenId =
+                Number(
+                  safeTrim(summaryResponse.registro_bd?.resultado).match(/\d+/)?.[0],
+                ) || 0;
+              const consultResponse = await consultBoletaSummary({
+                RESUMEN_ID: resumenId,
+                TICKET: summaryTicket,
+                CODIGO_SUNAT: "",
+                MENSAJE_SUNAT: "",
+                ESTADO: "P",
+                SECUENCIA: String(nextSequence),
+                RUC: safeTrim(companyRucFromSession),
+                USUARIO_SOL_EMPRESA: safeTrim(usuarioSolFromSession),
+                PASS_SOL_EMPRESA: safeTrim(claveSolFromSession),
+                TIPO_DOCUMENTO: "RC",
+                TIPO_PROCESO: tipoProceso,
+                INTENTOS: 0,
+              });
+              const consultCode = safeTrim(consultResponse.cod_sunat);
+              const consultAction = safeTrim(consultResponse.accion).toLowerCase();
+              const consultMessage = safeTrim(
+                consultResponse.mensaje || consultResponse.msj_sunat,
+              );
+              const consultAccepted =
+                consultResponse.ok &&
+                (consultCode === "0" || consultAction === "consultado_correctamente");
+
+              if (consultAccepted) {
+                boletaLoteStatus = "success";
+                boletaLoteMessage =
+                  consultMessage ||
+                  `Boleta enviada por lote y aceptada por SUNAT. Ticket: ${summaryTicket}.`;
+              } else {
+                boletaLoteStatus = "warning";
+                boletaLoteMessage =
+                  consultMessage ||
+                  `Boleta registrada y resumen enviado (ticket ${summaryTicket}), pero SUNAT aún no confirmó aceptación final.`;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error en flujo por lote de boletas", error);
+        boletaLoteStatus = "warning";
+        boletaLoteMessage =
+          "Boleta registrada, pero falló el envío/consulta del resumen en SUNAT.";
+      }
+    }
 
     if (!isEditing && isPosSaleDraftFlow) {
       const finalNoteId = parsedNotaId ? Number(parsedNotaId) : null;
@@ -2833,6 +3103,36 @@ const PaymentPage = () => {
       } else {
         toast.warning(
           "Factura creada. El envío a OCE/SUNAT quedó pendiente de confirmación.",
+        );
+      }
+    } else if (docTypeCode === "03") {
+      if (boletaPorLoteFromSession) {
+        if (boletaLoteStatus === "success") {
+          toast.success(
+            boletaLoteMessage ||
+              "Boleta creada, resumen enviado y aceptación SUNAT confirmada.",
+          );
+        } else if (boletaLoteStatus === "warning") {
+          toast.warning(
+            boletaLoteMessage ||
+              "Boleta creada, pero el envío por lote quedó pendiente de confirmación.",
+          );
+        } else {
+          toast.success("Boleta creada.");
+        }
+      } else if (facturaAceptada) {
+        toast.success(facturaMsjSunat || "Boleta creada y aceptada por SUNAT.");
+      } else if (facturaCodSunat || facturaMsjSunat) {
+        const detail = [facturaCodSunat, facturaMsjSunat]
+          .filter(Boolean)
+          .join(" - ");
+        toast.warning(
+          detail ||
+            "Boleta creada, pero quedó pendiente de envío o reintento en SUNAT.",
+        );
+      } else {
+        toast.warning(
+          "Boleta creada. El envío a OCE/SUNAT quedó pendiente de confirmación.",
         );
       }
     } else {
@@ -2927,14 +3227,196 @@ const PaymentPage = () => {
       `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
 
     const confirmed = await confirmWithAppDialog({
-      title: "Anular boleta",
-      content: <p>¿Seguro que deseas anular su boleta {documento}?</p>,
+      title:
+        !boletaPorLoteFromSession
+          ? "Generar nota de crédito"
+          : "Anular boleta",
+      content: !boletaPorLoteFromSession ? (
+        <p>
+          ¿Seguro que deseas anular la boleta {documento} mediante nota de
+          crédito?
+        </p>
+      ) : (
+        <p>¿Seguro que deseas anular su boleta {documento}?</p>
+      ),
       confirmText: "Anular",
     });
     if (!confirmed) return;
 
     setIsVoidingTicket(true);
     try {
+      const docuIdParaAnular =
+        Number.isFinite(Number(docuIdActual)) && Number(docuIdActual) > 0
+          ? Number(docuIdActual)
+          : ticketIdNumber;
+      const fechaDocumento = getLocalDateISO(new Date());
+      const motivoAnulacion = "ANULACION DE LA OPERACION";
+
+      if (!boletaPorLoteFromSession) {
+        const payload: Record<string, unknown> = {
+          DOCU_ID: docuIdParaAnular,
+          NRO_DOCUMENTO_MODIFICA: documento,
+          DESCRIPCION_MOTIVO: motivoAnulacion,
+          FECHA_DOCUMENTO: fechaDocumento,
+        };
+
+        if (docuIdParaAnular <= 0 && !documento) {
+          toast.error("No se encontró DOCU_ID ni NRO_DOCUMENTO_MODIFICA.");
+          return;
+        }
+
+        const result = await apiRequest({
+          url: buildApiUrl("/Nota/boleta/anular-individual"),
+          method: "POST",
+          data: payload,
+          config: {
+            headers: {
+              Accept: "*/*",
+              "Content-Type": "application/json",
+            },
+          },
+          fallback: null,
+        });
+
+        const parseBooleanLike = (value: unknown): boolean => {
+          if (typeof value === "boolean") return value;
+          const normalized = safeTrim(value).toLowerCase();
+          return (
+            normalized === "true" ||
+            normalized === "1" ||
+            normalized === "si" ||
+            normalized === "sí" ||
+            normalized === "verdadero" ||
+            normalized === "yes" ||
+            normalized === "ok"
+          );
+        };
+
+        const parseRecordLike = (
+          value: unknown,
+        ): Record<string, unknown> | null => {
+          if (!value) return null;
+          if (typeof value === "object") return value as Record<string, unknown>;
+          if (typeof value === "string") {
+            const trimmed = value.trim();
+            if (!trimmed) return null;
+            try {
+              const parsed = JSON.parse(trimmed) as unknown;
+              return parsed && typeof parsed === "object"
+                ? (parsed as Record<string, unknown>)
+                : null;
+            } catch {
+              return null;
+            }
+          }
+          return null;
+        };
+
+        const resultObj =
+          result && typeof result === "object"
+            ? (result as {
+                ok?: unknown;
+                mensaje?: unknown;
+                message?: unknown;
+                Message?: unknown;
+                msj_sunat?: unknown;
+                cod_sunat?: unknown;
+                codSunat?: unknown;
+                sunat?: unknown;
+                isAxiosError?: unknown;
+                response?: {
+                  status?: unknown;
+                  data?: {
+                    mensaje?: unknown;
+                    message?: unknown;
+                    title?: unknown;
+                    detail?: unknown;
+                    msj_sunat?: unknown;
+                    cod_sunat?: unknown;
+                  };
+                };
+              })
+            : null;
+
+        const responseStatus = Number(
+          resultObj?.response?.status ?? (resultObj as any)?.status ?? 0,
+        );
+        const sunatResponse = parseRecordLike(resultObj?.sunat);
+        const sunatCode = safeTrim(
+          sunatResponse?.cod_sunat ??
+            sunatResponse?.codSunat ??
+            resultObj?.cod_sunat ??
+            resultObj?.codSunat ??
+            "",
+        );
+        const responseMessage = safeTrim(
+          resultObj?.mensaje ??
+            resultObj?.message ??
+            resultObj?.Message ??
+            resultObj?.msj_sunat ??
+            sunatResponse?.mensaje ??
+            sunatResponse?.msj_sunat ??
+            resultObj?.response?.data?.mensaje ??
+            resultObj?.response?.data?.message ??
+            resultObj?.response?.data?.detail ??
+            resultObj?.response?.data?.title ??
+            resultObj?.response?.data?.msj_sunat ??
+            (typeof result === "string" ? result : ""),
+        );
+        const sunatAceptado =
+          parseBooleanLike(
+            sunatResponse?.aceptado ??
+              sunatResponse?.ok ??
+              sunatResponse?.cdr_recibido,
+          ) ||
+          safeTrim(sunatResponse?.flg_rta ?? "") === "1" ||
+          sunatCode === "0" ||
+          sunatCode === "0000";
+        const isSuccess =
+          Boolean(resultObj?.ok) ||
+          responseStatus === 200 ||
+          (result && result !== false && !Boolean(resultObj?.isAxiosError));
+
+        if (
+          !isSuccess ||
+          !result ||
+          result === false ||
+          Boolean(resultObj?.isAxiosError)
+        ) {
+          if (responseStatus === 404) {
+            toast.error(responseMessage || "No se encontró la boleta a anular.");
+          } else if (responseStatus === 409) {
+            toast.error(responseMessage || "La boleta ya está anulada.");
+          } else if (responseStatus === 400) {
+            toast.error(
+              responseMessage ||
+                "Falta configuración para anular individual (serie NC o credenciales).",
+            );
+          } else {
+            toast.error(responseMessage || "No se pudo anular la boleta.");
+          }
+          return;
+        }
+
+        if (sunatAceptado) {
+          toast.success(
+            responseMessage ||
+              "Boleta anulada correctamente mediante nota de crédito.",
+          );
+        } else if (sunatCode || responseMessage) {
+          const detail = [sunatCode, responseMessage].filter(Boolean).join(" - ");
+          toast.warning(
+            detail ||
+              "Boleta anulada mediante nota de crédito, pendiente de confirmación SUNAT.",
+          );
+        } else {
+          toast.success("Boleta anulada mediante nota de crédito.");
+        }
+
+        await fetchNotaFromServer(ticketIdNumber);
+        return;
+      }
+
       const detallesParaAnular: PosCartItem[] = serverItems.length
         ? serverItems
         : purchasedItems.length
@@ -2947,10 +3429,8 @@ const PaymentPage = () => {
       }
 
       const usuarioAnulacion = safeTrim(resolvedNotaUsuario) || "USUARIO";
-      const docuIdParaAnular =
-        Number.isFinite(Number(docuIdActual)) && Number(docuIdActual) > 0
-          ? Number(docuIdActual)
-          : ticketIdNumber;
+      const docuIdLegacy =
+        docuIdParaAnular > 0 ? docuIdParaAnular : ticketIdNumber;
 
       const detalleCadena = detallesParaAnular
         .map((item) => {
@@ -2977,7 +3457,7 @@ const PaymentPage = () => {
         .join(";");
 
       const listaOrden =
-        `${docuIdParaAnular}|${ticketIdNumber}|${usuarioAnulacion}|${documento}` +
+        `${docuIdLegacy}|${ticketIdNumber}|${usuarioAnulacion}|${documento}` +
         `[${detalleCadena}[`;
 
       const result = await apiRequest({
@@ -3896,7 +4376,14 @@ const PaymentPage = () => {
           name="docTypeCode"
           label="Tipo de documento"
           disabled={formLocked}
+          rules={{
+            validate: (value) =>
+              value && value !== "SELECCIONAR"
+                ? true
+                : "Seleccione un tipo de documento",
+          }}
           options={[
+            { value: "SELECCIONAR", label: "SELECCIONAR" },
             { value: "101", label: "Proforma V" },
             { value: "03", label: "Boleta" },
             { value: "01", label: "Factura" },
@@ -4269,15 +4756,19 @@ const PaymentPage = () => {
                   : isVoidingTicket)
               }
             >
-              {canCreateCreditNoteFromOrderNotes ? (
+              {shouldShowCreditNoteAction ? (
                 <Receipt className="w-4 h-4" />
               ) : (
                 <Trash2 className="w-4 h-4" />
               )}
-              {canCreateCreditNoteFromOrderNotes
-                ? isSendingCreditNote
-                  ? "Enviando..."
-                  : "Nota de credito"
+              {shouldShowCreditNoteAction
+                ? canCreateCreditNoteFromOrderNotes
+                  ? isSendingCreditNote
+                    ? "Enviando..."
+                    : "Nota de credito"
+                  : isVoidingTicket
+                    ? "Generando..."
+                    : "Nota de credito"
                 : isVoidingTicket
                   ? "Anulando..."
                   : "Anular boleta"}

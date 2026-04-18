@@ -714,12 +714,28 @@ CREATE TABLE [dbo].[Compania](
 	[CorreoSGO] [varchar](80) NULL,
 	[PasswordCorreo] [varchar](80) NULL,
 	[CorreosAdmin] [varchar](max) NULL,
+	[BoletaPorLote] [bit] NOT NULL
+		CONSTRAINT [DF_Compania_BoletaPorLote] DEFAULT ((0)),
 	[TIPO_PROCESO] [int] NULL,
 PRIMARY KEY CLUSTERED 
 (
 	[CompaniaId] ASC
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+GO
+IF COL_LENGTH('dbo.Compania', 'BoletaPorLote') IS NULL
+BEGIN
+	IF COL_LENGTH('dbo.Compania', 'CompaniaBoletaEnvioLote') IS NOT NULL
+	BEGIN
+		EXEC sp_rename 'dbo.Compania.CompaniaBoletaEnvioLote', 'BoletaPorLote', 'COLUMN';
+	END
+	ELSE
+	BEGIN
+	ALTER TABLE [dbo].[Compania]
+	ADD [BoletaPorLote] [bit] NOT NULL
+		CONSTRAINT [DF_Compania_BoletaPorLote] DEFAULT ((0));
+	END
+END
 GO
 /****** Object:  Table [dbo].[Compras]    Script Date: 13/04/2026 14:20:19 ******/
 SET ANSI_NULLS ON
@@ -16009,7 +16025,8 @@ BEGIN
                 ISNULL(c.CompaniaPFX, '') + '|' +         -- Certificado Base64  
                 ISNULL(c.CompaniaClave, '') + '|' +       -- Clave Certificado  
                 ISNULL(CONVERT(VARCHAR, c.TIPO_PROCESO), '3')+'|'+ -- Entorno  
-                ISNULL(c.CompaniaTelefono,'')
+                ISNULL(c.CompaniaTelefono,'')+'|'+
+                ISNULL(CONVERT(VARCHAR, c.BoletaPorLote), '0')
 
             FROM Usuarios U                        
             INNER JOIN Personal p ON p.PersonalId = U.PersonalId                        

@@ -1,4 +1,4 @@
-import { ArrowRight, FileBadge2 } from "lucide-react";
+import { ArrowRight, FileBadge2, Layers3 } from "lucide-react";
 import { useNavigate } from "react-router";
 
 export default function ConfigurationDashboard() {
@@ -10,6 +10,12 @@ export default function ConfigurationDashboard() {
       desc: "Configura certificado digital y credenciales SOL.",
       icon: <FileBadge2 className="w-10 h-10 text-[#B23636]" />,
       route: "/configuration/billing",
+    },
+    {
+      title: "Envío de boletas",
+      desc: "Define si la boleta se envía por lote o individual.",
+      icon: <Layers3 className="w-10 h-10 text-[#B23636]" />,
+      route: "/configuration/boleta-batch",
     },
   ];
 

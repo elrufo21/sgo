@@ -5,7 +5,9 @@ import {
   NotebookPen,
   ReceiptText,
 } from "lucide-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router";
+import { useAuthStore } from "@/store/auth/auth.store";
 
 const cards = [
   {
@@ -36,6 +38,13 @@ const cards = [
 
 export default function SalesDashboard() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const visibleCards = useMemo(() => {
+    if (user?.boletaPorLote === false) {
+      return cards.filter((card) => card.route !== "/sales/boletas_summary");
+    }
+    return cards;
+  }, [user?.boletaPorLote]);
 
   return (
     <div className="space-y-4 px-2 py-2 sm:px-1">
@@ -49,7 +58,7 @@ export default function SalesDashboard() {
       </section>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4 xl:grid-cols-3">
-        {cards.map((card) => (
+        {visibleCards.map((card) => (
           <button
             type="button"
             key={card.title}

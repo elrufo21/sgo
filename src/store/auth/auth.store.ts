@@ -25,6 +25,7 @@ export interface AuthUser {
   claveCertificado: string;
   entorno: string;
   maxDiscount: number;
+  boletaPorLote: boolean;
 }
 
 export interface AuthSession {
@@ -57,27 +58,29 @@ interface AuthState {
 }
 
 interface LoginResponse {
-  id: string;
-  personalId: string;
-  area: string;
-  usuario: string;
-  companiaId: string;
-  razonSocial: string;
-  companiaRuc?: string | null;
-  companiaNomUbg?: string | null;
-  companiaComercial?: string | null;
-  companiaDirecSunat?: string | null;
-  companiaTelefono?: string | null;
-  usuarioSol?: string | null;
-  claveSol?: string | null;
-  certificadoBase64?: string | null;
-  claveCertificado?: string | null;
-  entorno?: string | number | null;
-  fechaVencimientoClave?: string | null;
-  descuentoMax?: string | number | null;
-  token: string;
-  expiresAtUtc?: string;
-  expiresInSeconds?: number;
+  [key: string]: unknown;
+  Id?: string | number | null;
+  PersonalId?: string | number | null;
+  Area?: string | null;
+  Usuario?: string | null;
+  CompaniaId?: string | number | null;
+  RazonSocial?: string | null;
+  CompaniaRuc?: string | null;
+  CompaniaNomUbg?: string | null;
+  CompaniaComercial?: string | null;
+  CompaniaDirecSunat?: string | null;
+  CompaniaTelefono?: string | null;
+  UsuarioSol?: string | null;
+  ClaveSol?: string | null;
+  CertificadoBase64?: string | null;
+  ClaveCertificado?: string | null;
+  Entorno?: string | number | null;
+  FechaVencimientoClave?: string | null;
+  DescuentoMax?: string | number | null;
+  BoletaPorLote?: string | number | boolean | null;
+  Token?: string | null;
+  ExpiresAtUtc?: string | null;
+  ExpiresInSeconds?: number | null;
 }
 
 let sessionTimeoutId: number | null = null;
@@ -175,6 +178,51 @@ const normalizeMaxDiscount = (value: unknown): number => {
 
 const normalizeText = (value: unknown): string => String(value ?? "").trim();
 
+const readLoginValue = (
+  payload: LoginResponse,
+  ...keys: string[]
+): unknown => {
+  for (const key of keys) {
+    if (!(key in payload)) continue;
+    const value = payload[key];
+    if (value !== null && value !== undefined && String(value).trim() !== "") {
+      return value;
+    }
+  }
+  return null;
+};
+
+const normalizeBooleanFlag = (value: unknown): boolean => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return Number.isFinite(value) && value !== 0;
+  const normalized = normalizeText(value).toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "si" ||
+    normalized === "sí" ||
+    normalized === "s" ||
+    normalized === "yes" ||
+    normalized === "y"
+  );
+};
+
+const resolveBoletaPorLoteFlag = (payload: LoginResponse): boolean =>
+  normalizeBooleanFlag(
+    readLoginValue(
+      payload,
+      "BoletaPorLote",
+      "boletaPorLote",
+      "CompaniaBoletaPorLote",
+      "companiaBoletaPorLote",
+      "CompaniaBoletaEnvioLote",
+      "companiaBoletaEnvioLote",
+      "BoletaEnvioLote",
+      "boletaEnvioLote",
+    ),
+  );
+
 const normalizeAuthUser = (user: AuthUser): AuthUser => ({
   ...user,
   companyRuc: normalizeText(
@@ -208,6 +256,9 @@ const normalizeAuthUser = (user: AuthUser): AuthUser => ({
   entorno: normalizeText((user as AuthUser & { entorno?: unknown }).entorno),
   maxDiscount: normalizeMaxDiscount(
     (user as AuthUser & { maxDiscount?: unknown }).maxDiscount,
+  ),
+  boletaPorLote: normalizeBooleanFlag(
+    (user as AuthUser & { boletaPorLote?: unknown }).boletaPorLote,
   ),
 });
 
@@ -309,7 +360,21 @@ export const useAuthStore = create<AuthState>((set, get) => {
 
       const parsed = response as LoginResponse | null;
 
-      if (!parsed || typeof parsed !== "object" || !parsed.token) {
+      if (!parsed || typeof parsed !== "object") {
+        set({
+          loading: false,
+          isAuthenticated: false,
+          user: null,
+          token: null,
+          error: "Credenciales incorrectas",
+          hydrated: true,
+        });
+        return false;
+      }
+
+      const token = normalizeText(readLoginValue(parsed, "Token", "token"));
+
+      if (!token) {
         set({
           loading: false,
           isAuthenticated: false,
@@ -322,52 +387,131 @@ export const useAuthStore = create<AuthState>((set, get) => {
       }
 
       const expiresAt =
-        (parsed.expiresAtUtc ? Date.parse(parsed.expiresAtUtc) : null) ??
-        (parsed.expiresInSeconds
-          ? Date.now() + parsed.expiresInSeconds * 1000
+        (readLoginValue(parsed, "ExpiresAtUtc", "expiresAtUtc")
+          ? Date.parse(
+              String(readLoginValue(parsed, "ExpiresAtUtc", "expiresAtUtc")),
+            )
+          : null) ??
+        (readLoginValue(parsed, "ExpiresInSeconds", "expiresInSeconds")
+          ? Date.now() +
+            Number(readLoginValue(parsed, "ExpiresInSeconds", "expiresInSeconds")) *
+              1000
           : null);
+      const boletaPorLote = resolveBoletaPorLoteFlag(parsed);
 
       const session: AuthSession = {
-        token: parsed.token,
+        token,
         expiresAt: expiresAt ?? Date.now() + 5 * 60 * 1000, // fallback a 5 min si el API no envía expiración
-        passwordExpiresAt: parsed.fechaVencimientoClave ?? null,
+        passwordExpiresAt:
+          normalizeText(
+            readLoginValue(
+              parsed,
+              "FechaVencimientoClave",
+              "fechaVencimientoClave",
+            ),
+          ) || null,
         user: {
-          id: parsed.id,
-          personalId: parsed.personalId,
-          area: parsed.area,
+          id: normalizeText(readLoginValue(parsed, "Id", "id")),
+          personalId: normalizeText(readLoginValue(parsed, "PersonalId", "personalId")),
+          area: normalizeText(readLoginValue(parsed, "Area", "area")),
           username,
-          displayName: parsed.usuario ?? username,
-          companyId: parsed.companiaId,
-          companyName: parsed.razonSocial,
-          companyRuc: normalizeText(parsed.companiaRuc),
-          companyUbigeoName: normalizeText(parsed.companiaNomUbg),
-          companyCommercialName: normalizeText(parsed.companiaComercial),
-          companySunatAddress: normalizeText(parsed.companiaDirecSunat),
-          companyPhone: normalizeText(parsed.companiaTelefono),
-          usuarioSol: normalizeText(parsed.usuarioSol),
-          claveSol: normalizeText(parsed.claveSol),
-          certificadoBase64: normalizeText(parsed.certificadoBase64),
-          claveCertificado: normalizeText(parsed.claveCertificado),
-          entorno: normalizeText(parsed.entorno),
-          maxDiscount: normalizeMaxDiscount(parsed.descuentoMax),
+          displayName:
+            normalizeText(readLoginValue(parsed, "Usuario", "usuario")) || username,
+          companyId: normalizeText(readLoginValue(parsed, "CompaniaId", "companiaId")),
+          companyName: normalizeText(readLoginValue(parsed, "RazonSocial", "razonSocial")),
+          companyRuc: normalizeText(readLoginValue(parsed, "CompaniaRuc", "companiaRuc")),
+          companyUbigeoName: normalizeText(
+            readLoginValue(parsed, "CompaniaNomUbg", "companiaNomUbg"),
+          ),
+          companyCommercialName: normalizeText(
+            readLoginValue(parsed, "CompaniaComercial", "companiaComercial"),
+          ),
+          companySunatAddress: normalizeText(
+            readLoginValue(parsed, "CompaniaDirecSunat", "companiaDirecSunat"),
+          ),
+          companyPhone: normalizeText(
+            readLoginValue(parsed, "CompaniaTelefono", "companiaTelefono"),
+          ),
+          usuarioSol: normalizeText(readLoginValue(parsed, "UsuarioSol", "usuarioSol")),
+          claveSol: normalizeText(readLoginValue(parsed, "ClaveSol", "claveSol")),
+          certificadoBase64: normalizeText(
+            readLoginValue(parsed, "CertificadoBase64", "certificadoBase64"),
+          ),
+          claveCertificado: normalizeText(
+            readLoginValue(parsed, "ClaveCertificado", "claveCertificado"),
+          ),
+          entorno: normalizeText(readLoginValue(parsed, "Entorno", "entorno")),
+          maxDiscount: normalizeMaxDiscount(
+            readLoginValue(parsed, "DescuentoMax", "descuentoMax"),
+          ),
+          boletaPorLote,
         },
         loginPayload: {
           ...parsed,
-          companiaRuc: normalizeText(parsed.companiaRuc),
-          companiaNomUbg: normalizeText(parsed.companiaNomUbg),
-          companiaComercial: normalizeText(parsed.companiaComercial),
-          companiaDirecSunat: normalizeText(parsed.companiaDirecSunat),
-          companiaTelefono: normalizeText(parsed.companiaTelefono),
-          usuarioSol: normalizeText(parsed.usuarioSol),
-          claveSol: normalizeText(parsed.claveSol),
-          certificadoBase64: normalizeText(parsed.certificadoBase64),
-          claveCertificado: normalizeText(parsed.claveCertificado),
-          entorno: normalizeText(parsed.entorno),
-          fechaVencimientoClave: normalizeText(parsed.fechaVencimientoClave) || null,
-          descuentoMax:
-            parsed.descuentoMax === null || parsed.descuentoMax === undefined
-              ? null
-              : String(parsed.descuentoMax),
+          CompaniaRuc: normalizeText(readLoginValue(parsed, "CompaniaRuc", "companiaRuc")),
+          CompaniaNomUbg: normalizeText(
+            readLoginValue(parsed, "CompaniaNomUbg", "companiaNomUbg"),
+          ),
+          CompaniaComercial: normalizeText(
+            readLoginValue(parsed, "CompaniaComercial", "companiaComercial"),
+          ),
+          CompaniaDirecSunat: normalizeText(
+            readLoginValue(parsed, "CompaniaDirecSunat", "companiaDirecSunat"),
+          ),
+          CompaniaTelefono: normalizeText(
+            readLoginValue(parsed, "CompaniaTelefono", "companiaTelefono"),
+          ),
+          UsuarioSol: normalizeText(readLoginValue(parsed, "UsuarioSol", "usuarioSol")),
+          ClaveSol: normalizeText(readLoginValue(parsed, "ClaveSol", "claveSol")),
+          CertificadoBase64: normalizeText(
+            readLoginValue(parsed, "CertificadoBase64", "certificadoBase64"),
+          ),
+          ClaveCertificado: normalizeText(
+            readLoginValue(parsed, "ClaveCertificado", "claveCertificado"),
+          ),
+          Entorno: normalizeText(readLoginValue(parsed, "Entorno", "entorno")),
+          FechaVencimientoClave:
+            normalizeText(
+              readLoginValue(parsed, "FechaVencimientoClave", "fechaVencimientoClave"),
+            ) || null,
+          DescuentoMax: (() => {
+            const raw = readLoginValue(parsed, "DescuentoMax", "descuentoMax");
+            return raw === null || raw === undefined ? null : String(raw);
+          })(),
+          BoletaPorLote: boletaPorLote,
+
+          // Compatibilidad temporal con consumidores legacy.
+          companiaRuc: normalizeText(readLoginValue(parsed, "CompaniaRuc", "companiaRuc")),
+          companiaNomUbg: normalizeText(
+            readLoginValue(parsed, "CompaniaNomUbg", "companiaNomUbg"),
+          ),
+          companiaComercial: normalizeText(
+            readLoginValue(parsed, "CompaniaComercial", "companiaComercial"),
+          ),
+          companiaDirecSunat: normalizeText(
+            readLoginValue(parsed, "CompaniaDirecSunat", "companiaDirecSunat"),
+          ),
+          companiaTelefono: normalizeText(
+            readLoginValue(parsed, "CompaniaTelefono", "companiaTelefono"),
+          ),
+          usuarioSol: normalizeText(readLoginValue(parsed, "UsuarioSol", "usuarioSol")),
+          claveSol: normalizeText(readLoginValue(parsed, "ClaveSol", "claveSol")),
+          certificadoBase64: normalizeText(
+            readLoginValue(parsed, "CertificadoBase64", "certificadoBase64"),
+          ),
+          claveCertificado: normalizeText(
+            readLoginValue(parsed, "ClaveCertificado", "claveCertificado"),
+          ),
+          entorno: normalizeText(readLoginValue(parsed, "Entorno", "entorno")),
+          fechaVencimientoClave:
+            normalizeText(
+              readLoginValue(parsed, "FechaVencimientoClave", "fechaVencimientoClave"),
+            ) || null,
+          descuentoMax: (() => {
+            const raw = readLoginValue(parsed, "DescuentoMax", "descuentoMax");
+            return raw === null || raw === undefined ? null : String(raw);
+          })(),
+          boletaPorLote: boletaPorLote ? "1" : "0",
         },
       };
 

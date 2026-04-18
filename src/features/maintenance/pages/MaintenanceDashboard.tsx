@@ -7,56 +7,73 @@ import {
   UserCheck2Icon,
   Building2,
   CalendarDays,
+  ReceiptText,
 } from "lucide-react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router";
+import { useAuthStore } from "@/store/auth/auth.store";
 
 export default function MaintenanceDashboard() {
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
 
-  const items = [
-    {
-      title: "Categorías",
-      desc: "Gestiona categorías y códigos SUNAT.",
-      icon: <Grid3X3 className="w-10 h-10 text-blue-600" />,
-      route: "/maintenance/categories",
-    },
-    {
-      title: "Áreas",
-      desc: "Organiza las áreas de la empresa.",
-      icon: <Layers className="w-10 h-10 text-green-600" />,
-      route: "/maintenance/areas",
-    },
-    {
-      title: "Computadoras",
-      desc: "Registra y controla los equipos.",
-      icon: <Laptop className="w-10 h-10 text-purple-600" />,
-      route: "/maintenance/computers",
-    },
-    {
-      title: "Empleados",
-      desc: "Registra y controla los empleados",
-      icon: <Users2 className="w-10 h-10 text-slate-700" />,
-      route: "/maintenance/employees",
-    },
-    {
-      title: "Usuarios",
-      desc: "Registra y controla los usuarios",
-      icon: <UserCheck2Icon className="w-10 h-10 text-rose-600" />,
-      route: "/maintenance/users",
-    },
-    {
-      title: "Proveedores",
-      desc: "Gestiona proveedores y contactos.",
-      icon: <Building2 className="w-10 h-10 text-amber-600" />,
-      route: "/maintenance/providers",
-    },
-    {
-      title: "Feriados",
-      desc: "Administra días feriados y motivos.",
-      icon: <CalendarDays className="w-10 h-10 text-red-500" />,
-      route: "/maintenance/holidays",
-    },
-  ];
+  const items = useMemo(() => {
+    const baseItems = [
+      {
+        title: "Categorías",
+        desc: "Gestiona categorías y códigos SUNAT.",
+        icon: <Grid3X3 className="w-10 h-10 text-blue-600" />,
+        route: "/maintenance/categories",
+      },
+      {
+        title: "Áreas",
+        desc: "Organiza las áreas de la empresa.",
+        icon: <Layers className="w-10 h-10 text-green-600" />,
+        route: "/maintenance/areas",
+      },
+      {
+        title: "Computadoras",
+        desc: "Registra y controla los equipos.",
+        icon: <Laptop className="w-10 h-10 text-purple-600" />,
+        route: "/maintenance/computers",
+      },
+      {
+        title: "Empleados",
+        desc: "Registra y controla los empleados",
+        icon: <Users2 className="w-10 h-10 text-slate-700" />,
+        route: "/maintenance/employees",
+      },
+      {
+        title: "Usuarios",
+        desc: "Registra y controla los usuarios",
+        icon: <UserCheck2Icon className="w-10 h-10 text-rose-600" />,
+        route: "/maintenance/users",
+      },
+      {
+        title: "Proveedores",
+        desc: "Gestiona proveedores y contactos.",
+        icon: <Building2 className="w-10 h-10 text-amber-600" />,
+        route: "/maintenance/providers",
+      },
+      {
+        title: "Feriados",
+        desc: "Administra días feriados y motivos.",
+        icon: <CalendarDays className="w-10 h-10 text-red-500" />,
+        route: "/maintenance/holidays",
+      },
+    ];
+
+    if (user?.boletaPorLote === false) {
+      baseItems.push({
+        title: "Resumen de boletas",
+        desc: "Visualiza y exporta boletas por rango de fechas.",
+        icon: <ReceiptText className="w-10 h-10 text-violet-600" />,
+        route: "/maintenance/boletas_summary",
+      });
+    }
+
+    return baseItems;
+  }, [user?.boletaPorLote]);
 
   return (
     <div className="space-y-4 px-2 py-2 sm:px-1">

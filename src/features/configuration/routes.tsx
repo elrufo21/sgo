@@ -1,4 +1,5 @@
 import BillingSettingsPage from "./pages/BillingSettingsPage";
+import BoletaBatchSettingsPage from "./pages/BoletaBatchSettingsPage";
 import ConfigurationDashboard from "./pages/ConfigurationDashboard";
 
 export default [
@@ -19,5 +20,14 @@ export default [
       ],
     },
   },
+  {
+    path: "configuration/boleta-batch",
+    element: <BoletaBatchSettingsPage />,
+    handle: {
+      breadcrumb: [
+        { label: "Configuración", to: "/configuration" },
+        { label: "Envío de boletas" },
+      ],
+    },
+  },
 ];
-
