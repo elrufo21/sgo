@@ -264,7 +264,8 @@ const PaymentPage = () => {
   );
   const [canPreviewPdf, setCanPreviewPdf] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
-  const isDownloadingComprobante = false;
+  const [isDownloadingComprobante, setIsDownloadingComprobante] =
+    useState(false);
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
   const [notaEstadoActual, setNotaEstadoActual] = useState("");
@@ -3900,8 +3901,39 @@ const PaymentPage = () => {
   ]);
 
   const handleDownloadComprobante = useCallback(async () => {
-    toast.info("La descarga de PDF está deshabilitada.");
-  }, []);
+    if (isNotaAnulada) {
+      toast.error("Documento anulado. Descarga no permitida.");
+      return;
+    }
+    if (!isConfirmed) {
+      toast.error("Debe confirmar el documento antes de descargar.");
+      return;
+    }
+
+    try {
+      setIsDownloadingComprobante(true);
+      const blob = await createComprobanteBlob();
+      const fileName = getComprobanteFileName();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+    } catch (error) {
+      console.error("No se pudo descargar comprobante", error);
+      toast.error("No se pudo descargar el comprobante.");
+    } finally {
+      setIsDownloadingComprobante(false);
+    }
+  }, [
+    createComprobanteBlob,
+    getComprobanteFileName,
+    isConfirmed,
+    isNotaAnulada,
+  ]);
 
   const handlePrint = async (options?: { skipConfirmedCheck?: boolean }) => {
     const skipConfirmedCheck = options?.skipConfirmedCheck === true;
@@ -4331,10 +4363,14 @@ const PaymentPage = () => {
                   onClick={() => {
                     void handleDownloadComprobante();
                   }}
-                  disabled
+                  disabled={isDownloadingComprobante || isNotaAnulada}
                 >
                   <Download className="h-4 w-4" />
-                  Descarga deshabilitada
+                  {isDownloadingComprobante
+                    ? "Descargando..."
+                    : isNotaAnulada
+                      ? "No descargable"
+                      : "Descargar PDF"}
                 </button>
               )}
               {isPdfEnabled && (
@@ -4709,10 +4745,14 @@ const PaymentPage = () => {
             onClick={() => {
               void handleDownloadComprobante();
             }}
-            disabled
+            disabled={isDownloadingComprobante || isNotaAnulada}
           >
             <Download className="w-5 h-5" />
-            Descarga deshabilitada
+            {isDownloadingComprobante
+              ? "Descargando..."
+              : isNotaAnulada
+                ? "No descargable"
+                : "Descargar PDF"}
           </button>
         )}
         <button

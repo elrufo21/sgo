@@ -214,11 +214,15 @@ const parseDelimitedDataset = (rawValue: string): DelimitedDataset | null => {
 const resolveSalesStatus = (documento: string, estado: string) => {
   const docNormalized = normalizeFilterText(documento);
   const statusNormalized = normalizeFilterText(estado);
-  const isFactura = docNormalized.includes("factura") || docNormalized === "01";
+  const isFacturaOrBoleta =
+    docNormalized.includes("factura") ||
+    docNormalized.includes("boleta") ||
+    docNormalized === "01" ||
+    docNormalized === "03";
   const isCancelledOrDropped =
     statusNormalized.includes("anul") || statusNormalized.includes("baja");
 
-  if (isFactura && isCancelledOrDropped) {
+  if (isFacturaOrBoleta && isCancelledOrDropped) {
     return "EMITIDO";
   }
 
@@ -320,6 +324,19 @@ const isCreditNoteDocument = (value: unknown) => {
   return normalized.includes("nota") && normalized.includes("credito");
 };
 
+const isInvoiceOrBoletaDocument = (value: unknown) => {
+  const normalized = normalizeFilterText(value);
+  if (!normalized) return false;
+  if (normalized === "01" || normalized === "03") return true;
+  return normalized.includes("factura") || normalized.includes("boleta");
+};
+
+const isCancelledSalesStatus = (value: unknown) => {
+  const normalized = normalizeFilterText(value);
+  if (!normalized) return false;
+  return normalized.includes("anul") || normalized.includes("baja");
+};
+
 const toCreditNoteExcelNumber = (value: string) =>
   -Math.abs(toExcelSafeNumber(value));
 
@@ -327,11 +344,22 @@ const resolveSalesRowsForExcel = (
   filteredRows: SalesDocument[],
   allRows: SalesDocument[],
 ) => {
-  if (!filteredRows.some((row) => isCreditNoteDocument(row.documento))) {
+  const shouldExpandPairs = filteredRows.some(
+    (row) =>
+      isCreditNoteDocument(row.documento) ||
+      (isInvoiceOrBoletaDocument(row.documento) &&
+        isCancelledSalesStatus(row.estado)),
+  );
+
+  if (!shouldExpandPairs) {
     return filteredRows;
   }
 
   const relatedDocumentMap = new Map<string, SalesDocument>();
+  const creditNotesRows = allRows.filter((row) =>
+    isCreditNoteDocument(row.documento),
+  );
+
   allRows.forEach((row) => {
     if (isCreditNoteDocument(row.documento)) return;
     const token = normalizeDocumentReferenceToken(row.nroDoc);
@@ -349,27 +377,54 @@ const resolveSalesRowsForExcel = (
     seenRows.add(row);
   };
 
+  const findRelatedDocumentForCreditNote = (row: SalesDocument) => {
+    const referenceToken = normalizeDocumentReferenceToken(row.referencia);
+    if (!referenceToken) return undefined;
+
+    return (
+      relatedDocumentMap.get(referenceToken) ??
+      allRows.find((candidate) => {
+        if (isCreditNoteDocument(candidate.documento)) return false;
+        const candidateToken = normalizeDocumentReferenceToken(candidate.nroDoc);
+        if (!candidateToken) return false;
+        return (
+          referenceToken.includes(candidateToken) ||
+          candidateToken.includes(referenceToken)
+        );
+      })
+    );
+  };
+
+  const findRelatedCreditNotesForDocument = (row: SalesDocument) => {
+    const documentToken = normalizeDocumentReferenceToken(row.nroDoc);
+    if (!documentToken) return [] as SalesDocument[];
+
+    return creditNotesRows.filter((creditRow) => {
+      const referenceToken = normalizeDocumentReferenceToken(creditRow.referencia);
+      if (!referenceToken) return false;
+      return (
+        referenceToken.includes(documentToken) ||
+        documentToken.includes(referenceToken)
+      );
+    });
+  };
+
   filteredRows.forEach((row) => {
     if (isCreditNoteDocument(row.documento)) {
-      const referenceToken = normalizeDocumentReferenceToken(row.referencia);
-      if (referenceToken) {
-        const relatedRow =
-          relatedDocumentMap.get(referenceToken) ??
-          allRows.find((candidate) => {
-            if (isCreditNoteDocument(candidate.documento)) return false;
-            const candidateToken = normalizeDocumentReferenceToken(
-              candidate.nroDoc,
-            );
-            if (!candidateToken) return false;
-            return (
-              referenceToken.includes(candidateToken) ||
-              candidateToken.includes(referenceToken)
-            );
-          });
-        pushUniqueRow(relatedRow);
-      }
+      pushUniqueRow(findRelatedDocumentForCreditNote(row));
+      pushUniqueRow(row);
+      return;
     }
+
     pushUniqueRow(row);
+
+    if (
+      isInvoiceOrBoletaDocument(row.documento) &&
+      isCancelledSalesStatus(row.estado)
+    ) {
+      const relatedCreditNotes = findRelatedCreditNotesForDocument(row);
+      relatedCreditNotes.forEach((creditRow) => pushUniqueRow(creditRow));
+    }
   });
 
   return exportRows;
