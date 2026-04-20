@@ -683,12 +683,23 @@ const parseRegistroBdResponse = (
     ok: toBoolean(record.ok ?? record.Ok ?? false),
     mensaje: normalizeText(record.mensaje ?? record.message ?? "", ""),
     resultado: normalizeText(record.resultado ?? record.Resultado ?? "", ""),
+    accion_bd: normalizeText(record.accion_bd ?? record.accionBd ?? "", ""),
+    cod_sunat: normalizeText(
+      record.cod_sunat ?? record.codSunat ?? record.CodSunat ?? "",
+      "",
+    ),
+    msj_sunat: normalizeText(
+      record.msj_sunat ?? record.msjSunat ?? record.MsjSunat ?? "",
+      "",
+    ),
   };
 };
 
 const emptySendSummaryResponse: BoletaSummarySendResponse = {
   ok: false,
   flg_rta: "0",
+  aceptado: null,
+  http_status: null,
   mensaje: "",
   cod_sunat: "",
   msj_sunat: "",
@@ -742,6 +753,8 @@ const parseSendSummaryResponse = (payload: unknown): BoletaSummarySendResponse =
 
     return {
       ...emptySendSummaryResponse,
+      http_status: status > 0 ? status : null,
+      aceptado: false,
       mensaje: apiMessage || "No se pudo enviar el resumen.",
       cod_sunat: status > 0 ? String(status) : "",
       msj_sunat: apiMessage,
@@ -755,6 +768,12 @@ const parseSendSummaryResponse = (payload: unknown): BoletaSummarySendResponse =
   const okValue = toBoolean(record.ok ?? record.Ok ?? null);
   const normalizedFlag = flag || (okValue ? "1" : "0");
   const normalizedOk = okValue || normalizedFlag === "1";
+  const hasAcceptedField =
+    "aceptado" in record || "Aceptado" in record || "ACEPTADO" in record;
+  const acceptedRaw =
+    record.aceptado ?? record.Aceptado ?? record.ACEPTADO ?? null;
+  const acceptedValue = hasAcceptedField ? toBoolean(acceptedRaw) : null;
+  const status = toPositiveInt(record.status ?? record.Status, 0);
 
   const message =
     extractApiMessage(record) || normalizeText(record.mensaje ?? record.message, "");
@@ -777,6 +796,8 @@ const parseSendSummaryResponse = (payload: unknown): BoletaSummarySendResponse =
   return {
     ok: normalizedOk,
     flg_rta: normalizedFlag,
+    aceptado: acceptedValue,
+    http_status: status > 0 ? status : null,
     mensaje:
       message ||
       (normalizedOk

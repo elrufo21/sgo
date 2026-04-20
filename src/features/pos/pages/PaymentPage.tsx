@@ -7,6 +7,7 @@ import {
   Printer,
   Download,
   Receipt,
+  RefreshCw,
   MessageCircle,
   UserPlus,
   Trash2,
@@ -215,6 +216,250 @@ const PaymentPage = () => {
   const sendBoletaSummary = useBoletasSummaryStore((s) => s.sendSummary);
   const consultBoletaSummary = useBoletasSummaryStore((s) => s.consultSummary);
   const safeTrim = (value: unknown) => String(value ?? "").trim();
+  const parseBooleanLikeValue = (value: unknown): boolean => {
+    if (typeof value === "boolean") return value;
+    const normalized = safeTrim(value).toLowerCase();
+    return (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "si" ||
+      normalized === "sí" ||
+      normalized === "verdadero" ||
+      normalized === "yes" ||
+      normalized === "ok"
+    );
+  };
+  const parseRecordLikeValue = (
+    value: unknown,
+  ): Record<string, unknown> | null => {
+    if (!value) return null;
+    if (typeof value === "object") return value as Record<string, unknown>;
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        return parsed && typeof parsed === "object"
+          ? (parsed as Record<string, unknown>)
+          : null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+  const resolveHttpStatus = (payload: unknown) => {
+    const payloadRecord = parseRecordLikeValue(payload);
+    const status = Number(
+      payloadRecord?.response &&
+        typeof payloadRecord.response === "object" &&
+        payloadRecord.response !== null
+        ? ((payloadRecord.response as Record<string, unknown>).status ??
+            payloadRecord.status)
+        : payloadRecord?.status,
+    );
+    return Number.isFinite(status) && status > 0 ? Math.floor(status) : 0;
+  };
+  const resolveSunatCode = (payload: unknown, sunatPayload?: unknown) =>
+    safeTrim(
+      (parseRecordLikeValue(payload)?.cod_sunat as unknown) ??
+        (parseRecordLikeValue(payload)?.codSunat as unknown) ??
+        (parseRecordLikeValue(payload)?.COD_SUNAT as unknown) ??
+        (parseRecordLikeValue(payload)?.CodSunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.cod_sunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.codSunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.COD_SUNAT as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.CodSunat as unknown) ??
+        "",
+    );
+  const resolveSunatMessage = (payload: unknown, sunatPayload?: unknown) =>
+    safeTrim(
+      (parseRecordLikeValue(payload)?.msj_sunat as unknown) ??
+        (parseRecordLikeValue(payload)?.msjSunat as unknown) ??
+        (parseRecordLikeValue(payload)?.MSJ_SUNAT as unknown) ??
+        (parseRecordLikeValue(payload)?.MsjSunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.msj_sunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.msjSunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.MSJ_SUNAT as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.MsjSunat as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.mensaje as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.Mensaje as unknown) ??
+        "",
+    );
+  const resolveApiMessage = (payload: unknown, sunatPayload?: unknown) =>
+    safeTrim(
+      (parseRecordLikeValue(payload)?.mensaje as unknown) ??
+        (parseRecordLikeValue(payload)?.message as unknown) ??
+        (parseRecordLikeValue(payload)?.Message as unknown) ??
+        (parseRecordLikeValue(payload)?.title as unknown) ??
+        (parseRecordLikeValue(payload)?.detail as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.mensaje as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.message as unknown) ??
+        (parseRecordLikeValue(sunatPayload)?.Message as unknown) ??
+        (parseRecordLikeValue(payload)?.response &&
+        typeof parseRecordLikeValue(payload)?.response === "object"
+          ? ((
+              (
+                parseRecordLikeValue(payload)?.response as Record<
+                  string,
+                  unknown
+                >
+              ).data as any
+            )?.mensaje ??
+            (
+              (
+                parseRecordLikeValue(payload)?.response as Record<
+                  string,
+                  unknown
+                >
+              ).data as any
+            )?.message ??
+            (
+              (
+                parseRecordLikeValue(payload)?.response as Record<
+                  string,
+                  unknown
+                >
+              ).data as any
+            )?.title ??
+            (
+              (
+                parseRecordLikeValue(payload)?.response as Record<
+                  string,
+                  unknown
+                >
+              ).data as any
+            )?.detail)
+          : "") ??
+        (typeof payload === "string" ? payload : "") ??
+        "",
+    );
+  const resolveRegistroBdMessage = (
+    payload: unknown,
+    sunatPayload?: unknown,
+  ) => {
+    const payloadRecord = parseRecordLikeValue(payload);
+    const sunatRecord = parseRecordLikeValue(sunatPayload);
+    const registroBdPayload = parseRecordLikeValue(
+      payloadRecord?.registro_bd ??
+        payloadRecord?.registroBd ??
+        payloadRecord?.RegistroBd ??
+        sunatRecord?.registro_bd ??
+        sunatRecord?.registroBd ??
+        sunatRecord?.RegistroBd,
+    );
+    return safeTrim(
+      registroBdPayload?.mensaje ?? registroBdPayload?.resultado ?? "",
+    );
+  };
+  const resolveAcceptedState = (payload: unknown, sunatPayload?: unknown) => {
+    const payloadRecord = parseRecordLikeValue(payload);
+    const sunatRecord = parseRecordLikeValue(sunatPayload);
+    const acceptedRaw =
+      payloadRecord?.aceptado ??
+      payloadRecord?.Aceptado ??
+      payloadRecord?.ACEPTADO ??
+      sunatRecord?.aceptado ??
+      sunatRecord?.Aceptado ??
+      sunatRecord?.ACEPTADO;
+    const hasAccepted =
+      acceptedRaw !== undefined &&
+      acceptedRaw !== null &&
+      safeTrim(acceptedRaw) !== "";
+    return {
+      hasAccepted,
+      accepted: hasAccepted ? parseBooleanLikeValue(acceptedRaw) : false,
+    };
+  };
+  const buildEmissionDetail = (payload: {
+    message?: string;
+    code?: string;
+    sunatMessage?: string;
+    registroBdMessage?: string;
+  }) =>
+    [
+      payload.message,
+      payload.code,
+      payload.sunatMessage,
+      payload.registroBdMessage,
+    ]
+      .map((part) => safeTrim(part))
+      .filter(Boolean)
+      .join(" - ");
+  const isCancelledStatusValue = (value: unknown) => {
+    const normalized = safeTrim(value).toUpperCase();
+    return normalized.includes("ANUL") || normalized.includes("BAJA");
+  };
+  const isRejectedStatusValue = (value: unknown) => {
+    const normalized = safeTrim(value).toUpperCase();
+    return normalized.includes("RECHAZ");
+  };
+  const resolveDocTypeCodeFromSerie = (serie: unknown) => {
+    const normalized = safeTrim(serie).toUpperCase();
+    if (!normalized) return "";
+    if (normalized.startsWith("FA")) return "01";
+    if (normalized.startsWith("BA")) return "03";
+    if (normalized.startsWith("FN") || normalized.startsWith("BN")) return "07";
+    return "";
+  };
+  const resolveDocTypeCodeFromName = (name: unknown) => {
+    const normalized = safeTrim(name).toUpperCase();
+    if (!normalized) return "";
+    if (normalized.includes("CREDITO")) return "07";
+    if (normalized.includes("FACTURA")) return "01";
+    if (normalized.includes("BOLETA")) return "03";
+    return "";
+  };
+  const resolveTipoComprobanteModifica = (referenceDocument: unknown) => {
+    const reference = safeTrim(referenceDocument).toUpperCase();
+    if (!reference) return "";
+    if (reference.startsWith("FA")) return "01";
+    if (reference.startsWith("BA")) return "03";
+    if (reference.startsWith("NV")) return "12";
+    return "";
+  };
+  const resolveUiNotaStatus = (notaEstado: unknown, estadoSunat: unknown) => {
+    const nota = safeTrim(notaEstado);
+    const sunat = safeTrim(estadoSunat);
+
+    if (isCancelledStatusValue(sunat) || isRejectedStatusValue(sunat)) {
+      return sunat || "ANULADO";
+    }
+    return nota || sunat || "";
+  };
+  const resolveEstadoSunatFromNota = (notaData: Record<string, unknown> | null) =>
+    safeTrim(
+      (notaData as any)?.estadoSunat ??
+        (notaData as any)?.EstadoSunat ??
+        (notaData as any)?.docuEstadoSunat ??
+        (notaData as any)?.DocuEstadoSunat ??
+        "",
+    );
+  const resolveEstadoSunatFromDetalles = (detalles: unknown[]) => {
+    if (!Array.isArray(detalles)) return "";
+    const firstWithState = detalles.find((detalle: any) =>
+      safeTrim(
+        detalle?.estadoSunat ??
+          detalle?.EstadoSunat ??
+          detalle?.estadoSunatDocu ??
+          detalle?.EstadoSunatDocu ??
+          detalle?.docuEstadoSunat ??
+          detalle?.DocuEstadoSunat ??
+          "",
+      ),
+    ) as any;
+
+    if (!firstWithState) return "";
+    return safeTrim(
+      firstWithState?.estadoSunat ??
+        firstWithState?.EstadoSunat ??
+        firstWithState?.estadoSunatDocu ??
+        firstWithState?.EstadoSunatDocu ??
+        firstWithState?.docuEstadoSunat ??
+        firstWithState?.DocuEstadoSunat ??
+        "",
+    );
+  };
   const routeNotaId = useMemo(() => {
     const parsed = Number(notaIdParam ?? 0);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -268,6 +513,10 @@ const PaymentPage = () => {
     useState(false);
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
+  const [isResendingDocument, setIsResendingDocument] = useState(false);
+  const [notaCabeceraActual, setNotaCabeceraActual] = useState<
+    Record<string, unknown> | null
+  >(null);
   const [notaEstadoActual, setNotaEstadoActual] = useState("");
   const [docuIdActual, setDocuIdActual] = useState<number | null>(null);
   const [loadedNotaMonetaryTotals, setLoadedNotaMonetaryTotals] =
@@ -902,21 +1151,58 @@ const PaymentPage = () => {
   const isFactura = docTypeCode === "01";
   const isProforma = docTypeCode === "101";
   const normalizedNotaEstado = safeTrim(notaEstadoActual).toUpperCase();
+  const resolvedDocTypeCodeForResend = (() => {
+    const fromHeader = safeTrim(
+      notaCabeceraActual?.codTipoDocumento ??
+        notaCabeceraActual?.CodTipoDocumento ??
+        notaCabeceraActual?.COD_TIPO_DOCUMENTO ??
+        notaCabeceraActual?.tipoDocumento ??
+        notaCabeceraActual?.TipoDocumento ??
+        "",
+    );
+    if (fromHeader === "01" || fromHeader === "03" || fromHeader === "07") {
+      return fromHeader;
+    }
+
+    const fromName = resolveDocTypeCodeFromName(
+      notaCabeceraActual?.notaDocu ??
+        notaCabeceraActual?.docu ??
+        notaCabeceraActual?.notaTipo ??
+        "",
+    );
+    if (fromName) return fromName;
+
+    const fromSerie = resolveDocTypeCodeFromSerie(notaSerie);
+    if (fromSerie) return fromSerie;
+
+    if (docTypeCode === "01" || docTypeCode === "03") return docTypeCode;
+    return "";
+  })();
   const canManageDocumentFromOrderNotes =
     isReadOnlyNoteView || cameFromOrderNotesViewButton;
-  const isNotaAnulada = normalizedNotaEstado.includes("ANUL");
+  const isNotaAnulada = isCancelledStatusValue(normalizedNotaEstado);
+  const isNotaRechazada = isRejectedStatusValue(normalizedNotaEstado);
   const canVoidBoletaFromOrderNotes =
     hasTicketId &&
     canManageDocumentFromOrderNotes &&
     docTypeCode === "03" &&
-    !isNotaAnulada;
+    !isNotaAnulada &&
+    !isNotaRechazada;
   const canCreateCreditNoteFromOrderNotes =
     hasTicketId &&
     canManageDocumentFromOrderNotes &&
     docTypeCode === "01" &&
+    !isNotaRechazada &&
     (normalizedNotaEstado === "EMITIDO" ||
       normalizedNotaEstado === "CANCELADO" ||
       normalizedNotaEstado === "PENDIENTE");
+  const canResendRejectedDocumentFromOrderNotes =
+    hasTicketId &&
+    canManageDocumentFromOrderNotes &&
+    isNotaRechazada &&
+    (resolvedDocTypeCodeForResend === "01" ||
+      resolvedDocTypeCodeForResend === "03" ||
+      resolvedDocTypeCodeForResend === "07");
   const canCreateBoletaCreditNoteFromOrderNotes =
     canVoidBoletaFromOrderNotes && !boletaPorLoteFromSession;
   const shouldShowCreditNoteAction =
@@ -924,13 +1210,15 @@ const PaymentPage = () => {
     canCreateBoletaCreditNoteFromOrderNotes;
   const formLocked = isConfirmed || isReadOnlyNoteView;
   const isPersistingToDb =
-    isSubmitting || isVoidingTicket || isSendingCreditNote;
+    isSubmitting || isVoidingTicket || isSendingCreditNote || isResendingDocument;
   const persistDbMessage = isSubmitting
     ? "Guardando..."
     : isVoidingTicket
       ? "Anulando documento..."
       : isSendingCreditNote
         ? "Enviando nota de credito..."
+        : isResendingDocument
+          ? "Reenviando documento..."
         : "Procesando...";
   const safeItemsForFiscal = useMemo(
     () => (itemsToRender.length ? itemsToRender : purchasedItems),
@@ -1378,6 +1666,7 @@ const PaymentPage = () => {
     if (!Number.isFinite(notaIdToLoad) || notaIdToLoad <= 0) return;
     setNotaEstadoActual("");
     setDocuIdActual(null);
+    setNotaCabeceraActual(null);
 
     try {
       const [notaResponse, detallesResponse] = await Promise.all([
@@ -1412,6 +1701,9 @@ const PaymentPage = () => {
           (notaData as any)?.notaTipo ??
           "",
       );
+      const estadoSunatFromNota = resolveEstadoSunatFromNota(notaData);
+      const estadoSunatFromDetalles =
+        resolveEstadoSunatFromDetalles(detallesResponse);
       const mappedServerItems = detallesResponse.map(mapApiDetalleToItem);
       const serverLooksWithoutIgv = shouldConvertDetailPricesToIgvIncluded(
         mappedServerItems,
@@ -1438,6 +1730,7 @@ const PaymentPage = () => {
       }
 
       if (notaData) {
+        setNotaCabeceraActual(notaData as Record<string, unknown>);
         const resolvedDocuId = Number(
           (notaData as any).docuId ??
             (notaData as any).DocuId ??
@@ -1489,8 +1782,9 @@ const PaymentPage = () => {
         }
 
         setNotaEstadoActual(
-          safeTrim(
+          resolveUiNotaStatus(
             (notaData as any).notaEstado ?? (notaData as any).estado ?? "",
+            estadoSunatFromNota || estadoSunatFromDetalles,
           ),
         );
 
@@ -1579,6 +1873,9 @@ const PaymentPage = () => {
           setValue("applyDiscount", true, { shouldDirty: false });
           setValue("discount", descuentoNota, { shouldDirty: false });
         }
+      }
+      if (!notaData && estadoSunatFromDetalles) {
+        setNotaEstadoActual(resolveUiNotaStatus("", estadoSunatFromDetalles));
       }
     } catch (error) {
       console.error("Error al cargar la nota por id", error);
@@ -2628,6 +2925,39 @@ const PaymentPage = () => {
       return;
     }
 
+    const httpStatusFromCreate = resolveHttpStatus(result);
+    const createSunatPayload = parseRecordLikeValue(
+      (result as Record<string, unknown> | null)?.sunat ??
+        (result as Record<string, unknown> | null)?.Sunat,
+    );
+    const createMessage = resolveApiMessage(result, createSunatPayload);
+    const createCode = resolveSunatCode(result, createSunatPayload);
+    const createSunatMessage = resolveSunatMessage(result, createSunatPayload);
+    const createRegistroBdMessage = resolveRegistroBdMessage(
+      result,
+      createSunatPayload,
+    );
+    const createDetail = buildEmissionDetail({
+      message: createMessage || apiMessage,
+      code: createCode,
+      sunatMessage: createSunatMessage,
+      registroBdMessage: createRegistroBdMessage,
+    });
+
+    if (
+      Boolean((result as Record<string, unknown> | null)?.isAxiosError) ||
+      httpStatusFromCreate >= 400
+    ) {
+      if (httpStatusFromCreate >= 500) {
+        toast.error(
+          createDetail || "Error técnico backend al emitir documento.",
+        );
+      } else {
+        toast.error(createDetail || "No se pudo emitir documento.");
+      }
+      return;
+    }
+
     const parseNotaId = (val: any): number | null => {
       if (val === null || val === undefined) return null;
       if (typeof val === "number") {
@@ -2761,39 +3091,6 @@ const PaymentPage = () => {
     }
 
     setIsConfirmed(true);
-
-    const parseBooleanLike = (value: unknown): boolean => {
-      if (typeof value === "boolean") return value;
-      const normalized = safeTrim(value).toLowerCase();
-      return (
-        normalized === "true" ||
-        normalized === "1" ||
-        normalized === "si" ||
-        normalized === "verdadero" ||
-        normalized === "yes" ||
-        normalized === "ok"
-      );
-    };
-
-    const parseRecordLike = (
-      value: unknown,
-    ): Record<string, unknown> | null => {
-      if (!value) return null;
-      if (typeof value === "object") return value as Record<string, unknown>;
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return null;
-        try {
-          const parsed = JSON.parse(trimmed) as unknown;
-          return parsed && typeof parsed === "object"
-            ? (parsed as Record<string, unknown>)
-            : null;
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    };
     const parseAmountLike = (value: unknown): number => {
       if (typeof value === "number") {
         return Number.isFinite(value) ? value : 0;
@@ -2822,48 +3119,28 @@ const PaymentPage = () => {
       !isEditing && result && typeof result === "object"
         ? (result as Record<string, unknown>)
         : null;
-    const sunatResponse = parseRecordLike(
+    const sunatResponse = parseRecordLikeValue(
       createResponse?.sunat ?? createResponse?.Sunat,
     );
-    const facturaCodSunat = safeTrim(
-      createResponse?.cod_sunat ??
-        createResponse?.codSunat ??
-        createResponse?.COD_SUNAT ??
-        createResponse?.CodSunat ??
-        sunatResponse?.cod_sunat ??
-        sunatResponse?.codSunat ??
-        sunatResponse?.COD_SUNAT ??
-        sunatResponse?.CodSunat ??
-        "",
+    const facturaCodSunat = resolveSunatCode(createResponse, sunatResponse);
+    const facturaMsjSunat = resolveSunatMessage(createResponse, sunatResponse);
+    const facturaRegistroBdMessage = resolveRegistroBdMessage(
+      createResponse,
+      sunatResponse,
     );
-    const facturaMsjSunat = safeTrim(
-      createResponse?.msj_sunat ??
-        createResponse?.msjSunat ??
-        createResponse?.MSJ_SUNAT ??
-        createResponse?.MsjSunat ??
-        sunatResponse?.msj_sunat ??
-        sunatResponse?.msjSunat ??
-        sunatResponse?.MSJ_SUNAT ??
-        sunatResponse?.MsjSunat ??
-        sunatResponse?.mensaje ??
-        sunatResponse?.Mensaje ??
-        "",
+    const facturaApiMessage = resolveApiMessage(createResponse, sunatResponse);
+    const facturaAcceptedState = resolveAcceptedState(
+      createResponse,
+      sunatResponse,
     );
-    const facturaAceptada =
-      parseBooleanLike(
-        createResponse?.aceptado ??
-          createResponse?.Aceptado ??
-          createResponse?.ACEPTADO ??
-          sunatResponse?.aceptado ??
-          sunatResponse?.Aceptado ??
-          sunatResponse?.ACEPTADO,
-      ) ||
-      parseBooleanLike(
-        sunatResponse?.ok ?? sunatResponse?.Ok ?? sunatResponse?.OK,
-      ) ||
-      safeTrim(sunatResponse?.flg_rta ?? sunatResponse?.FlgRta) === "1" ||
-      facturaCodSunat === "0" ||
-      facturaCodSunat === "0000";
+    const facturaAceptada = facturaAcceptedState.hasAccepted
+      ? facturaAcceptedState.accepted
+      : parseBooleanLikeValue(
+          sunatResponse?.ok ?? sunatResponse?.Ok ?? sunatResponse?.OK,
+        ) ||
+        safeTrim(sunatResponse?.flg_rta ?? sunatResponse?.FlgRta) === "1" ||
+        facturaCodSunat === "0" ||
+        facturaCodSunat === "0000";
     let boletaLoteStatus: "success" | "warning" | null = null;
     let boletaLoteMessage = "";
 
@@ -2951,7 +3228,10 @@ const PaymentPage = () => {
               (acc, row) => acc + row.gravada,
               0,
             );
-            const summaryIgv = detailRows.reduce((acc, row) => acc + row.igv, 0);
+            const summaryIgv = detailRows.reduce(
+              (acc, row) => acc + row.igv,
+              0,
+            );
             const summaryIcbper = detailRows.reduce(
               (acc, row) => acc + row.icbper,
               0,
@@ -3012,7 +3292,9 @@ const PaymentPage = () => {
             } else {
               const resumenId =
                 Number(
-                  safeTrim(summaryResponse.registro_bd?.resultado).match(/\d+/)?.[0],
+                  safeTrim(summaryResponse.registro_bd?.resultado).match(
+                    /\d+/,
+                  )?.[0],
                 ) || 0;
               const consultResponse = await consultBoletaSummary({
                 RESUMEN_ID: resumenId,
@@ -3029,13 +3311,16 @@ const PaymentPage = () => {
                 INTENTOS: 0,
               });
               const consultCode = safeTrim(consultResponse.cod_sunat);
-              const consultAction = safeTrim(consultResponse.accion).toLowerCase();
+              const consultAction = safeTrim(
+                consultResponse.accion,
+              ).toLowerCase();
               const consultMessage = safeTrim(
                 consultResponse.mensaje || consultResponse.msj_sunat,
               );
               const consultAccepted =
                 consultResponse.ok &&
-                (consultCode === "0" || consultAction === "consultado_correctamente");
+                (consultCode === "0" ||
+                  consultAction === "consultado_correctamente");
 
               if (consultAccepted) {
                 boletaLoteStatus = "success";
@@ -3228,10 +3513,9 @@ const PaymentPage = () => {
       `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
 
     const confirmed = await confirmWithAppDialog({
-      title:
-        !boletaPorLoteFromSession
-          ? "Generar nota de crédito"
-          : "Anular boleta",
+      title: !boletaPorLoteFromSession
+        ? "Generar nota de crédito"
+        : "Anular boleta",
       content: !boletaPorLoteFromSession ? (
         <p>
           ¿Seguro que deseas anular la boleta {documento} mediante nota de
@@ -3297,7 +3581,8 @@ const PaymentPage = () => {
           value: unknown,
         ): Record<string, unknown> | null => {
           if (!value) return null;
-          if (typeof value === "object") return value as Record<string, unknown>;
+          if (typeof value === "object")
+            return value as Record<string, unknown>;
           if (typeof value === "string") {
             const trimmed = value.trim();
             if (!trimmed) return null;
@@ -3385,7 +3670,9 @@ const PaymentPage = () => {
           Boolean(resultObj?.isAxiosError)
         ) {
           if (responseStatus === 404) {
-            toast.error(responseMessage || "No se encontró la boleta a anular.");
+            toast.error(
+              responseMessage || "No se encontró la boleta a anular.",
+            );
           } else if (responseStatus === 409) {
             toast.error(responseMessage || "La boleta ya está anulada.");
           } else if (responseStatus === 400) {
@@ -3405,7 +3692,9 @@ const PaymentPage = () => {
               "Boleta anulada correctamente mediante nota de crédito.",
           );
         } else if (sunatCode || responseMessage) {
-          const detail = [sunatCode, responseMessage].filter(Boolean).join(" - ");
+          const detail = [sunatCode, responseMessage]
+            .filter(Boolean)
+            .join(" - ");
           toast.warning(
             detail ||
               "Boleta anulada mediante nota de crédito, pendiente de confirmación SUNAT.",
@@ -3527,6 +3816,357 @@ const PaymentPage = () => {
       toast.error("No se pudo anular el ticket.");
     } finally {
       setIsVoidingTicket(false);
+    }
+  };
+
+  const handleResendDocument = async () => {
+    if (!hasTicketId) {
+      toast.info("No hay documento para reenviar.");
+      return;
+    }
+    if (!isNotaRechazada) {
+      toast.info("Solo se puede reenviar cuando el estado SUNAT es RECHAZADO.");
+      return;
+    }
+    if (
+      !(
+        resolvedDocTypeCodeForResend === "01" ||
+        resolvedDocTypeCodeForResend === "03" ||
+        resolvedDocTypeCodeForResend === "07"
+      )
+    ) {
+      toast.info("Reenvío disponible solo para factura, boleta o nota de crédito.");
+      return;
+    }
+
+    const endpoint =
+      resolvedDocTypeCodeForResend === "01"
+        ? "/Nota/factura/enviar"
+        : resolvedDocTypeCodeForResend === "03"
+          ? "/Nota/boleta/enviar"
+          : "/Nota/credito/enviar";
+    const documentLabel =
+      resolvedDocTypeCodeForResend === "01"
+        ? "Factura"
+        : resolvedDocTypeCodeForResend === "03"
+          ? "Boleta"
+          : "Nota de crédito";
+    const serieFallback =
+      resolvedDocTypeCodeForResend === "01"
+        ? "FA01"
+        : resolvedDocTypeCodeForResend === "03"
+          ? "BA01"
+          : "FN01";
+    const documento =
+      safeTrim(documentNumber) ||
+      `${safeTrim(notaSerie) || serieFallback}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+
+    const confirmed = await confirmWithAppDialog({
+      title: `Reenviar ${documentLabel.toLowerCase()}`,
+      content: <p>¿Desea reenviar el documento {documento}?</p>,
+      confirmText: "Reenviar",
+    });
+    if (!confirmed) return;
+
+    setIsResendingDocument(true);
+    try {
+      const now = new Date();
+      const fechaIso = getLocalDateISO(now);
+      const horaRegistro = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes(),
+      ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      const tipoProcesoParsed = Number(entornoFromSession);
+      const tipoProceso =
+        Number.isFinite(tipoProcesoParsed) && tipoProcesoParsed > 0
+          ? Math.floor(tipoProcesoParsed)
+          : 3;
+      const detalleFuente: PosCartItem[] = serverItems.length
+        ? serverItems
+        : purchasedItems.length
+          ? purchasedItems
+          : itemsToRender;
+
+      if (!detalleFuente.length) {
+        toast.error("No hay detalle para reenviar el documento.");
+        return;
+      }
+
+      const serieDocumento = safeTrim(notaSerie) || serieFallback;
+      const clienteDocumento =
+        safeTrim(selectedDocument) ||
+        safeTrim(customerId) ||
+        safeTrim(
+          notaCabeceraActual?.clienteRuc ??
+            notaCabeceraActual?.clienteDni ??
+            notaCabeceraActual?.notaRuc ??
+            notaCabeceraActual?.notaDni ??
+            "",
+        );
+      const tipoDocumentoClienteRaw = safeTrim(
+        notaCabeceraActual?.tipoDocumentoCliente ??
+          notaCabeceraActual?.TipoDocumentoCliente ??
+          notaCabeceraActual?.TIPO_DOCUMENTO_CLIENTE ??
+          "",
+      );
+      const tipoDocumentoCliente =
+        tipoDocumentoClienteRaw ||
+        (clienteDocumento.length === 11
+          ? "6"
+          : clienteDocumento.length === 8
+            ? "1"
+            : "0");
+      const razonSocialCliente =
+        safeTrim(customerName) ||
+        safeTrim(
+          notaCabeceraActual?.clienteNombre ??
+            notaCabeceraActual?.clienteRazon ??
+            notaCabeceraActual?.clienteRazonSocial ??
+            "",
+        ) ||
+        "CLIENTE VARIOS";
+      const razonSocialEmpresa =
+        safeTrim(companyNameFromSession) ||
+        safeTrim(companyCommercialFromSession) ||
+        "EMPRESA";
+      const nombreComercialEmpresa =
+        safeTrim(companyCommercialFromSession) ||
+        safeTrim(companyNameFromSession) ||
+        "EMPRESA";
+      const ubigeoEmpresa = safeTrim(companyUbigeoCodeFromSession) || "150101";
+      const nombreUbigeoEmpresa =
+        safeTrim(companyUbigeoNameFromSession) || "LIMA";
+      const direccionEmpresa = safeTrim(companyAddressSunatFromSession) || "-";
+      const formaPagoDocumento =
+        safeTrim(paymentMethod) ||
+        safeTrim(
+          notaCabeceraActual?.notaFormaPago ??
+            notaCabeceraActual?.formaPago ??
+            "",
+        ) ||
+        "EFECTIVO";
+      const totalDocumento = Number(documentTotalWithIgv.toFixed(2));
+      const detalle = detalleFuente.map((item, index) => {
+        const line = monetarySummary.lines[index];
+        const quantity = Number(item.cantidad ?? 0);
+        const safeQuantity =
+          Number.isFinite(quantity) && quantity > 0
+            ? quantity
+            : Number(line?.quantity ?? 0);
+        const safeUnitPriceWithIgv =
+          line && safeQuantity > 0
+            ? roundCurrency(Number(line.totalWithIgv ?? 0) / safeQuantity)
+            : roundCurrency(Number(item.precio ?? 0));
+        const safeSubtotalWithoutIgv = line
+          ? roundCurrency(Number(line.importeWithoutIgv ?? 0))
+          : roundCurrency((safeUnitPriceWithIgv / IGV_FACTOR) * safeQuantity);
+        const safeIgv = line
+          ? roundCurrency(Number(line.igv ?? 0))
+          : roundCurrency(
+              safeUnitPriceWithIgv * safeQuantity - safeSubtotalWithoutIgv,
+            );
+        const codigoSunat =
+          safeTrim(
+            (item as any).codigoSunat ??
+              (item as any).CodigoSunat ??
+              (item as any).codigo_sunat ??
+              "",
+          ) || "50161509";
+
+        return {
+          item: index + 1,
+          unidadMedida:
+            line?.unitCode ?? normalizeSunatUnitCode(item.unidadMedida),
+          cantidad: safeQuantity,
+          precio: safeUnitPriceWithIgv,
+          importe: safeSubtotalWithoutIgv,
+          precioSinImpuesto:
+            line?.unitPriceWithoutIgv ??
+            (safeQuantity > 0
+              ? roundCurrency(safeSubtotalWithoutIgv / safeQuantity)
+              : 0),
+          igv: safeIgv,
+          codTipoOperacion: "10",
+          codigo: safeTrim(item.codigo) || `P${index + 1}`,
+          codigoSunat,
+          descripcion: safeTrim(item.nombre) || `Producto ${index + 1}`,
+          descuento: 0,
+          subTotal: safeSubtotalWithoutIgv,
+        };
+      });
+
+      const payload: Record<string, unknown> = {
+        DOCU_ID:
+          Number.isFinite(Number(docuIdActual)) && Number(docuIdActual) > 0
+            ? Number(docuIdActual)
+            : undefined,
+        NOTA_ID: Number.isFinite(Number(ticketIdNumber))
+          ? Number(ticketIdNumber)
+          : undefined,
+        TIPO_OPERACION: "0101",
+        HORA_REGISTRO: horaRegistro,
+        NRO_COMPROBANTE: documento,
+        FECHA_DOCUMENTO: fechaIso,
+        FECHA_VTO: fechaIso,
+        COD_TIPO_DOCUMENTO: resolvedDocTypeCodeForResend,
+        COD_MONEDA: "PEN",
+        NRO_DOCUMENTO_EMPRESA: safeTrim(companyRucFromSession),
+        TIPO_DOCUMENTO_EMPRESA: "6",
+        RAZON_SOCIAL_EMPRESA: razonSocialEmpresa,
+        NOMBRE_COMERCIAL_EMPRESA: nombreComercialEmpresa,
+        CODIGO_UBIGEO_EMPRESA: ubigeoEmpresa,
+        DIRECCION_EMPRESA: direccionEmpresa,
+        DEPARTAMENTO_EMPRESA: nombreUbigeoEmpresa,
+        PROVINCIA_EMPRESA: nombreUbigeoEmpresa,
+        DISTRITO_EMPRESA: nombreUbigeoEmpresa,
+        CODIGO_PAIS_EMPRESA: "PE",
+        NRO_DOCUMENTO_CLIENTE: clienteDocumento || "00000000",
+        TIPO_DOCUMENTO_CLIENTE: tipoDocumentoCliente,
+        RAZON_SOCIAL_CLIENTE: razonSocialCliente,
+        DIRECCION_CLIENTE: "-",
+        CIUDAD_CLIENTE: nombreUbigeoEmpresa,
+        COD_PAIS_CLIENTE: "PE",
+        COD_UBIGEO_CLIENTE: ubigeoEmpresa,
+        DEPARTAMENTO_CLIENTE: nombreUbigeoEmpresa,
+        PROVINCIA_CLIENTE: nombreUbigeoEmpresa,
+        DISTRITO_CLIENTE: nombreUbigeoEmpresa,
+        USUARIO_SOL_EMPRESA: safeTrim(usuarioSolFromSession),
+        PASS_SOL_EMPRESA: safeTrim(claveSolFromSession),
+        CONTRA_FIRMA: safeTrim(claveCertificadoFromSession),
+        TIPO_PROCESO: tipoProceso,
+        RUTA_PFX: safeTrim(certificadoBase64FromSession),
+        SUB_TOTAL: Number(gravada.toFixed(2)),
+        TOTAL_IGV: Number(igvAmount.toFixed(2)),
+        TOTAL: totalDocumento,
+        TOTAL_GRAVADAS: Number(gravada.toFixed(2)),
+        TOTAL_EXONERADAS: 0,
+        TOTAL_INAFECTA: 0,
+        TOTAL_GRATUITAS: 0,
+        TOTAL_DESCUENTO: Number(descuento.toFixed(2)),
+        TOTAL_ICBPER: 0,
+        TOTAL_OTR_IMP: 0,
+        POR_IGV: 18,
+        TOTAL_LETRAS: numberToWords(Math.abs(totalDocumento), "SOLES"),
+        FORMA_PAGO: formaPagoDocumento,
+        formaPago: formaPagoDocumento,
+        docuSerie: serieDocumento,
+        DocuSerie: serieDocumento,
+        DOCU_SERIE: serieDocumento,
+        DocuConcepto:
+          safeTrim(notaCabeceraActual?.notaConcepto ?? "") || "MERCADERIA",
+        docuConcepto:
+          safeTrim(notaCabeceraActual?.notaConcepto ?? "") || "MERCADERIA",
+        GLOSA: safeTrim(notaCabeceraActual?.notaConcepto ?? "") || "MERCADERIA",
+        detalle,
+      };
+
+      if (resolvedDocTypeCodeForResend === "07") {
+        const documentoModifica =
+          safeTrim(
+            notaCabeceraActual?.nroDocumentoModifica ??
+              notaCabeceraActual?.NRO_DOCUMENTO_MODIFICA ??
+              notaCabeceraActual?.documentoModifica ??
+              notaCabeceraActual?.DocumentoModifica ??
+              notaCabeceraActual?.referencia ??
+              notaCabeceraActual?.Referencia ??
+              notaCabeceraActual?.docuReferencia ??
+              notaCabeceraActual?.DocuReferencia ??
+              "",
+          ) || "";
+        const tipoComprobanteModifica =
+          safeTrim(
+            notaCabeceraActual?.tipoComprobanteModifica ??
+              notaCabeceraActual?.TIPO_COMPROBANTE_MODIFICA ??
+              notaCabeceraActual?.tipoDocumentoModifica ??
+              notaCabeceraActual?.TIPO_DOCUMENTO_MODIFICA ??
+              "",
+          ) ||
+          resolveTipoComprobanteModifica(documentoModifica) ||
+          (serieDocumento.toUpperCase().startsWith("FN") ? "01" : "03");
+        payload.TIPO_COMPROBANTE_MODIFICA = tipoComprobanteModifica;
+        payload.NRO_DOCUMENTO_MODIFICA = documentoModifica;
+        payload.COD_TIPO_MOTIVO =
+          safeTrim(
+            notaCabeceraActual?.codTipoMotivo ??
+              notaCabeceraActual?.COD_TIPO_MOTIVO ??
+              "",
+          ) || "01";
+        payload.DESCRIPCION_MOTIVO =
+          safeTrim(
+            notaCabeceraActual?.descripcionMotivo ??
+              notaCabeceraActual?.DESCRIPCION_MOTIVO ??
+              "",
+          ) || "ANULACION DE LA OPERACION";
+      }
+
+      if (!payload.DOCU_ID) delete payload.DOCU_ID;
+      if (!payload.NOTA_ID) delete payload.NOTA_ID;
+
+      const response = await apiRequest({
+        url: buildApiUrl(endpoint),
+        method: "POST",
+        data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      const responseObj = parseRecordLikeValue(response);
+      const sunatResponse = parseRecordLikeValue(
+        responseObj?.sunat ?? responseObj?.Sunat,
+      );
+      const responseStatus = resolveHttpStatus(responseObj ?? response);
+      const responseMessage = resolveApiMessage(
+        responseObj ?? response,
+        sunatResponse,
+      );
+      const sunatCode = resolveSunatCode(responseObj ?? response, sunatResponse);
+      const sunatMessage = resolveSunatMessage(
+        responseObj ?? response,
+        sunatResponse,
+      );
+      const registroBdMessage = resolveRegistroBdMessage(
+        responseObj ?? response,
+        sunatResponse,
+      );
+      const detail = buildEmissionDetail({
+        message: responseMessage,
+        code: sunatCode,
+        sunatMessage,
+        registroBdMessage,
+      });
+      const acceptedState = resolveAcceptedState(responseObj ?? response, sunatResponse);
+      const isSuccess = acceptedState.hasAccepted
+        ? acceptedState.accepted
+        : Boolean(responseObj?.ok) ||
+          safeTrim(responseObj?.flg_rta ?? responseObj?.FlgRta) === "1" ||
+          sunatCode === "0" ||
+          sunatCode === "0000";
+
+      if (!response || response === false || Boolean(responseObj?.isAxiosError)) {
+        if (responseStatus >= 500) {
+          toast.error(detail || `Error técnico backend al reenviar ${documentLabel}.`);
+        } else {
+          toast.error(detail || `No se pudo reenviar ${documentLabel}.`);
+        }
+        return;
+      }
+
+      if (!isSuccess) {
+        toast.error(detail || `SUNAT/OSE rechazó el reenvío de ${documentLabel}.`);
+        return;
+      }
+
+      toast.success(detail || `${documentLabel} reenviada correctamente.`);
+      await fetchNotaFromServer(ticketIdNumber);
+    } catch (error) {
+      console.error("Error al reenviar documento", error);
+      toast.error("No se pudo reenviar el documento.");
+    } finally {
+      setIsResendingDocument(false);
     }
   };
 
@@ -3707,9 +4347,7 @@ const PaymentPage = () => {
     const confirmed = await confirmWithAppDialog({
       title: "Enviar nota de crédito",
       content: (
-        <p>
-          ¿Desea generar la nota de crédito para la factura {originalDoc}?
-        </p>
+        <p>¿Desea generar la nota de crédito para la factura {originalDoc}?</p>
       ),
       confirmText: "Enviar",
     });
@@ -4794,12 +5432,21 @@ const PaymentPage = () => {
           </h1>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {(canVoidBoletaFromOrderNotes ||
+          {(canResendRejectedDocumentFromOrderNotes ||
+            canVoidBoletaFromOrderNotes ||
             canCreateCreditNoteFromOrderNotes) && (
             <button
               type="button"
-              className="inline-flex w-fit items-center gap-2 rounded-lg border border-[#B23636]/25 bg-[#B23636]/10 px-3 py-2 text-sm text-[#B23636] transition-colors hover:bg-[#B23636]/15 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                canResendRejectedDocumentFromOrderNotes
+                  ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  : "border border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15"
+              }`}
               onClick={() => {
+                if (canResendRejectedDocumentFromOrderNotes) {
+                  void handleResendDocument();
+                  return;
+                }
                 if (canCreateCreditNoteFromOrderNotes) {
                   void handleOpenCreditNote();
                   return;
@@ -4808,17 +5455,27 @@ const PaymentPage = () => {
               }}
               disabled={
                 isPersistingToDb ||
-                (canCreateCreditNoteFromOrderNotes
-                  ? isSendingCreditNote
-                  : isVoidingTicket)
+                (canResendRejectedDocumentFromOrderNotes
+                  ? isResendingDocument
+                  : canCreateCreditNoteFromOrderNotes
+                    ? isSendingCreditNote
+                    : isVoidingTicket)
               }
             >
-              {shouldShowCreditNoteAction ? (
+              {canResendRejectedDocumentFromOrderNotes ? (
+                <RefreshCw
+                  className={`w-4 h-4 ${isResendingDocument ? "animate-spin" : ""}`}
+                />
+              ) : shouldShowCreditNoteAction ? (
                 <Receipt className="w-4 h-4" />
               ) : (
                 <Trash2 className="w-4 h-4" />
               )}
-              {shouldShowCreditNoteAction
+              {canResendRejectedDocumentFromOrderNotes
+                ? isResendingDocument
+                  ? "Reenviando..."
+                  : "Reenviar documento"
+                : shouldShowCreditNoteAction
                 ? canCreateCreditNoteFromOrderNotes
                   ? isSendingCreditNote
                     ? "Enviando..."

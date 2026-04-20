@@ -118,6 +118,8 @@ export interface BoletaSummarySendBajaPayload
 export interface BoletaSummarySendResponse {
   ok: boolean;
   flg_rta: string;
+  aceptado: boolean | null;
+  http_status: number | null;
   mensaje: string;
   cod_sunat: string;
   msj_sunat: string;
@@ -130,6 +132,9 @@ export interface BoletaSummarySendResponse {
     ok: boolean;
     mensaje: string;
     resultado: string;
+    accion_bd?: string;
+    cod_sunat?: string;
+    msj_sunat?: string;
   };
 }
 
