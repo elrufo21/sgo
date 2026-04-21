@@ -95,6 +95,14 @@ const isCreditNoteDocument = (value: unknown) => {
   );
 };
 
+const isProformaVDocument = (value: unknown) => {
+  const normalized = String(splitDocumentLabel(value).tipoDocumento || value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return normalized.includes("PROFORMA");
+};
+
 const getSignedTotal = (
   note: Pick<OrderNote, "estado" | "documento">,
   value: unknown,
@@ -472,8 +480,10 @@ const OrderNotesList = () => {
       }),
       columnHelper.accessor("estadoSunat", {
         header: "Estado Sunat",
-        cell: (info) => {
-          const value = String(info.getValue() ?? "").toUpperCase() || "-";
+        cell: ({ row, getValue }) => {
+          const value = isProformaVDocument(row.original.documento)
+            ? "-"
+            : String(getValue() ?? "").toUpperCase() || "-";
           const stateClass =
             value === "RECHAZADO" || isAnnulledStatus(value)
               ? "bg-red-100 text-red-700 border-red-200"

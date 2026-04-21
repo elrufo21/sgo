@@ -1191,6 +1191,14 @@ const PaymentPage = () => {
     docTypeCode === "03" &&
     !isNotaAnulada &&
     !isNotaRechazada;
+  const canVoidProformaFromOrderNotes =
+    hasTicketId &&
+    canManageDocumentFromOrderNotes &&
+    docTypeCode === "101" &&
+    !isNotaAnulada &&
+    !isNotaRechazada;
+  const canVoidDocumentFromOrderNotes =
+    canVoidBoletaFromOrderNotes || canVoidProformaFromOrderNotes;
   const canCreateCreditNoteFromOrderNotes =
     hasTicketId &&
     canManageDocumentFromOrderNotes &&
@@ -1228,7 +1236,7 @@ const PaymentPage = () => {
           : "Procesando...";
   const shouldShowOrderNotesDocumentAction =
     canResendRejectedDocumentFromOrderNotes ||
-    canVoidBoletaFromOrderNotes ||
+    canVoidDocumentFromOrderNotes ||
     canCreateCreditNoteFromOrderNotes;
   const orderNotesDocumentActionPending =
     canResendRejectedDocumentFromOrderNotes
@@ -1236,10 +1244,9 @@ const PaymentPage = () => {
       : canCreateCreditNoteFromOrderNotes
         ? isSendingCreditNote
         : isVoidingTicket;
-  const orderNotesDocumentActionClass =
-    canResendRejectedDocumentFromOrderNotes
-      ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-      : "border border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15";
+  const orderNotesDocumentActionClass = canResendRejectedDocumentFromOrderNotes
+    ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+    : "border border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15";
   const orderNotesDocumentActionLabel = canResendRejectedDocumentFromOrderNotes
     ? isResendingDocument
       ? "Reenviando..."
@@ -1254,7 +1261,9 @@ const PaymentPage = () => {
           : "Nota de credito"
       : isVoidingTicket
         ? "Anulando..."
-        : "Anular boleta";
+        : canVoidProformaFromOrderNotes
+          ? "Anular proforma"
+          : "Anular boleta";
   const handleOrderNotesDocumentAction = () => {
     if (canResendRejectedDocumentFromOrderNotes) {
       void handleResendDocument();
@@ -3549,20 +3558,34 @@ const PaymentPage = () => {
   };
 
   const handleVoidTicket = async () => {
+    const isProformaVoidFlow = docTypeCode === "101";
+    const shouldUseLegacyVoidEndpoint =
+      isProformaVoidFlow || boletaPorLoteFromSession;
+    const defaultSerieForVoid = isProformaVoidFlow ? "0001" : "BA01";
+    const voidDocumentLabel = isProformaVoidFlow ? "proforma" : "ticket";
+
     if (!hasTicketId) {
-      toast.info("No hay ticket para anular.");
+      toast.info(
+        isProformaVoidFlow
+          ? "No hay proforma para anular."
+          : "No hay ticket para anular.",
+      );
       return;
     }
 
     const documento =
       safeTrim(documentNumber) ||
-      `${safeTrim(notaSerie) || "BA01"}-${safeTrim(paddedNotaNumero) || "00000000"}`;
+      `${safeTrim(notaSerie) || defaultSerieForVoid}-${safeTrim(paddedNotaNumero) || "00000000"}`;
 
     const confirmed = await confirmWithAppDialog({
-      title: !boletaPorLoteFromSession
-        ? "Generar nota de crédito"
-        : "Anular boleta",
-      content: !boletaPorLoteFromSession ? (
+      title: isProformaVoidFlow
+        ? "Anular proforma"
+        : !boletaPorLoteFromSession
+          ? "Generar nota de crédito"
+          : "Anular boleta",
+      content: isProformaVoidFlow ? (
+        <p>¿Seguro que deseas anular la proforma {documento}?</p>
+      ) : !boletaPorLoteFromSession ? (
         <p>
           ¿Seguro que deseas anular la boleta {documento} mediante nota de
           crédito?
@@ -3583,7 +3606,7 @@ const PaymentPage = () => {
       const fechaDocumento = getLocalDateISO(new Date());
       const motivoAnulacion = "ANULACION DE LA OPERACION";
 
-      if (!boletaPorLoteFromSession) {
+      if (!shouldUseLegacyVoidEndpoint) {
         const payload: Record<string, unknown> = {
           DOCU_ID: docuIdParaAnular,
           NRO_DOCUMENTO_MODIFICA: documento,
@@ -3799,7 +3822,11 @@ const PaymentPage = () => {
       const result = await apiRequest({
         url: buildApiUrl("/Nota/anular-documento"),
         method: "POST",
-        data: { ListaOrden: listaOrden },
+        data: {
+          listaOrden,
+          ListaOrden: listaOrden,
+          Data: listaOrden,
+        },
         config: {
           headers: {
             Accept: "*/*",
@@ -3851,15 +3878,26 @@ const PaymentPage = () => {
         result === false ||
         Boolean(resultObj?.isAxiosError)
       ) {
-        toast.error(responseMessage || "No se pudo anular el ticket.");
+        toast.error(
+          responseMessage || `No se pudo anular la ${voidDocumentLabel}.`,
+        );
         return;
       }
 
-      toast.success(responseMessage || "Ticket anulado correctamente.");
+      toast.success(
+        responseMessage ||
+          (isProformaVoidFlow
+            ? "Proforma anulada correctamente."
+            : "Ticket anulado correctamente."),
+      );
       await fetchNotaFromServer(ticketIdNumber);
     } catch (error) {
       console.error("Error al anular ticket", error);
-      toast.error("No se pudo anular el ticket.");
+      toast.error(
+        isProformaVoidFlow
+          ? "No se pudo anular la proforma."
+          : "No se pudo anular el ticket.",
+      );
     } finally {
       setIsVoidingTicket(false);
     }
@@ -4694,6 +4732,25 @@ const PaymentPage = () => {
   if (!itemsToRender.length) {
     return (
       <div className="space-y-4">
+        {shouldShowOrderNotesDocumentAction && (
+          <button
+            type="button"
+            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg py-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${orderNotesDocumentActionClass}`}
+            onClick={handleOrderNotesDocumentAction}
+            disabled={isPersistingToDb || orderNotesDocumentActionPending}
+          >
+            {canResendRejectedDocumentFromOrderNotes ? (
+              <RefreshCw
+                className={`h-4 w-4 ${isResendingDocument ? "animate-spin" : ""}`}
+              />
+            ) : shouldShowCreditNoteAction ? (
+              <Receipt className="h-4 w-4" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            {orderNotesDocumentActionLabel}
+          </button>
+        )}
         <div className="flex items-center gap-2 text-sm text-slate-700">
           <ArrowLeft className="w-4 h-4" />
           <Link
@@ -5050,15 +5107,6 @@ const PaymentPage = () => {
                   {isSubmitting ? "Guardando..." : "Confirmar"}
                 </button>
               )}
-              {isConfirmed && isProforma && (
-                <button
-                  type="button"
-                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs font-medium text-orange-800 transition-colors hover:bg-orange-50"
-                  onClick={handleEnableEditing}
-                >
-                  {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
-                </button>
-              )}
               {shouldShowOrderNotesDocumentAction && (
                 <button
                   type="button"
@@ -5076,6 +5124,15 @@ const PaymentPage = () => {
                     <Trash2 className="h-4 w-4" />
                   )}
                   {orderNotesDocumentActionLabel}
+                </button>
+              )}
+              {isConfirmed && isProforma && (
+                <button
+                  type="button"
+                  className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs font-medium text-orange-800 transition-colors hover:bg-orange-50"
+                  onClick={handleEnableEditing}
+                >
+                  {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
                 </button>
               )}
               {isConfirmed && (
@@ -5462,32 +5519,6 @@ const PaymentPage = () => {
         )}
       </HookForm>
       <div className="hidden gap-2 sm:gap-3 md:grid">
-        {isConfirmed && isProforma && (
-          <button
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-orange-300 bg-white py-2.5 text-orange-800 transition-colors hover:bg-orange-50"
-            onClick={handleEnableEditing}
-          >
-            {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
-          </button>
-        )}
-        {shouldShowOrderNotesDocumentAction && (
-          <button
-            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg py-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${orderNotesDocumentActionClass}`}
-            onClick={handleOrderNotesDocumentAction}
-            disabled={isPersistingToDb || orderNotesDocumentActionPending}
-          >
-            {canResendRejectedDocumentFromOrderNotes ? (
-              <RefreshCw
-                className={`w-5 h-5 ${isResendingDocument ? "animate-spin" : ""}`}
-              />
-            ) : shouldShowCreditNoteAction ? (
-              <Receipt className="w-5 h-5" />
-            ) : (
-              <Trash2 className="w-5 h-5" />
-            )}
-            {orderNotesDocumentActionLabel}
-          </button>
-        )}
         {isConfirmed && (
           <button
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 py-2.5 text-green-800 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -5546,6 +5577,34 @@ const PaymentPage = () => {
             <ArrowLeft className="w-4 h-4" />
             {backLabel}
           </Link>
+          {shouldShowOrderNotesDocumentAction && (
+            <button
+              type="button"
+              className={`hidden items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 md:inline-flex ${orderNotesDocumentActionClass}`}
+              onClick={handleOrderNotesDocumentAction}
+              disabled={isPersistingToDb || orderNotesDocumentActionPending}
+            >
+              {canResendRejectedDocumentFromOrderNotes ? (
+                <RefreshCw
+                  className={`h-4 w-4 ${isResendingDocument ? "animate-spin" : ""}`}
+                />
+              ) : shouldShowCreditNoteAction ? (
+                <Receipt className="h-4 w-4" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {orderNotesDocumentActionLabel}
+            </button>
+          )}
+          {isConfirmed && isProforma && (
+            <button
+              type="button"
+              className="hidden items-center justify-center gap-2 rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm text-orange-800 transition-colors hover:bg-orange-50 md:inline-flex"
+              onClick={handleEnableEditing}
+            >
+              {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
+            </button>
+          )}
         </div>
       </div>
       {isPersistingToDb && (
