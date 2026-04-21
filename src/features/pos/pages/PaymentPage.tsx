@@ -3543,6 +3543,7 @@ const PaymentPage = () => {
   };
 
   const handleEnableEditing = () => {
+    if (isNotaAnulada) return;
     if (!notaId) return;
     if (isReadOnlyNoteView) {
       navigate(`/sales/order_notes/${notaId}/edit`);
@@ -5126,7 +5127,7 @@ const PaymentPage = () => {
                   {orderNotesDocumentActionLabel}
                 </button>
               )}
-              {isConfirmed && isProforma && (
+              {isConfirmed && isProforma && !isNotaAnulada && (
                 <button
                   type="button"
                   className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg border border-orange-300 bg-white px-3 py-2 text-xs font-medium text-orange-800 transition-colors hover:bg-orange-50"
@@ -5596,7 +5597,7 @@ const PaymentPage = () => {
               {orderNotesDocumentActionLabel}
             </button>
           )}
-          {isConfirmed && isProforma && (
+          {isConfirmed && isProforma && !isNotaAnulada && (
             <button
               type="button"
               className="hidden items-center justify-center gap-2 rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm text-orange-800 transition-colors hover:bg-orange-50 md:inline-flex"
