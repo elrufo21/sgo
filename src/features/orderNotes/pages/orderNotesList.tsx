@@ -453,13 +453,35 @@ const OrderNotesList = () => {
       columnHelper.accessor("estado", {
         header: "Estado",
         cell: (info) => {
-          const value = info.getValue();
-          const normalized = String(value).toUpperCase();
-          const stateClass = isAnnulledStatus(normalized)
+          const value = String(info.getValue() ?? "").toUpperCase() || "-";
+          const stateClass = isAnnulledStatus(value)
             ? "bg-red-100 text-red-700 border-red-200"
-            : normalized === "PENDIENTE"
+            : value === "PENDIENTE"
               ? "bg-amber-100 text-amber-700 border-amber-200"
-              : "bg-emerald-100 text-emerald-700 border-emerald-200";
+              : value === "-"
+                ? "bg-slate-100 text-slate-600 border-slate-200"
+                : "bg-emerald-100 text-emerald-700 border-emerald-200";
+          return (
+            <span
+              className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}`}
+            >
+              {value}
+            </span>
+          );
+        },
+      }),
+      columnHelper.accessor("estadoSunat", {
+        header: "Estado Sunat",
+        cell: (info) => {
+          const value = String(info.getValue() ?? "").toUpperCase() || "-";
+          const stateClass =
+            value === "RECHAZADO" || isAnnulledStatus(value)
+              ? "bg-red-100 text-red-700 border-red-200"
+              : value === "PENDIENTE"
+                ? "bg-amber-100 text-amber-700 border-amber-200"
+                : value === "-"
+                  ? "bg-slate-100 text-slate-600 border-slate-200"
+                  : "bg-emerald-100 text-emerald-700 border-emerald-200";
           return (
             <span
               className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${stateClass}`}
@@ -483,7 +505,14 @@ const OrderNotesList = () => {
         columns={columns}
         data={notes}
         isLoading={loading}
-        filterKeys={["notaId", "cliente", "estado", "fecha", "documento"]}
+        filterKeys={[
+          "notaId",
+          "cliente",
+          "estado",
+          "estadoSunat",
+          "fecha",
+          "documento",
+        ]}
         toolbarLeading={
           <BackArrowButton className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 transition-colors" />
         }

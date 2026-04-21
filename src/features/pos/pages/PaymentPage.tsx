@@ -427,7 +427,9 @@ const PaymentPage = () => {
     }
     return nota || sunat || "";
   };
-  const resolveEstadoSunatFromNota = (notaData: Record<string, unknown> | null) =>
+  const resolveEstadoSunatFromNota = (
+    notaData: Record<string, unknown> | null,
+  ) =>
     safeTrim(
       (notaData as any)?.estadoSunat ??
         (notaData as any)?.EstadoSunat ??
@@ -514,9 +516,10 @@ const PaymentPage = () => {
   const [isVoidingTicket, setIsVoidingTicket] = useState(false);
   const [isSendingCreditNote, setIsSendingCreditNote] = useState(false);
   const [isResendingDocument, setIsResendingDocument] = useState(false);
-  const [notaCabeceraActual, setNotaCabeceraActual] = useState<
-    Record<string, unknown> | null
-  >(null);
+  const [notaCabeceraActual, setNotaCabeceraActual] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
   const [notaEstadoActual, setNotaEstadoActual] = useState("");
   const [docuIdActual, setDocuIdActual] = useState<number | null>(null);
   const [loadedNotaMonetaryTotals, setLoadedNotaMonetaryTotals] =
@@ -1210,7 +1213,10 @@ const PaymentPage = () => {
     canCreateBoletaCreditNoteFromOrderNotes;
   const formLocked = isConfirmed || isReadOnlyNoteView;
   const isPersistingToDb =
-    isSubmitting || isVoidingTicket || isSendingCreditNote || isResendingDocument;
+    isSubmitting ||
+    isVoidingTicket ||
+    isSendingCreditNote ||
+    isResendingDocument;
   const persistDbMessage = isSubmitting
     ? "Guardando..."
     : isVoidingTicket
@@ -1219,7 +1225,47 @@ const PaymentPage = () => {
         ? "Enviando nota de credito..."
         : isResendingDocument
           ? "Reenviando documento..."
-        : "Procesando...";
+          : "Procesando...";
+  const shouldShowOrderNotesDocumentAction =
+    canResendRejectedDocumentFromOrderNotes ||
+    canVoidBoletaFromOrderNotes ||
+    canCreateCreditNoteFromOrderNotes;
+  const orderNotesDocumentActionPending =
+    canResendRejectedDocumentFromOrderNotes
+      ? isResendingDocument
+      : canCreateCreditNoteFromOrderNotes
+        ? isSendingCreditNote
+        : isVoidingTicket;
+  const orderNotesDocumentActionClass =
+    canResendRejectedDocumentFromOrderNotes
+      ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+      : "border border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15";
+  const orderNotesDocumentActionLabel = canResendRejectedDocumentFromOrderNotes
+    ? isResendingDocument
+      ? "Reenviando..."
+      : "Reenviar documento"
+    : shouldShowCreditNoteAction
+      ? canCreateCreditNoteFromOrderNotes
+        ? isSendingCreditNote
+          ? "Enviando..."
+          : "Nota de credito"
+        : isVoidingTicket
+          ? "Generando..."
+          : "Nota de credito"
+      : isVoidingTicket
+        ? "Anulando..."
+        : "Anular boleta";
+  const handleOrderNotesDocumentAction = () => {
+    if (canResendRejectedDocumentFromOrderNotes) {
+      void handleResendDocument();
+      return;
+    }
+    if (canCreateCreditNoteFromOrderNotes) {
+      void handleOpenCreditNote();
+      return;
+    }
+    void handleVoidTicket();
+  };
   const safeItemsForFiscal = useMemo(
     () => (itemsToRender.length ? itemsToRender : purchasedItems),
     [itemsToRender, purchasedItems],
@@ -3835,7 +3881,9 @@ const PaymentPage = () => {
         resolvedDocTypeCodeForResend === "07"
       )
     ) {
-      toast.info("Reenvío disponible solo para factura, boleta o nota de crédito.");
+      toast.info(
+        "Reenvío disponible solo para factura, boleta o nota de crédito.",
+      );
       return;
     }
 
@@ -4123,7 +4171,10 @@ const PaymentPage = () => {
         responseObj ?? response,
         sunatResponse,
       );
-      const sunatCode = resolveSunatCode(responseObj ?? response, sunatResponse);
+      const sunatCode = resolveSunatCode(
+        responseObj ?? response,
+        sunatResponse,
+      );
       const sunatMessage = resolveSunatMessage(
         responseObj ?? response,
         sunatResponse,
@@ -4138,7 +4189,10 @@ const PaymentPage = () => {
         sunatMessage,
         registroBdMessage,
       });
-      const acceptedState = resolveAcceptedState(responseObj ?? response, sunatResponse);
+      const acceptedState = resolveAcceptedState(
+        responseObj ?? response,
+        sunatResponse,
+      );
       const isSuccess = acceptedState.hasAccepted
         ? acceptedState.accepted
         : Boolean(responseObj?.ok) ||
@@ -4146,9 +4200,15 @@ const PaymentPage = () => {
           sunatCode === "0" ||
           sunatCode === "0000";
 
-      if (!response || response === false || Boolean(responseObj?.isAxiosError)) {
+      if (
+        !response ||
+        response === false ||
+        Boolean(responseObj?.isAxiosError)
+      ) {
         if (responseStatus >= 500) {
-          toast.error(detail || `Error técnico backend al reenviar ${documentLabel}.`);
+          toast.error(
+            detail || `Error técnico backend al reenviar ${documentLabel}.`,
+          );
         } else {
           toast.error(detail || `No se pudo reenviar ${documentLabel}.`);
         }
@@ -4156,7 +4216,9 @@ const PaymentPage = () => {
       }
 
       if (!isSuccess) {
-        toast.error(detail || `SUNAT/OSE rechazó el reenvío de ${documentLabel}.`);
+        toast.error(
+          detail || `SUNAT/OSE rechazó el reenvío de ${documentLabel}.`,
+        );
         return;
       }
 
@@ -4997,6 +5059,25 @@ const PaymentPage = () => {
                   {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
                 </button>
               )}
+              {shouldShowOrderNotesDocumentAction && (
+                <button
+                  type="button"
+                  className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${orderNotesDocumentActionClass}`}
+                  onClick={handleOrderNotesDocumentAction}
+                  disabled={isPersistingToDb || orderNotesDocumentActionPending}
+                >
+                  {canResendRejectedDocumentFromOrderNotes ? (
+                    <RefreshCw
+                      className={`h-4 w-4 ${isResendingDocument ? "animate-spin" : ""}`}
+                    />
+                  ) : shouldShowCreditNoteAction ? (
+                    <Receipt className="h-4 w-4" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  {orderNotesDocumentActionLabel}
+                </button>
+              )}
               {isConfirmed && (
                 <button
                   type="button"
@@ -5041,10 +5122,17 @@ const PaymentPage = () => {
             </div>
           </div>
         </div>
-        <div className="h-20 md:hidden" />
+        <Link
+          to={backRoute}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 md:hidden"
+          onClick={(e) => handleBackToPos(e)}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          {backLabel}
+        </Link>
 
         <div className="grid grid-cols-2 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+          <div className="rounded-lg border border-slate-200 bg-amber-50 px-3 py-2">
             <p className="text-[11px] uppercase tracking-wide text-slate-500">
               Ítems
             </p>
@@ -5052,7 +5140,7 @@ const PaymentPage = () => {
               {itemsToRender.length}
             </p>
           </div>
-          <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-right">
+          <div className="rounded-lg border border-slate-200 px-3 py-2 text-right bg-green-50">
             <p className="text-[11px] uppercase tracking-wide text-slate-500">
               Total
             </p>
@@ -5382,6 +5470,24 @@ const PaymentPage = () => {
             {isReadOnlyNoteView ? "Ir a edición" : "Editar"}
           </button>
         )}
+        {shouldShowOrderNotesDocumentAction && (
+          <button
+            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg py-2.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${orderNotesDocumentActionClass}`}
+            onClick={handleOrderNotesDocumentAction}
+            disabled={isPersistingToDb || orderNotesDocumentActionPending}
+          >
+            {canResendRejectedDocumentFromOrderNotes ? (
+              <RefreshCw
+                className={`w-5 h-5 ${isResendingDocument ? "animate-spin" : ""}`}
+              />
+            ) : shouldShowCreditNoteAction ? (
+              <Receipt className="w-5 h-5" />
+            ) : (
+              <Trash2 className="w-5 h-5" />
+            )}
+            {orderNotesDocumentActionLabel}
+          </button>
+        )}
         {isConfirmed && (
           <button
             className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-green-300 bg-green-50 py-2.5 text-green-800 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -5432,65 +5538,9 @@ const PaymentPage = () => {
           </h1>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          {(canResendRejectedDocumentFromOrderNotes ||
-            canVoidBoletaFromOrderNotes ||
-            canCreateCreditNoteFromOrderNotes) && (
-            <button
-              type="button"
-              className={`inline-flex w-fit items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                canResendRejectedDocumentFromOrderNotes
-                  ? "border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                  : "border border-[#B23636]/25 bg-[#B23636]/10 text-[#B23636] hover:bg-[#B23636]/15"
-              }`}
-              onClick={() => {
-                if (canResendRejectedDocumentFromOrderNotes) {
-                  void handleResendDocument();
-                  return;
-                }
-                if (canCreateCreditNoteFromOrderNotes) {
-                  void handleOpenCreditNote();
-                  return;
-                }
-                void handleVoidTicket();
-              }}
-              disabled={
-                isPersistingToDb ||
-                (canResendRejectedDocumentFromOrderNotes
-                  ? isResendingDocument
-                  : canCreateCreditNoteFromOrderNotes
-                    ? isSendingCreditNote
-                    : isVoidingTicket)
-              }
-            >
-              {canResendRejectedDocumentFromOrderNotes ? (
-                <RefreshCw
-                  className={`w-4 h-4 ${isResendingDocument ? "animate-spin" : ""}`}
-                />
-              ) : shouldShowCreditNoteAction ? (
-                <Receipt className="w-4 h-4" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-              {canResendRejectedDocumentFromOrderNotes
-                ? isResendingDocument
-                  ? "Reenviando..."
-                  : "Reenviar documento"
-                : shouldShowCreditNoteAction
-                ? canCreateCreditNoteFromOrderNotes
-                  ? isSendingCreditNote
-                    ? "Enviando..."
-                    : "Nota de credito"
-                  : isVoidingTicket
-                    ? "Generando..."
-                    : "Nota de credito"
-                : isVoidingTicket
-                  ? "Anulando..."
-                  : "Anular boleta"}
-            </button>
-          )}
           <Link
             to={backRoute}
-            className="inline-flex w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+            className="hidden w-fit items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900 md:inline-flex"
             onClick={(e) => handleBackToPos(e)}
           >
             <ArrowLeft className="w-4 h-4" />
@@ -5510,7 +5560,7 @@ const PaymentPage = () => {
       )}
       {/* Layout móvil/mediano: tabs combinados + formulario */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_1fr] lg:gap-5 min-[1405px]:hidden">
-        <section className="space-y-4">
+        <section className="order-2 space-y-4 md:order-1">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-1 border-b border-slate-200 p-2 bg-slate-50">
               <button
@@ -5546,7 +5596,9 @@ const PaymentPage = () => {
           </div>
         </section>
 
-        <section className="space-y-4">{renderForm()}</section>
+        <section className="order-1 space-y-4 md:order-2">
+          {renderForm()}
+        </section>
       </div>
 
       {/* Layout grande: 3 columnas optimizadas */}

@@ -180,6 +180,13 @@ const mapApiToOrderNote = (item: OrderNoteApiItem, index: number): OrderNote => 
     item?.notaEstado ?? item?.NotaEstado ?? item?.estado,
     "",
   );
+  const rawEstadoSunat = normalizeText(
+    item?.estadoSunat ??
+      item?.EstadoSunat ??
+      item?.notaEstadoSunat ??
+      item?.NotaEstadoSunat,
+    "",
+  );
   const clienteFallbackId = normalizeText(item?.clienteId ?? item?.ClienteId, "");
 
   // Compatibilidad: algunos backends aún mapean con offsets antiguos y la fila llega corrida.
@@ -218,6 +225,7 @@ const mapApiToOrderNote = (item: OrderNoteApiItem, index: number): OrderNote => 
     saldo: rawSaldo || "0.00",
     usuario,
     estado,
+    estadoSunat: rawEstadoSunat,
   };
 };
 
@@ -270,6 +278,7 @@ const parseDelimitedOrderNotes = (rawValue: string): OrderNote[] => {
         saldo: notaSaldo || "0.00",
         usuario: notaUsuario || "-",
         estado: notaEstado || "PENDIENTE",
+        estadoSunat: "",
       } satisfies OrderNote;
     });
 };

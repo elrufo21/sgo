@@ -34,6 +34,10 @@ export interface OrderNoteApiItem {
   estado?: string | null;
   notaEstado?: string | null;
   NotaEstado?: string | null;
+  estadoSunat?: string | null;
+  EstadoSunat?: string | null;
+  notaEstadoSunat?: string | null;
+  NotaEstadoSunat?: string | null;
 }
 
 export interface OrderNote {
@@ -48,4 +52,5 @@ export interface OrderNote {
   saldo: string;
   usuario: string;
   estado: string;
+  estadoSunat?: string;
 }
