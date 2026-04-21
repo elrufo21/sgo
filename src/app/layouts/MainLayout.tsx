@@ -438,6 +438,7 @@ export default function MainLayout() {
         label: "Lista de ventas ",
         to: "/sales/order_notes",
         icon: <CopySlashIcon size={18} />,
+        state: { resetOrderNotesFilters: true },
       },
       {
         label: "Control de flujo de caja",
@@ -485,6 +486,7 @@ export default function MainLayout() {
       <Link
         key={item.to}
         to={item.to}
+        state={item.state}
         className={`group flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
           !open && !alwaysShowLabel ? "justify-center" : "justify-start"
         } ${

@@ -14,9 +14,10 @@ import "dayjs/locale/es";
 import { Workbook } from "exceljs";
 import { FileSpreadsheet, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 const columnHelper = createColumnHelper<OrderNote>();
+const ORDER_NOTES_RANGE_STORAGE_KEY = "sgo.orderNotes.range";
 
 const parseAmount = (value: unknown): number => {
   const raw = String(value ?? "").trim();
@@ -116,16 +117,47 @@ const getSignedTotal = (
 
 const OrderNotesList = () => {
   const navigate = useNavigate();
+  const { state } = useLocation();
   const { notes, fetchNotes, loading } = useOrderNoteStore();
   const initialDate = useMemo(() => getLocalDateISO(), []);
-  const [fechaInicio, setFechaInicio] = useState(initialDate);
-  const [fechaFin, setFechaFin] = useState(initialDate);
+  const resetRangeFromMainLayout = useMemo(() => {
+    if (!state || typeof state !== "object") return false;
+    return (state as Record<string, unknown>).resetOrderNotesFilters === true;
+  }, [state]);
+  const initialRange = useMemo(() => {
+    if (resetRangeFromMainLayout) {
+      return { from: initialDate, to: initialDate };
+    }
+
+    if (typeof window === "undefined") {
+      return { from: initialDate, to: initialDate };
+    }
+
+    try {
+      const raw = window.sessionStorage.getItem(ORDER_NOTES_RANGE_STORAGE_KEY);
+      if (!raw) return { from: initialDate, to: initialDate };
+      const parsed = JSON.parse(raw) as {
+        from?: unknown;
+        to?: unknown;
+      } | null;
+      const from = String(parsed?.from ?? "").trim();
+      const to = String(parsed?.to ?? "").trim();
+      if (!from || !to || from > to) {
+        return { from: initialDate, to: initialDate };
+      }
+      return { from, to };
+    } catch {
+      return { from: initialDate, to: initialDate };
+    }
+  }, [initialDate, resetRangeFromMainLayout]);
+  const [fechaInicio, setFechaInicio] = useState(initialRange.from);
+  const [fechaFin, setFechaFin] = useState(initialRange.to);
   const fechaInicioRef = useRef(fechaInicio);
   const fechaFinRef = useRef(fechaFin);
   const endDateAcceptedRef = useRef(false);
   const lastFetchedRangeRef = useRef<{ from: string; to: string } | null>({
-    from: initialDate,
-    to: initialDate,
+    from: initialRange.from,
+    to: initialRange.to,
   });
 
   useEffect(() => {
@@ -159,8 +191,24 @@ const OrderNotesList = () => {
   );
 
   useEffect(() => {
-    requestNotesByRange(initialDate, initialDate);
-  }, [initialDate, requestNotesByRange]);
+    if (!resetRangeFromMainLayout || typeof window === "undefined") return;
+    window.sessionStorage.removeItem(ORDER_NOTES_RANGE_STORAGE_KEY);
+  }, [resetRangeFromMainLayout]);
+
+  useEffect(() => {
+    requestNotesByRange(fechaInicioRef.current, fechaFinRef.current);
+  }, [requestNotesByRange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const from = String(fechaInicio ?? "").trim();
+    const to = String(fechaFin ?? "").trim();
+    if (!from || !to || from > to) return;
+    window.sessionStorage.setItem(
+      ORDER_NOTES_RANGE_STORAGE_KEY,
+      JSON.stringify({ from, to }),
+    );
+  }, [fechaFin, fechaInicio]);
 
   const handleSearch = useCallback(() => {
     requestNotesByRange(fechaInicio, fechaFin);
