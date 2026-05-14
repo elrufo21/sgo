@@ -104,6 +104,16 @@ const isProformaVDocument = (value: unknown) => {
   return normalized.includes("PROFORMA");
 };
 
+const isProformaVTypeForExport = (value: unknown) => {
+  const normalized = String(splitDocumentLabel(value).tipoDocumento || value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  return normalized === "PROFORMA V" || normalized.startsWith("PROFORMA V ");
+};
+
 const getSignedTotal = (
   note: Pick<OrderNote, "estado" | "documento">,
   value: unknown,
@@ -229,6 +239,15 @@ const OrderNotesList = () => {
       return;
     }
 
+    const exportableNotes = notes.filter(
+      (note) => !isProformaVTypeForExport(note.documento),
+    );
+
+    if (!exportableNotes.length) {
+      toast.info("No hay datos para exportar.");
+      return;
+    }
+
     try {
       const workbook = new Workbook();
       workbook.creator = "SGO";
@@ -275,7 +294,7 @@ const OrderNotesList = () => {
         };
       });
 
-      notes.forEach((note, index) => {
+      exportableNotes.forEach((note, index) => {
         const { tipoDocumento, numeroDocumento } = splitDocumentLabel(
           note.documento,
         );
@@ -326,17 +345,17 @@ const OrderNotesList = () => {
         }
       });
 
-      const totalGeneral = notes.reduce(
+      const totalGeneral = exportableNotes.reduce(
         (acc, note) => acc + getSignedTotal(note, note.total),
         0,
       );
 
-      const acuentaGeneral = notes.reduce(
+      const acuentaGeneral = exportableNotes.reduce(
         (acc, note) => acc + parseAmount(note.acuenta),
         0,
       );
 
-      const saldoGeneral = notes.reduce(
+      const saldoGeneral = exportableNotes.reduce(
         (acc, note) => acc + parseAmount(note.saldo),
         0,
       );
@@ -344,7 +363,7 @@ const OrderNotesList = () => {
       worksheet.addRow({});
 
       const totalsRow = worksheet.addRow({
-        notaId: `Items: ${notes.length}`,
+        notaId: `Items: ${exportableNotes.length}`,
         formaPago: "Totales S/",
         total: Number(totalGeneral.toFixed(2)),
         acuenta: Number(acuentaGeneral.toFixed(2)),
