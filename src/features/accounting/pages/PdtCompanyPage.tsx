@@ -324,6 +324,13 @@ const isCreditNoteDocument = (value: unknown) => {
   return normalized.includes("nota") && normalized.includes("credito");
 };
 
+const isCreditNoteFilter = (value: unknown) => {
+  const normalized = normalizeFilterText(value);
+  if (!normalized) return false;
+  if (normalized === "07") return true;
+  return normalized.includes("nota") && normalized.includes("credito");
+};
+
 const isInvoiceOrBoletaDocument = (value: unknown) => {
   const normalized = normalizeFilterText(value);
   if (!normalized) return false;
@@ -343,7 +350,17 @@ const toCreditNoteExcelNumber = (value: string) =>
 const resolveSalesRowsForExcel = (
   filteredRows: SalesDocument[],
   allRows: SalesDocument[],
+  documentoFilter: unknown,
 ) => {
+  const onlyCreditNotesSelected =
+    isCreditNoteFilter(documentoFilter) ||
+    (filteredRows.length > 0 &&
+      filteredRows.every((row) => isCreditNoteDocument(row.documento)));
+
+  if (onlyCreditNotesSelected) {
+    return filteredRows;
+  }
+
   const shouldExpandPairs = filteredRows.some(
     (row) =>
       isCreditNoteDocument(row.documento) ||
@@ -871,8 +888,13 @@ export default function PdtCompanyPage() {
   );
 
   const salesRowsForExcel = useMemo(
-    () => resolveSalesRowsForExcel(filteredSalesRows, salesRows),
-    [filteredSalesRows, salesRows],
+    () =>
+      resolveSalesRowsForExcel(
+        filteredSalesRows,
+        salesRows,
+        salesFilters.documento,
+      ),
+    [filteredSalesRows, salesFilters.documento, salesRows],
   );
 
   const salesExcelTotals = useMemo(
