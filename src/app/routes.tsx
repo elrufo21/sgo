@@ -8,6 +8,7 @@ import posRoutes from "../features/pos/routes";
 import purchansesRoutes from "../features/purchanses/routes";
 import shoppingRoutes from "../features/shopping/routes";
 import sendNoteRoutes from "../features/sendNote/routes";
+import serviceInvoiceRoutes from "../features/serviceInvoices/routes";
 import boletasSummaryRoutes from "../features/boletasSummary/routes";
 import configurationRoutes from "../features/configuration/routes";
 import accountingRoutes from "../features/accounting/routes";
@@ -43,6 +44,7 @@ const router = createBrowserRouter([
       ...purchansesRoutes, // legacy direct routes
       ...shoppingRoutes, // legacy direct routes
       ...sendNoteRoutes, // legacy direct routes
+      ...serviceInvoiceRoutes,
       ...boletasSummaryRoutes,
       ...configurationRoutes,
       ...accountingRoutes,

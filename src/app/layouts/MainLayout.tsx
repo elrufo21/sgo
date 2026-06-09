@@ -11,6 +11,7 @@ import {
   ChevronDown,
   CopySlashIcon,
   Landmark,
+  ReceiptText,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/shared/ui/toast";
@@ -446,6 +447,11 @@ export default function MainLayout() {
         icon: <StoreIcon />,
       },
       { label: "Compras", to: "/shopping", icon: <CopySlashIcon size={18} /> },
+      {
+        label: "Facturas servicio",
+        to: "/service-invoices",
+        icon: <ReceiptText size={18} />,
+      },
       { label: "Productos", to: "/products", icon: <Package size={18} /> },
       { label: "Cliente", to: "/customers", icon: <UserCheck size={18} /> },
       {
