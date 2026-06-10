@@ -636,7 +636,7 @@ export default function ServiceInvoiceCreate() {
     [detailPayload],
   );
   const montoDetraccion = useMemo(
-    () => roundCurrency(totals.total * DETRACTION_RATE),
+    () => Math.round(totals.total * DETRACTION_RATE),
     [totals.total],
   );
   const viewCompra = viewInvoice?.compra;
