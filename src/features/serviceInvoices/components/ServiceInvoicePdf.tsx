@@ -161,8 +161,6 @@ const styles = StyleSheet.create({
   frame: {
     width: "100%",
     height: "100%",
-    borderWidth: 1.4,
-    borderColor: "#000000",
     padding: 12,
   },
   row: {
@@ -399,14 +397,13 @@ function DxnLogo() {
   return (
     <View style={[styles.logoArea, styles.center]}>
       <Image
-        src="/LogoDXN.png"
+        src="/LogoManuel.png"
         style={{
           width: 86,
           height: 51,
           objectFit: "contain",
         }}
       />
-      <Text style={styles.logoText}>DXN</Text>
     </View>
   );
 }
@@ -513,16 +510,18 @@ export default function ServiceInvoicePdf({
               <Text style={styles.smallLine}>
                 Direccion : {safeText(compra.direccionFiscal, "-")}
               </Text>
-              <Text style={styles.smallLine}>R.U.C. : {clientRuc}</Text>
+              <Text style={styles.smallLine}>
+                R.U.C.{"     "} :{clientRuc}
+              </Text>
             </View>
             <View style={styles.clientRight}>
               <Text style={styles.smallLine}>
                 Fecha Emision: {formatDateTime(compra.fechaRegistro)}
               </Text>
+              <Text style={styles.smallLine}>Cuotas: 1</Text>
               <Text style={styles.smallLine}>
-                Hora: {compra.fechaRegistro?.split(" ")[1] || ""}
+                M.Pen Pago : {money(pendingAmount)}
               </Text>
-              <Text style={styles.smallLine}>M.Pen Pago : {money(total)}</Text>
             </View>
           </View>
 
@@ -534,7 +533,6 @@ export default function ServiceInvoicePdf({
                 ["N° Cuota", 76],
                 ["Fec. Venc.", 86],
                 ["Monto", 78],
-                ["Monto pendiente", 92],
                 ["G.Remisión", 1],
               ].map(([label, width], index) => (
                 <View
@@ -565,7 +563,6 @@ export default function ServiceInvoicePdf({
                 ["1", 76],
                 [formatDate(resolveDueDate(invoice)), 86],
                 [money(total), 78],
-                [money(pendingAmount), 92],
                 ["", 1],
               ].map(([value, width], index) => (
                 <View
@@ -694,7 +691,9 @@ export default function ServiceInvoicePdf({
                   <Text style={styles.legalText}>
                     Consulta tu Comprobante en: https://www.nubefact.com/buscar
                   </Text>
-                  <Text style={styles.legalText}>Email: cxltm@hotmail.com</Text>
+                  <Text style={styles.legalText}>
+                    Email: 42772235m@gmail.com
+                  </Text>
                   <Text style={styles.legalText}>
                     Nro Id: {compra.compraId}
                   </Text>
