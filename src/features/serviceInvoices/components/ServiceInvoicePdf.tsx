@@ -494,7 +494,9 @@ export default function ServiceInvoicePdf({
               <Text style={styles.address}>
                 {companyAddress} Telef: {companyPhone}
               </Text>
+              <Text style={styles.address}>ICA ICA ICA</Text>
             </View>
+
             <View style={styles.documentBox}>
               <Text style={styles.documentText}>RUC: {companyRuc}</Text>
               <Text style={styles.documentType}>FACTURA ELECTRONICA</Text>
