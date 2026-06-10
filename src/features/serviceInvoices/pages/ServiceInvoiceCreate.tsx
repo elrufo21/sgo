@@ -59,7 +59,7 @@ const DEFAULT_PROCESS_TYPE = 3 as const;
 const SERVICE_OPERATION_CODE = "1001" as const;
 const SERVICE_LINE_OPERATION_CODE = "10" as const;
 const SERVICE_UNIT_MEASURE = "ZZ" as const;
-const DETRACTION_ACCOUNT = "00101449556";
+const DETRACTION_ACCOUNT = "00054103689";
 const DETRACTION_RATE = 0.1;
 
 const resolveProcessTypeValue = (processType?: string | null) =>
