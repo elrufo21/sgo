@@ -457,7 +457,7 @@ export default function ServiceInvoiceCreate() {
         form.append("cdrUrl", viewInvoice.compra.cdrUrl);
 
       const response = await fetch(
-        "http://localhost:5000/api/v1/Correo/enviar-comprobante",
+        "https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante",
         {
           method: "POST",
           body: form,
