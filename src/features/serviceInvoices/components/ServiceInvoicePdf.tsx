@@ -562,7 +562,7 @@ export default function ServiceInvoicePdf({
                 ],
                 ["1", 76],
                 [formatDate(resolveDueDate(invoice)), 86],
-                [money(total), 78],
+                [money(pendingAmount), 78],
                 ["", 1],
               ].map(([value, width], index) => (
                 <View
