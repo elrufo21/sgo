@@ -58,6 +58,11 @@ const formatDate = (value: unknown) => {
   return text;
 };
 
+const isValidImageDataUrl = (value: unknown) =>
+  /^data:image\/(?:png|jpeg|jpg);base64,[a-z0-9+/]+=*$/i.test(
+    safeText(value),
+  );
+
 const splitDocumentNumber = (
   value: string,
   serie?: string,
@@ -276,7 +281,6 @@ export default function DebitNotePdf({
     safeText(company?.commercialName, "CENTRO DE SERVICIO DXN PAUCARPATA"),
   ).toUpperCase();
 
-  const commercialName = safeText(company?.commercialName, "");
   const companyRuc = safeText(company?.ruc, "10464869978");
   const companyAddress = safeText(company?.address, "");
   const companyPhone = safeText(company?.phone, "");
@@ -346,10 +350,14 @@ export default function DebitNotePdf({
   );
 
   const qrData = buildDebitNoteQrData(invoice, company);
-  const qrBase64 = preGeneratedQrBase64 || generatedQrBase64;
+  const qrBase64 = isValidImageDataUrl(preGeneratedQrBase64)
+    ? safeText(preGeneratedQrBase64)
+    : isValidImageDataUrl(generatedQrBase64)
+      ? generatedQrBase64
+      : "";
 
   useEffect(() => {
-    if (preGeneratedQrBase64) return;
+    if (isValidImageDataUrl(preGeneratedQrBase64)) return;
 
     let active = true;
 
@@ -368,10 +376,6 @@ export default function DebitNotePdf({
         <View style={styles.header}>
           <View>
             <Text style={styles.companyTitle}>{companyName}</Text>
-
-            {commercialName ? (
-              <Text style={styles.companyText}>De: {commercialName}</Text>
-            ) : null}
 
             <Text style={styles.companyText}>
               {companyAddress}
@@ -478,10 +482,8 @@ export default function DebitNotePdf({
           </View>
 
           <View style={styles.qrBox}>
-            {qrBase64 ? (
+            {qrBase64 && (
               <Image src={qrBase64} style={styles.qr} />
-            ) : (
-              <View style={styles.qr} />
             )}
           </View>
 

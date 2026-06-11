@@ -8,7 +8,9 @@ import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { generateTicketQrBase64 } from "@/components/ticketQr";
-import ServiceInvoicePdf from "@/features/serviceInvoices/components/ServiceInvoicePdf";
+import ServiceInvoicePdf, {
+  ServiceInvoicePdfDocument,
+} from "@/features/serviceInvoices/components/ServiceInvoicePdf";
 import { buildDebitNoteQrData } from "@/features/serviceInvoices/components/debitNotePdfHelpers";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
@@ -166,17 +168,64 @@ const normalizePdfFileName = (value: unknown) =>
     .replace(/[^\w.-]+/g, "_")
     .toLowerCase();
 
+const normalizeQrDateISO = (value: unknown) => {
+  const text = safeText(value);
+  if (!text) return "";
+
+  const normalized = text.replace("T", " ").split(" ")[0];
+  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
+
+  const [day, month, year] = normalized.split("/");
+  if (day && month && year) return `${year}-${month}-${day}`;
+
+  return "";
+};
+
+const buildServiceInvoiceQrData = (
+  invoice: ServiceInvoiceListItem,
+  company?: { ruc?: string } | null,
+) => {
+  const compra = invoice.compra;
+  const subtotal =
+    toNumber(compra.subTotal) ||
+    Math.max(0, toNumber(compra.total) - toNumber(compra.igv));
+  const igv =
+    toNumber(compra.igv) || Math.max(0, toNumber(compra.total) - subtotal);
+  const total = toNumber(compra.total) || subtotal + igv;
+  const documentNumber = safeText(
+    compra.nroComprobante,
+    `${safeText(compra.serie, "FA01")}-${safeText(compra.numero, "00000000")}`,
+  );
+  const clientRuc = safeText(compra.clienteRuc, safeText(compra.clienteDni));
+
+  return [
+    safeText(company?.ruc, "15390049339"),
+    "01",
+    documentNumber,
+    igv.toFixed(2),
+    total.toFixed(2),
+    normalizeQrDateISO(compra.fechaEmision),
+    "06",
+    clientRuc || "00000000000",
+  ].join("|");
+};
+
 const downloadPdfDocument = async (
   pdfDocument: ReactElement,
   fileName: string,
 ) => {
-  const blob = await pdf(pdfDocument).toBlob();
+  const blob = await renderPdfBlob(pdfDocument);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = `${normalizePdfFileName(fileName)}.pdf`;
   anchor.click();
   URL.revokeObjectURL(url);
+};
+
+const renderPdfBlob = async (pdfDocument: ReactElement) => {
+  const instance = pdf(pdfDocument as Parameters<typeof pdf>[0]);
+  return instance.toBlob();
 };
 
 export default function ServiceInvoiceCreate() {
@@ -206,6 +255,7 @@ export default function ServiceInvoiceCreate() {
   const [viewInvoice, setViewInvoice] = useState<ServiceInvoiceListItem | null>(
     null,
   );
+  const [serviceInvoiceQrBase64, setServiceInvoiceQrBase64] = useState("");
   const [debitNoteQrBase64, setDebitNoteQrBase64] = useState("");
   const [createdViewMode, setCreatedViewMode] = useState(false);
   const isViewMode = Boolean(docuId) || createdViewMode;
@@ -329,7 +379,7 @@ export default function ServiceInvoiceCreate() {
           shouldValidate: true,
         });
 
-        setValue("clienteCorreo", cliente.email, {
+        setValue("clienteCorreo", safeText(cliente.email), {
           shouldDirty: true,
           shouldValidate: true,
         });
@@ -369,76 +419,6 @@ export default function ServiceInvoiceCreate() {
       setFocusPrecio(false);
     });
   }, [focusPrecio, details]);
-  const handleSendEmail = async () => {
-    if (!viewInvoice || sendingEmail) return;
-
-    if (isAnnulledInvoice(viewInvoice)) {
-      toast.error("La factura está anulada. No se puede enviar por correo.");
-      return;
-    }
-
-    setSendingEmail(true);
-
-    try {
-      // Generar PDF
-      const blob = await pdf(
-        <ServiceInvoicePdf invoice={viewInvoice} company={invoicePdfCompany} />,
-      ).toBlob();
-
-      const pdfFile = new File(
-        [blob],
-        `${viewInvoice.compra.nroComprobante}.pdf`,
-        {
-          type: "application/pdf",
-        },
-      );
-
-      const form = new FormData();
-
-      const correoCliente = methods.getValues("clienteCorreo");
-
-      if (!correoCliente) {
-        toast.error("El cliente no tiene correo registrado.");
-        return;
-      }
-
-      form.append("para", correoCliente);
-      form.append("asunto", `Factura ${viewInvoice.compra.nroComprobante}`);
-
-      form.append("cuerpo", "<p>Adjuntamos su comprobante electrónico.</p>");
-
-      form.append("esHtml", "true");
-
-      form.append("pdf", pdfFile);
-      form.append("rucEmisor", invoicePdfCompany.ruc || "15390049339");
-      form.append("nroComprobante", viewInvoice.compra.numero);
-
-      if (viewInvoice.compra.xmlUrl)
-        form.append("xmlUrl", viewInvoice.compra.xmlUrl);
-
-      if (viewInvoice.compra.cdrUrl)
-        form.append("cdrUrl", viewInvoice.compra.cdrUrl);
-      //"https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante"
-      const response = await fetch(
-        "https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante",
-        {
-          method: "POST",
-          body: form,
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error("Error enviando correo");
-      }
-
-      toast.success("Correo enviado correctamente");
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo enviar el correo");
-    } finally {
-      setSendingEmail(false);
-    }
-  };
 
   const loadCorrelative = useCallback(
     async (serie?: string, notifyOnFail = true) => {
@@ -640,29 +620,121 @@ export default function ServiceInvoiceCreate() {
   );
   useEffect(() => {
     if (!isViewMode || !viewInvoice) {
+      setServiceInvoiceQrBase64("");
       setDebitNoteQrBase64("");
       return;
     }
 
     let active = true;
+    setServiceInvoiceQrBase64("");
     setDebitNoteQrBase64("");
 
-    generateTicketQrBase64(
-      buildDebitNoteQrData(viewInvoice, invoicePdfCompany),
-    ).then((qrBase64) => {
-      if (active) setDebitNoteQrBase64(qrBase64);
+    const isAnnulledDocument = isAnnulledInvoice(viewInvoice);
+    const qrData = isAnnulledDocument
+      ? buildDebitNoteQrData(viewInvoice, invoicePdfCompany)
+      : buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany);
+
+    generateTicketQrBase64(qrData).then((qrBase64) => {
+      if (!active) return;
+      if (isAnnulledDocument) {
+        setDebitNoteQrBase64(qrBase64);
+        return;
+      }
+
+      setServiceInvoiceQrBase64(qrBase64);
     });
 
     return () => {
       active = false;
     };
   }, [invoicePdfCompany, isViewMode, viewInvoice]);
+  const handleSendEmail = async () => {
+    if (!viewInvoice || sendingEmail) return;
+
+    if (isAnnulledInvoice(viewInvoice)) {
+      toast.error("La factura está anulada. No se puede enviar por correo.");
+      return;
+    }
+
+    setSendingEmail(true);
+
+    try {
+      const qrBase64 =
+        serviceInvoiceQrBase64 ||
+        (await generateTicketQrBase64(
+          buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
+        ));
+      const pdfDocument = ServiceInvoicePdfDocument({
+        invoice: viewInvoice,
+        company: invoicePdfCompany,
+        preGeneratedQrBase64: qrBase64,
+      });
+      const blob = await renderPdfBlob(pdfDocument);
+
+      const pdfFile = new File(
+        [blob],
+        `${viewInvoice.compra.nroComprobante}.pdf`,
+        {
+          type: "application/pdf",
+        },
+      );
+
+      const form = new FormData();
+
+      const correoCliente = methods.getValues("clienteCorreo");
+
+      if (!correoCliente) {
+        toast.error("El cliente no tiene correo registrado.");
+        return;
+      }
+
+      form.append("para", correoCliente);
+      form.append("asunto", `Factura ${viewInvoice.compra.nroComprobante}`);
+
+      form.append("cuerpo", "<p>Adjuntamos su comprobante electrónico.</p>");
+
+      form.append("esHtml", "true");
+
+      form.append("pdf", pdfFile);
+      form.append("rucEmisor", invoicePdfCompany.ruc || "15390049339");
+      form.append("nroComprobante", viewInvoice.compra.numero);
+
+      if (viewInvoice.compra.xmlUrl)
+        form.append("xmlUrl", viewInvoice.compra.xmlUrl);
+
+      if (viewInvoice.compra.cdrUrl)
+        form.append("cdrUrl", viewInvoice.compra.cdrUrl);
+      //"https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante"
+      const response = await fetch(
+        "http://localhost:5000/api/v1/Correo/enviar-comprobante",
+        {
+          method: "POST",
+          body: form,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Error enviando correo");
+      }
+
+      toast.success("Correo enviado correctamente");
+    } catch (error) {
+      console.error(error);
+      toast.error("No se pudo enviar el correo");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
   const invoicePdfDocument = useMemo(
     () =>
       viewInvoice ? (
-        <ServiceInvoicePdf invoice={viewInvoice} company={invoicePdfCompany} />
+        <ServiceInvoicePdf
+          invoice={viewInvoice}
+          company={invoicePdfCompany}
+          preGeneratedQrBase64={serviceInvoiceQrBase64}
+        />
       ) : null,
-    [invoicePdfCompany, viewInvoice],
+    [invoicePdfCompany, serviceInvoiceQrBase64, viewInvoice],
   );
   const processTypeValue = useMemo(
     () => resolveProcessTypeValue(config?.processType),
@@ -866,6 +938,7 @@ export default function ServiceInvoiceCreate() {
           precio: detail.precio,
           descripcion: detail.descripcion,
           codTipoOperacion: detail.codTipoOperacion,
+          codigo: detail.codigo,
         })),
       };
     },
@@ -1026,23 +1099,23 @@ export default function ServiceInvoiceCreate() {
       return;
     }
 
-    const preGeneratedQrBase64 =
-      debitNoteQrBase64 ||
+    const qrBase64 =
+      serviceInvoiceQrBase64 ||
       (await generateTicketQrBase64(
-        buildDebitNoteQrData(viewInvoice, invoicePdfCompany),
+        buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
       ));
 
     await downloadPdfDocument(
-      <DebitNotePdf
-        invoice={viewInvoice}
-        company={invoicePdfCompany}
-        preGeneratedQrBase64={preGeneratedQrBase64}
-      />,
+      ServiceInvoicePdfDocument({
+        invoice: viewInvoice,
+        company: invoicePdfCompany,
+        preGeneratedQrBase64: qrBase64,
+      }),
       safeText(viewCompra?.nroComprobante, "factura-servicio"),
     );
   }, [
-    debitNoteQrBase64,
     invoicePdfCompany,
+    serviceInvoiceQrBase64,
     viewCompra?.nroComprobante,
     viewInvoice,
   ]);
@@ -1085,14 +1158,30 @@ export default function ServiceInvoiceCreate() {
       ) : null}
       {isViewMode && viewInvoice ? (
         <PDFViewer
-          key={`${viewCompra?.compraId ?? "invoice"}-${debitNoteQrBase64 ? "qr" : "pending"}`}
+          key={`${viewCompra?.compraId ?? "invoice"}-${isAnnulled ? "debit-note" : "invoice"}-${
+            isAnnulled
+              ? debitNoteQrBase64
+                ? "qr"
+                : "pending"
+              : serviceInvoiceQrBase64
+                ? "qr"
+                : "pending"
+          }`}
           style={{ width: "100%", height: "100vh" }}
         >
-          <DebitNotePdf
-            invoice={viewInvoice}
-            company={invoicePdfCompany}
-            preGeneratedQrBase64={debitNoteQrBase64}
-          />
+          {isAnnulled ? (
+            <DebitNotePdf
+              invoice={viewInvoice}
+              company={invoicePdfCompany}
+              preGeneratedQrBase64={debitNoteQrBase64}
+            />
+          ) : (
+            <ServiceInvoicePdf
+              invoice={viewInvoice}
+              company={invoicePdfCompany}
+              preGeneratedQrBase64={serviceInvoiceQrBase64}
+            />
+          )}
         </PDFViewer>
       ) : null}
       <HookForm methods={methods} onSubmit={onSubmit}>
@@ -1174,7 +1263,7 @@ export default function ServiceInvoiceCreate() {
                     setValue("direccionCliente", option.direccion, {
                       shouldDirty: true,
                     });
-                    setValue("clienteCorreo", option.email, {
+                    setValue("clienteCorreo", safeText(option.email), {
                       shouldDirty: true,
                     });
                   }}
@@ -1195,7 +1284,7 @@ export default function ServiceInvoiceCreate() {
                     setValue("direccionCliente", option.direccion, {
                       shouldDirty: true,
                     });
-                    setValue("clienteCorreo", option?.email, {
+                    setValue("clienteCorreo", safeText(option.email), {
                       shouldDirty: true,
                     });
                   }}

@@ -114,6 +114,7 @@ export interface ServiceInvoiceCreditNoteDetail {
   precio: number;
   descripcion: string;
   codTipoOperacion: "10";
+  codigo: string;
 }
 
 export interface ServiceInvoiceCreditNotePayload {
@@ -161,7 +162,7 @@ export interface ServiceInvoiceCreditNotePayload {
 }
 
 export interface ServiceInvoiceSendPayload {
-  TIPO_PROCESO: 3;
+  TIPO_PROCESO: number;
   TIPO_OPERACION: "1001";
   NRO_COMPROBANTE: string;
   FECHA_DOCUMENTO: string;

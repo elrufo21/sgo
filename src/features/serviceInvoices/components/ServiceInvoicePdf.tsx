@@ -5,9 +5,6 @@ import {
   View,
   StyleSheet,
   Image,
-  Svg,
-  Circle,
-  Line,
 } from "@react-pdf/renderer";
 
 import { useEffect, useState } from "react";
@@ -81,8 +78,10 @@ const formatDateTime = (value: unknown, fallbackDate?: unknown) => {
   return [date, time].filter(Boolean).join(" ");
 };
 
-const isDateLike = (value: unknown) =>
-  /^\d{4}-\d{2}-\d{2}/.test(safeText(value));
+const isValidImageDataUrl = (value: unknown) =>
+  /^data:image\/(?:png|jpeg|jpg);base64,[a-z0-9+/]+=*$/i.test(
+    safeText(value),
+  );
 
 const splitDocumentNumber = (
   value: string,
@@ -408,12 +407,11 @@ function DxnLogo() {
   );
 }
 
-export default function ServiceInvoicePdf({
+export function ServiceInvoicePdfDocument({
   invoice,
   company,
   preGeneratedQrBase64,
 }: ServiceInvoicePdfProps) {
-  const [generatedQrBase64, setGeneratedQrBase64] = useState("");
   const compra = invoice.compra;
   const subtotal = resolveSubtotal(invoice);
   const igv = resolveIgv(invoice, subtotal);
@@ -431,10 +429,6 @@ export default function ServiceInvoicePdf({
     company?.name,
     safeText(company?.commercialName, "CENTRO DE SERVICIO DXN HUARAL"),
   ).toUpperCase();
-  const commercialName = safeText(
-    company?.commercialName,
-    "LAM WU TING",
-  ).toUpperCase();
   const companyRuc = safeText(company?.ruc, "15390049339");
   const companyAddress = safeText(
     company?.address,
@@ -442,16 +436,6 @@ export default function ServiceInvoicePdf({
   );
   const companyPhone = safeText(company?.phone, "409-5092 /969-772-377");
   const clientRuc = safeText(compra.clienteRuc, safeText(compra.clienteDni));
-  const qrData = [
-    companyRuc,
-    "01",
-    documentNumber || "-",
-    igv.toFixed(2),
-    total.toFixed(2),
-    formatDateISO(compra.fechaEmision),
-    "06",
-    clientRuc || "00000000000",
-  ].join("|");
   const amountWords = safeText(
     compra.letras,
     numberToWords(total, "SOLES"),
@@ -469,19 +453,9 @@ export default function ServiceInvoicePdf({
         },
       ];
 
-  useEffect(() => {
-    if (preGeneratedQrBase64) return;
-
-    let active = true;
-    generateTicketQrBase64(qrData).then((url) => {
-      if (active) setGeneratedQrBase64(url);
-    });
-    return () => {
-      active = false;
-    };
-  }, [preGeneratedQrBase64, qrData]);
-
-  const qrBase64 = preGeneratedQrBase64 || generatedQrBase64;
+  const qrBase64 = isValidImageDataUrl(preGeneratedQrBase64)
+    ? safeText(preGeneratedQrBase64)
+    : "";
 
   return (
     <Document>
@@ -675,9 +649,9 @@ export default function ServiceInvoicePdf({
               <Text style={styles.son}>SON: {amountWords}</Text>
               <View style={styles.qrRow}>
                 <View style={styles.qrBox}>
-                  {qrBase64 ? (
+                  {qrBase64 && (
                     <Image src={qrBase64} style={{ width: 64, height: 64 }} />
-                  ) : null}
+                  )}
                 </View>
                 <View>
                   <Text style={styles.legalText}>
@@ -727,4 +701,46 @@ export default function ServiceInvoicePdf({
       </Page>
     </Document>
   );
+}
+
+export default function ServiceInvoicePdf(props: ServiceInvoicePdfProps) {
+  const [generatedQrBase64, setGeneratedQrBase64] = useState("");
+  const compra = props.invoice.compra;
+  const subtotal = resolveSubtotal(props.invoice);
+  const igv = resolveIgv(props.invoice, subtotal);
+  const total = safeNumber(compra.total) || subtotal + igv;
+  const documentNumber = splitDocumentNumber(
+    safeText(compra.nroComprobante),
+    compra.serie,
+    compra.numero,
+  );
+  const companyRuc = safeText(props.company?.ruc, "15390049339");
+  const clientRuc = safeText(compra.clienteRuc, safeText(compra.clienteDni));
+  const qrData = [
+    companyRuc,
+    "01",
+    documentNumber || "-",
+    igv.toFixed(2),
+    total.toFixed(2),
+    formatDateISO(compra.fechaEmision),
+    "06",
+    clientRuc || "00000000000",
+  ].join("|");
+
+  useEffect(() => {
+    if (props.preGeneratedQrBase64) return;
+
+    let active = true;
+    generateTicketQrBase64(qrData).then((url) => {
+      if (active) setGeneratedQrBase64(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [props.preGeneratedQrBase64, qrData]);
+
+  return ServiceInvoicePdfDocument({
+    ...props,
+    preGeneratedQrBase64: props.preGeneratedQrBase64 || generatedQrBase64,
+  });
 }
