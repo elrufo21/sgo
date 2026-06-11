@@ -401,7 +401,7 @@ const OrderNotesList = () => {
       });
 
       const safeFilePart = (value?: string) =>
-        String(value || "sin-fecha").replace(/[\/\\:*?"<>|]/g, "-");
+        String(value || "sin-fecha").replace(/[/\\:*?"<>|]/g, "-");
 
       const fileFrom = safeFilePart(fechaInicio);
       const fileTo = safeFilePart(fechaFin);

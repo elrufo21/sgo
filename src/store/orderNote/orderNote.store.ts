@@ -6,8 +6,6 @@ import type { OrderNote, OrderNoteApiItem } from "@/types/orderNote";
 import type { SendNote, SendNoteItem } from "@/types/sendNote";
 
 interface FetchOrderNotesParams {
-  page?: number;
-  pageSize?: number;
   fechaInicio?: string;
   fechaFin?: string;
 }
@@ -15,8 +13,6 @@ interface FetchOrderNotesParams {
 interface OrderNoteState {
   notes: OrderNote[];
   loading: boolean;
-  page: number;
-  pageSize: number;
   fetchNotes: (params?: FetchOrderNotesParams) => Promise<void>;
   fetchNoteDetail: (noteId: number | string) => Promise<SendNote | null>;
   updateNoteDetail: (
@@ -386,15 +382,10 @@ const parseResultStringToSendNote = (resultString: string): SendNote | null => {
   };
 };
 
-export const useOrderNoteStore = create<OrderNoteState>((set, get) => ({
+export const useOrderNoteStore = create<OrderNoteState>((set) => ({
   notes: [],
   loading: false,
-  page: 1,
-  pageSize: 50,
   fetchNotes: async (params) => {
-    const currentState = get();
-    const nextPage = toPositiveInt(params?.page, currentState.page);
-    const nextPageSize = toPositiveInt(params?.pageSize, currentState.pageSize);
     const today = getLocalDateISO();
     const fechaInicio = String(params?.fechaInicio ?? "").trim() || today;
     const fechaFin = String(params?.fechaFin ?? "").trim() || today;
@@ -402,8 +393,6 @@ export const useOrderNoteStore = create<OrderNoteState>((set, get) => ({
     const query = new URLSearchParams();
     query.set("fechaInicio", fechaInicio);
     query.set("fechaFin", fechaFin);
-    query.set("page", String(nextPage));
-    query.set("pageSize", String(nextPageSize));
 
     set({ loading: true });
     try {
@@ -418,8 +407,6 @@ export const useOrderNoteStore = create<OrderNoteState>((set, get) => ({
       set({
         notes: rows,
         loading: false,
-        page: nextPage,
-        pageSize: nextPageSize,
       });
     } catch (error) {
       console.error("Error al listar notas de pedido", error);
