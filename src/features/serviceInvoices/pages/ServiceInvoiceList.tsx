@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { createColumnHelper } from "@tanstack/react-table";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Eye, FilePlus2, RefreshCw } from "lucide-react";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { esES } from "@mui/x-date-pickers/locales";
+import dayjs, { type Dayjs } from "dayjs";
+import "dayjs/locale/es";
+import { Eye, FilePlus2, Search } from "lucide-react";
 import DataTable from "@/components/DataTable";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
+import { getLocalDateISO } from "@/shared/helpers/localDate";
 import { toast } from "@/shared/ui/toast";
 import { useServiceInvoicesStore } from "@/store/serviceInvoices/serviceInvoices.store";
 import type { ServiceInvoiceListItem } from "@/types/serviceInvoice";
 
 const columnHelper = createColumnHelper<ServiceInvoiceListItem>();
+const SERVICE_INVOICES_RANGE_STORAGE_KEY = "sgo.serviceInvoices.range";
 
 const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-PE", {
@@ -30,29 +38,110 @@ const annulledRowClassName =
 
 export default function ServiceInvoiceList() {
   const { invoices, loading, error, fetchInvoices } = useServiceInvoicesStore();
-  const [estado, setEstado] = useState("");
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
-  const [pageSize, setPageSize] = useState(50);
-
-  const load = useCallback(() => {
-    if ((fechaInicio && !fechaFin) || (!fechaInicio && fechaFin)) {
-      toast.error("Para filtrar por fecha completa Desde y Hasta.");
-      return;
+  const initialDate = useMemo(() => getLocalDateISO(), []);
+  const initialRange = useMemo(() => {
+    if (typeof window === "undefined") {
+      return { from: initialDate, to: initialDate };
     }
 
-    void fetchInvoices({
-      estado,
-      fechaInicio,
-      fechaFin,
-      page: 1,
-      pageSize,
-    });
-  }, [estado, fechaFin, fechaInicio, fetchInvoices, pageSize]);
+    try {
+      const raw = window.sessionStorage.getItem(
+        SERVICE_INVOICES_RANGE_STORAGE_KEY,
+      );
+      if (!raw) return { from: initialDate, to: initialDate };
+      const parsed = JSON.parse(raw) as {
+        from?: unknown;
+        to?: unknown;
+      } | null;
+      const from = String(parsed?.from ?? "").trim();
+      const to = String(parsed?.to ?? "").trim();
+      if (!from || !to || from > to) {
+        return { from: initialDate, to: initialDate };
+      }
+      return { from, to };
+    } catch {
+      return { from: initialDate, to: initialDate };
+    }
+  }, [initialDate]);
+  const [estado, setEstado] = useState("");
+  const [fechaInicio, setFechaInicio] = useState(initialRange.from);
+  const [fechaFin, setFechaFin] = useState(initialRange.to);
+  const fechaInicioRef = useRef(fechaInicio);
+  const fechaFinRef = useRef(fechaFin);
+  const estadoRef = useRef(estado);
+  const endDateAcceptedRef = useRef(false);
+  const lastFetchedRangeRef = useRef<{
+    from: string;
+    to: string;
+    estado: string;
+  } | null>({
+    from: initialRange.from,
+    to: initialRange.to,
+    estado,
+  });
 
   useEffect(() => {
-    void fetchInvoices({ page: 1, pageSize: 50 });
-  }, [fetchInvoices]);
+    fechaInicioRef.current = fechaInicio;
+  }, [fechaInicio]);
+
+  useEffect(() => {
+    fechaFinRef.current = fechaFin;
+  }, [fechaFin]);
+
+  useEffect(() => {
+    estadoRef.current = estado;
+  }, [estado]);
+
+  const requestInvoicesByRange = useCallback(
+    (fromValue: string, toValue: string, estadoValue = estadoRef.current) => {
+      const from = String(fromValue ?? "").trim();
+      const to = String(toValue ?? "").trim();
+      const estadoFilter = String(estadoValue ?? "").trim();
+
+      if (!from || !to) {
+        toast.error("Debes seleccionar fecha inicio y fecha fin.");
+        return false;
+      }
+
+      if (from > to) {
+        toast.error("La fecha inicio no puede ser mayor que la fecha fin.");
+        return false;
+      }
+
+      void fetchInvoices({
+        estado: estadoFilter,
+        fechaInicio: from,
+        fechaFin: to,
+      });
+      lastFetchedRangeRef.current = { from, to, estado: estadoFilter };
+      return true;
+    },
+    [fetchInvoices],
+  );
+
+  useEffect(() => {
+    requestInvoicesByRange(fechaInicioRef.current, fechaFinRef.current);
+  }, [requestInvoicesByRange]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const from = String(fechaInicio ?? "").trim();
+    const to = String(fechaFin ?? "").trim();
+    if (!from || !to || from > to) return;
+    window.sessionStorage.setItem(
+      SERVICE_INVOICES_RANGE_STORAGE_KEY,
+      JSON.stringify({ from, to }),
+    );
+  }, [fechaFin, fechaInicio]);
+
+  const handleSearch = useCallback(() => {
+    requestInvoicesByRange(fechaInicio, fechaFin, estado);
+  }, [estado, fechaFin, fechaInicio, requestInvoicesByRange]);
+
+  const parsePickerDate = useCallback((value: Dayjs | null) => {
+    const formatted = value?.format("YYYY-MM-DD") ?? "";
+    return formatted.trim();
+  }, []);
 
   const columns = useMemo<ColumnDef<ServiceInvoiceListItem, unknown>[]>(
     () =>
@@ -167,7 +256,7 @@ export default function ServiceInvoiceList() {
         filterKeys={[]}
         searchPlaceholder="Buscar comprobante o servicio..."
         emptyMessage="No hay facturas de servicio."
-        initialPageSize={pageSize}
+        initialPageSize={50}
         rowClassName={(row) =>
           isAnnulledInvoice(row) ? annulledRowClassName : undefined
         }
@@ -193,59 +282,114 @@ export default function ServiceInvoiceList() {
           ) : null
         }
         renderFilters={
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Estado</span>
-              <select
-                value={estado}
-                onChange={(event) => setEstado(event.target.value)}
-                className="h-10 rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-              >
-                <option value="">Todos</option>
-                <option value="EMITIDO">Emitido</option>
-                <option value="ANULADO">Anulado</option>
-              </select>
-            </label>
-            <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Desde</span>
-              <input
-                type="date"
-                value={fechaInicio}
-                onChange={(event) => setFechaInicio(event.target.value)}
-                className="h-10 rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-              />
-            </label>
-            <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Hasta</span>
-              <input
-                type="date"
-                value={fechaFin}
-                onChange={(event) => setFechaFin(event.target.value)}
-                className="h-10 rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-              />
-            </label>
-            <label className="space-y-1 text-xs font-semibold text-slate-600">
-              <span>Filas</span>
-              <select
-                value={pageSize}
-                onChange={(event) => setPageSize(Number(event.target.value))}
-                className="h-10 rounded-lg border border-slate-300 px-2 text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20"
-              >
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-            </label>
+          <LocalizationProvider
+            dateAdapter={AdapterDayjs}
+            adapterLocale="es"
+            localeText={
+              esES.components.MuiLocalizationProvider.defaultProps.localeText
+            }
+          >
+            <div className="flex w-full flex-wrap items-end gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 xl:w-auto">
+              <label className="flex min-w-[160px] flex-col gap-1 text-xs text-slate-600">
+                Fecha Inicio
+                <DatePicker
+                  format="DD/MM/YY"
+                  value={fechaInicio ? dayjs(fechaInicio) : null}
+                  onChange={(value) => {
+                    setFechaInicio(parsePickerDate(value));
+                  }}
+                  slotProps={{
+                    textField: {
+                      size: "small",
+                      sx: {
+                        width: "100%",
+                        "& .MuiOutlinedInput-root": {
+                          height: 44,
+                          borderRadius: "0.5rem",
+                          backgroundColor: "#ffffff",
+                        },
+                      },
+                    },
+                  }}
+                />
+              </label>
 
-            <button
-              type="button"
-              onClick={load}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Buscar
-            </button>
-          </div>
+              <label className="flex min-w-[160px] flex-col gap-1 text-xs text-slate-600">
+                Fecha Fin
+                <DatePicker
+                  format="DD/MM/YY"
+                  value={fechaFin ? dayjs(fechaFin) : null}
+                  onOpen={() => {
+                    endDateAcceptedRef.current = false;
+                  }}
+                  onChange={(value) => {
+                    setFechaFin(parsePickerDate(value));
+                  }}
+                  onAccept={(value) => {
+                    const nextValue = parsePickerDate(value);
+                    endDateAcceptedRef.current = true;
+                    setFechaFin(nextValue);
+                    requestInvoicesByRange(
+                      fechaInicioRef.current,
+                      nextValue,
+                      estadoRef.current,
+                    );
+                  }}
+                  onClose={() => {
+                    if (endDateAcceptedRef.current) {
+                      endDateAcceptedRef.current = false;
+                      return;
+                    }
+
+                    const currentStart = fechaInicioRef.current;
+                    const currentEnd = fechaFinRef.current;
+                    const currentEstado = estadoRef.current;
+                    const lastRange = lastFetchedRangeRef.current;
+                    const mustFetch =
+                      !lastRange ||
+                      lastRange.from !== currentStart ||
+                      lastRange.to !== currentEnd ||
+                      lastRange.estado !== currentEstado;
+
+                    if (mustFetch) {
+                      requestInvoicesByRange(
+                        currentStart,
+                        currentEnd,
+                        currentEstado,
+                      );
+                    }
+                  }}
+                  slotProps={{
+                    textField: {
+                      size: "small",
+                      sx: {
+                        width: "100%",
+                        "& .MuiOutlinedInput-root": {
+                          height: 44,
+                          borderRadius: "0.5rem",
+                          backgroundColor: "#ffffff",
+                        },
+                      },
+                    },
+                  }}
+                />
+              </label>
+
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={handleSearch}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-slate-800 text-white transition-colors hover:bg-slate-700"
+                  aria-label="Buscar"
+                >
+                  <Search className="h-4 w-4" />
+                </button>
+                <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white opacity-0 shadow transition-opacity group-hover:opacity-100">
+                  Buscar
+                </span>
+              </div>
+            </div>
+          </LocalizationProvider>
         }
       />
     </div>
