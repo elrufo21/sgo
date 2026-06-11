@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Download, RefreshCw, Save, Send, Trash2 } from "lucide-react";
+import { Download, RefreshCw, Send, Trash2 } from "lucide-react";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -9,6 +9,7 @@ import TextField from "@mui/material/TextField";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { generateTicketQrBase64 } from "@/components/ticketQr";
 import ServiceInvoicePdf from "@/features/serviceInvoices/components/ServiceInvoicePdf";
+import { buildDebitNoteQrData } from "@/features/serviceInvoices/components/debitNotePdfHelpers";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
 import { HookFormInput } from "@/components/forms/HookFormInput";
@@ -29,6 +30,7 @@ import {
   useServiceInvoicesStore,
 } from "@/store/serviceInvoices/serviceInvoices.store";
 import type {
+  ServiceInvoiceCreditNotePayload,
   ServiceInvoiceDetailInput,
   ServiceInvoiceFormValues,
   ServiceInvoiceListItem,
@@ -36,6 +38,7 @@ import type {
   ServiceInvoiceSendPayload,
   ServiceProduct,
 } from "@/types/serviceInvoice";
+import DebitNotePdf from "../components/DebitNotePdf";
 
 type ClientOption = {
   value: string;
@@ -79,6 +82,12 @@ const safeText = (value: unknown, fallback = "") => {
   const text = String(value ?? "").trim();
   return text || fallback;
 };
+
+const normalizeInvoiceEstado = (estado?: string) =>
+  safeText(estado).toUpperCase();
+
+const isAnnulledInvoice = (invoice?: ServiceInvoiceListItem | null) =>
+  normalizeInvoiceEstado(invoice?.compra.estado) === "ANULADO";
 
 const toNumber = (value: unknown) => {
   const parsed = Number(value);
@@ -152,60 +161,6 @@ const resolveResponseNumber = (
   return 0;
 };
 
-const resolveResponseText = (response: unknown, ...keys: string[]) => {
-  const record = resolveResponseRecord(response);
-  const registro = resolveResponseRecord(record.registro_bd);
-
-  for (const key of keys) {
-    const text = safeText(record[key] ?? registro[key]);
-    if (text) return text;
-  }
-
-  return "";
-};
-
-const splitComprobante = (value: string) => {
-  const [serie = "FA01", numero = ""] = safeText(value)
-    .toUpperCase()
-    .split("-");
-  return { serie, numero };
-};
-
-const formatQrDateISO = (value: unknown) => {
-  const text = safeText(value);
-  if (!text) return "";
-  const normalized = text.replace("T", " ").split(" ")[0];
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return normalized;
-
-  const [day, month, year] = normalized.split("/");
-  if (day && month && year) return `${year}-${month}-${day}`;
-
-  return "";
-};
-
-const buildServiceInvoiceQrData = (
-  invoice: ServiceInvoiceListItem,
-  company?: {
-    ruc?: string;
-  } | null,
-) => {
-  const compra = invoice.compra;
-  const documentNumber =
-    safeText(compra.nroComprobante) ||
-    `${safeText(compra.serie, "FA01")}-${safeText(compra.numero, "00000000")}`;
-
-  return [
-    safeText(company?.ruc, "15390049339"),
-    "01",
-    documentNumber,
-    toNumber(compra.igv).toFixed(2),
-    toNumber(compra.total).toFixed(2),
-    formatQrDateISO(compra.fechaEmision),
-    "06",
-    safeText(compra.clienteRuc, "00000000000"),
-  ].join("|");
-};
-
 const normalizePdfFileName = (value: unknown) =>
   safeText(value, "factura-servicio")
     .replace(/[^\w.-]+/g, "_")
@@ -235,6 +190,7 @@ export default function ServiceInvoiceCreate() {
   const { clients, fetchClients } = useClientsStore();
   const {
     sendInvoice,
+    sendCreditNote,
     fetchInvoiceById,
     fetchCorrelative,
     fetchServiceProducts,
@@ -250,6 +206,7 @@ export default function ServiceInvoiceCreate() {
   const [viewInvoice, setViewInvoice] = useState<ServiceInvoiceListItem | null>(
     null,
   );
+  const [debitNoteQrBase64, setDebitNoteQrBase64] = useState("");
   const [createdViewMode, setCreatedViewMode] = useState(false);
   const isViewMode = Boolean(docuId) || createdViewMode;
   const canEdit = !isViewMode;
@@ -414,6 +371,12 @@ export default function ServiceInvoiceCreate() {
   }, [focusPrecio, details]);
   const handleSendEmail = async () => {
     if (!viewInvoice || sendingEmail) return;
+
+    if (isAnnulledInvoice(viewInvoice)) {
+      toast.error("La factura está anulada. No se puede enviar por correo.");
+      return;
+    }
+
     setSendingEmail(true);
 
     try {
@@ -455,7 +418,7 @@ export default function ServiceInvoiceCreate() {
 
       if (viewInvoice.compra.cdrUrl)
         form.append("cdrUrl", viewInvoice.compra.cdrUrl);
-
+      //"https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante"
       const response = await fetch(
         "https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante",
         {
@@ -503,25 +466,8 @@ export default function ServiceInvoiceCreate() {
     void loadCorrelative(undefined, false);
   }, [canEdit, loadCorrelative]);
 
-  useEffect(() => {
-    if (!isViewMode) return;
-
-    const parsedDocuId = Number(docuId ?? createdDocuId);
-    if (!Number.isFinite(parsedDocuId) || parsedDocuId <= 0) {
-      toast.error("Factura de servicio no valida.");
-      navigate("/service-invoices");
-      return;
-    }
-
-    let cancelled = false;
-    void fetchInvoiceById(parsedDocuId).then((invoice) => {
-      if (cancelled) return;
-
-      if (!invoice) {
-        toast.error("No se pudo cargar la factura de servicio.");
-        navigate("/service-invoices");
-        return;
-      }
+  const applyViewInvoice = useCallback(
+    (invoice: ServiceInvoiceListItem, parsedDocuId: number) => {
       const compra = invoice.compra;
       setViewInvoice(invoice);
       setValue("nroComprobante", safeText(compra.nroComprobante), {
@@ -550,6 +496,7 @@ export default function ServiceInvoiceCreate() {
       setValue("direccionCliente", safeText(compra.direccionFiscal), {
         shouldDirty: false,
       });
+
       const mappedDetails = invoice.detalles.map((detail, index) => ({
         id: `view-${detail.detalleCompraId || index}`,
         productId: detail.productId ?? null,
@@ -581,12 +528,44 @@ export default function ServiceInvoiceCreate() {
               },
             ],
       );
+    },
+    [setValue],
+  );
+
+  useEffect(() => {
+    if (!isViewMode) return;
+
+    const parsedDocuId = Number(docuId ?? createdDocuId);
+    if (!Number.isFinite(parsedDocuId) || parsedDocuId <= 0) {
+      toast.error("Factura de servicio no valida.");
+      navigate("/service-invoices");
+      return;
+    }
+
+    let cancelled = false;
+    void fetchInvoiceById(parsedDocuId).then((invoice) => {
+      if (cancelled) return;
+
+      if (!invoice) {
+        toast.error("No se pudo cargar la factura de servicio.");
+        navigate("/service-invoices");
+        return;
+      }
+
+      applyViewInvoice(invoice, parsedDocuId);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [docuId, fetchInvoiceById, isViewMode, navigate, setValue]);
+  }, [
+    applyViewInvoice,
+    createdDocuId,
+    docuId,
+    fetchInvoiceById,
+    isViewMode,
+    navigate,
+  ]);
   useEffect(() => {
     if (!viewInvoice) return;
 
@@ -640,6 +619,9 @@ export default function ServiceInvoiceCreate() {
     [totals.total],
   );
   const viewCompra = viewInvoice?.compra;
+  const isAnnulled = isAnnulledInvoice(viewInvoice);
+  const canUseDocumentActions =
+    isViewMode && Boolean(viewInvoice) && !isAnnulled;
   const invoicePdfCompany = useMemo(
     () => ({
       name: user?.companyName,
@@ -656,6 +638,25 @@ export default function ServiceInvoiceCreate() {
       user?.companySunatAddress,
     ],
   );
+  useEffect(() => {
+    if (!isViewMode || !viewInvoice) {
+      setDebitNoteQrBase64("");
+      return;
+    }
+
+    let active = true;
+    setDebitNoteQrBase64("");
+
+    generateTicketQrBase64(
+      buildDebitNoteQrData(viewInvoice, invoicePdfCompany),
+    ).then((qrBase64) => {
+      if (active) setDebitNoteQrBase64(qrBase64);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [invoicePdfCompany, isViewMode, viewInvoice]);
   const invoicePdfDocument = useMemo(
     () =>
       viewInvoice ? (
@@ -775,91 +776,179 @@ export default function ServiceInvoiceCreate() {
     [config, detailPayload, montoDetraccion, processTypeValue, totals, user],
   );
 
-  const buildSubmittedPdfInvoice = useCallback(
-    (
-      values: ServiceInvoiceFormValues,
-      response: unknown,
-    ): ServiceInvoiceListItem => {
-      const { serie, numero } = splitComprobante(values.nroComprobante);
-      const compraId = resolveResponseNumber(
-        response,
-        "compraId",
-        "CompraId",
-        "docuId",
-        "DocuId",
+  const resolveRecordDocuId = useCallback((): number => {
+    const fromParams = Number(docuId);
+    if (Number.isFinite(fromParams) && fromParams > 0) return fromParams;
+
+    if (createdDocuId && createdDocuId > 0) return createdDocuId;
+
+    const compraId = viewInvoice?.compra.compraId ?? 0;
+    return Number.isFinite(compraId) && compraId > 0 ? compraId : 0;
+  }, [createdDocuId, docuId, viewInvoice?.compra.compraId]);
+
+  const buildCreditNotePayload = useCallback(
+    (values: ServiceInvoiceFormValues): ServiceInvoiceCreditNotePayload => {
+      const razonSocial = safeText(
+        user?.companyName,
+        safeText(user?.companyCommercialName, "TU RAZON SOCIAL"),
       );
+      const ubigeoName = safeText(user?.companyUbigeoName, "LIMA");
       const currencyLabel = resolveCurrencyLabel(values.codMoneda);
+      const documentoModifica = safeText(
+        viewInvoice?.compra.nroComprobante,
+        safeText(values.nroComprobante, "FA01-00000000"),
+      );
 
       return {
-        compra: {
-          compraId,
-          companiaId: resolveCompanyId(user?.companyId),
-          documento: "FACTURA",
-          tipoCodigo: "01",
-          compraConcepto: safeText(
-            detailPayload[0]?.descripcion,
-            "FACTURA DE SERVICIO",
-          ),
-          serie,
-          numero,
-          nroComprobante: safeText(values.nroComprobante).toUpperCase(),
-          fechaEmision: values.fechaDocumento,
-          fechaVto: values.fechaVto,
-          fechaRegistro: resolveResponseText(
-            response,
-            "fechaRegistro",
-            "FechaRegistro",
-            "docuFechaRegistro",
-            "DocuFechaRegistro",
-          ),
-          clienteRazon: safeText(values.razonSocialCliente).toUpperCase(),
-          clienteRuc: safeText(values.nroDocumentoCliente),
-          direccionFiscal: safeText(values.direccionCliente),
-          subTotal: totals.subTotal,
-          igv: totals.igv,
-          total: totals.total,
-          saldo: totals.total,
-          montoDetraccion,
-          letras: numberToWords(totals.total, currencyLabel),
-          estado: "EMITIDO",
-          estadoSunat: resolveAccepted(response) ? "ACEPTADO" : "",
-          codigoSunat: resolveResponseText(
-            response,
-            "cod_sunat",
-            "codigoSunat",
-            "CodSunat",
-          ),
-          mensajeSunat: resolveResponseMessage(response),
-          docuHash: resolveResponseText(
-            response,
-            "hash",
-            "HASH",
-            "docuHash",
-            "DocuHash",
-            "hashCpe",
-            "HashCpe",
-          ),
-          formaPago: values.formaPago,
-          condicion: values.formaPago,
-          origenModulo: "FACTURA_SERVICIO",
-          totalDetalles: detailPayload.length,
-        },
-        detalles: detailPayload.map((detail, index) => ({
-          detalleCompraId: index + 1,
-          compraId,
-          productId: null,
-          codigoProducto: detail.codigo,
-          codigoSunat: detail.codigoSunat,
-          unidadMedida: detail.unidadMedida,
-          detalleDesc: detail.descripcion,
-          detalleCant: detail.cantidad,
-          detallePrecio: detail.precio,
+        DOCU_ID: resolveRecordDocuId(),
+        COD_TIPO_DOCUMENTO: "07",
+        TIPO_PROCESO: processTypeValue,
+        NRO_DOCUMENTO_EMPRESA: safeText(user?.companyRuc, "10464869978"),
+        TIPO_DOCUMENTO_EMPRESA: "6",
+        RAZON_SOCIAL_EMPRESA: razonSocial,
+        CODIGO_UBIGEO_EMPRESA: "150101",
+        DIRECCION_EMPRESA: safeText(
+          user?.companySunatAddress,
+          "DIRECCION DE LA EMPRESA",
+        ),
+        DEPARTAMENTO_EMPRESA: ubigeoName,
+        PROVINCIA_EMPRESA: ubigeoName,
+        DISTRITO_EMPRESA: ubigeoName,
+        CODIGO_PAIS_EMPRESA: "PE",
+        NRO_COMPROBANTE: "",
+        FECHA_DOCUMENTO: values.fechaDocumento,
+        COD_MONEDA: values.codMoneda,
+        USUARIO_SOL_EMPRESA: safeText(
+          config?.solUser,
+          safeText(user?.usuarioSol, "USUARIO_BETA"),
+        ),
+        PASS_SOL_EMPRESA: safeText(
+          config?.solPassword,
+          safeText(user?.claveSol, "CLAVE_BETA"),
+        ),
+        CONTRA_FIRMA: safeText(
+          config?.certificatePassword,
+          safeText(user?.claveCertificado, "CLAVE_CERTIFICADO"),
+        ),
+        RUTA_PFX: safeText(
+          config?.certificateBase64,
+          safeText(user?.certificadoBase64, "C:\\ruta\\certificado.pfx"),
+        ),
+        NRO_DOCUMENTO_CLIENTE: safeText(values.nroDocumentoCliente),
+        TIPO_DOCUMENTO_CLIENTE: "6",
+        RAZON_SOCIAL_CLIENTE: safeText(values.razonSocialCliente).toUpperCase(),
+        COD_UBIGEO_CLIENTE: "150101",
+        DIRECCION_CLIENTE: safeText(
+          values.direccionCliente,
+          "DIRECCION DEL CLIENTE",
+        ),
+        DEPARTAMENTO_CLIENTE: ubigeoName,
+        PROVINCIA_CLIENTE: ubigeoName,
+        DISTRITO_CLIENTE: ubigeoName,
+        COD_PAIS_CLIENTE: "PE",
+        TIPO_COMPROBANTE_MODIFICA: "01",
+        DOCU_CONDICION: "SERVICIO",
+
+        NRO_DOCUMENTO_MODIFICA: documentoModifica,
+        COD_TIPO_MOTIVO: "01",
+        DESCRIPCION_MOTIVO: "ANULACION DE LA OPERACION",
+        SUB_TOTAL: totals.subTotal,
+        TOTAL_GRAVADAS: totals.subTotal,
+        TOTAL_IGV: totals.igv,
+        TOTAL_DESCUENTO: 0,
+        POR_IGV: 18,
+        TOTAL: totals.total,
+        TOTAL_LETRAS: numberToWords(totals.total, currencyLabel),
+        detalle: detailPayload.map((detail, index) => ({
+          item: index + 1,
+          cantidad: detail.cantidad,
           importe: detail.importe,
+          precio: detail.precio,
+          descripcion: detail.descripcion,
+          codTipoOperacion: detail.codTipoOperacion,
         })),
       };
     },
-    [detailPayload, montoDetraccion, totals, user?.companyId],
+    [
+      config,
+      detailPayload,
+      processTypeValue,
+      resolveRecordDocuId,
+      totals,
+      user,
+      viewInvoice,
+    ],
   );
+
+  const handleCreateCreditNote = useCallback(async () => {
+    if (!viewInvoice) return;
+
+    if (isAnnulledInvoice(viewInvoice)) {
+      toast.error(
+        "La factura ya está anulada. No se puede crear otra nota de crédito.",
+      );
+      return;
+    }
+
+    const recordDocuId = resolveRecordDocuId();
+    if (!recordDocuId) {
+      toast.error("No se encontró el ID del documento a anular.");
+      return;
+    }
+
+    const values = methods.getValues();
+    const payload = buildCreditNotePayload(values);
+
+    try {
+      const response = await sendCreditNote(payload);
+      const message = resolveResponseMessage(response);
+      const accepted = resolveAccepted(response);
+
+      if (!accepted) {
+        toast.warning(
+          message ||
+            "La nota de crédito fue enviada; revisa la respuesta del OSE.",
+        );
+        return;
+      }
+
+      const responseRecord = resolveResponseRecord(response);
+      const registroBd = resolveResponseRecord(responseRecord.registro_bd);
+      const registroBdOk = responseRecord.registro_bd_ok === true;
+
+      if (!registroBdOk) {
+        toast.warning(
+          safeText(
+            registroBd.mensaje,
+            "La nota de crédito fue aceptada por SUNAT, pero no se registró en la base de datos.",
+          ),
+        );
+        return;
+      }
+
+      const invoiceUpdated = await fetchInvoiceById(recordDocuId);
+      if (!invoiceUpdated) {
+        toast.warning(
+          "La nota de crédito se registró, pero no se pudo actualizar la vista.",
+        );
+        return;
+      }
+
+      applyViewInvoice(invoiceUpdated, recordDocuId);
+      toast.success(message || "Nota de crédito enviada y aceptada.");
+    } catch (error) {
+      console.error("No se pudo enviar la nota de crédito", error);
+      toast.error("No se pudo enviar la nota de crédito.");
+    }
+  }, [
+    applyViewInvoice,
+    buildCreditNotePayload,
+    fetchInvoiceById,
+    methods,
+    resolveRecordDocuId,
+    sendCreditNote,
+    viewInvoice,
+  ]);
 
   const onSubmit = async (values: ServiceInvoiceFormValues) => {
     if (!canEdit) return;
@@ -932,20 +1021,32 @@ export default function ServiceInvoiceCreate() {
   const handleDownloadPdf = useCallback(async () => {
     if (!viewInvoice) return;
 
-    const preGeneratedQrBase64 = await generateTicketQrBase64(
-      buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
-    );
+    if (isAnnulledInvoice(viewInvoice)) {
+      toast.error("La factura está anulada. No se puede descargar el PDF.");
+      return;
+    }
+
+    const preGeneratedQrBase64 =
+      debitNoteQrBase64 ||
+      (await generateTicketQrBase64(
+        buildDebitNoteQrData(viewInvoice, invoicePdfCompany),
+      ));
 
     await downloadPdfDocument(
-      <ServiceInvoicePdf
+      <DebitNotePdf
         invoice={viewInvoice}
         company={invoicePdfCompany}
         preGeneratedQrBase64={preGeneratedQrBase64}
       />,
       safeText(viewCompra?.nroComprobante, "factura-servicio"),
     );
-  }, [invoicePdfCompany, viewCompra?.nroComprobante, viewInvoice]);
-
+  }, [
+    debitNoteQrBase64,
+    invoicePdfCompany,
+    viewCompra?.nroComprobante,
+    viewInvoice,
+  ]);
+  console.log("viewInvoice", viewInvoice);
   return (
     <div className="space-y-4 p-3 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -960,12 +1061,40 @@ export default function ServiceInvoiceCreate() {
                 ? `Proceso ${processTypeValue} · operacion ${SERVICE_OPERATION_CODE} · servicio`
                 : viewLoading
                   ? "Cargando factura de servicio"
-                  : safeText(viewCompra?.nroComprobante, "Consulta bloqueada")}
+                  : isAnnulled
+                    ? "Factura anulada"
+                    : safeText(
+                        viewCompra?.nroComprobante,
+                        "Consulta bloqueada",
+                      )}
             </p>
           </div>
         </div>
       </div>
 
+      {isAnnulled ? (
+        <div
+          role="status"
+          className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+        >
+          <p className="font-semibold">Factura anulada</p>
+          <p className="mt-1 text-red-700">
+            Este documento fue anulado con nota de crédito.
+          </p>
+        </div>
+      ) : null}
+      {isViewMode && viewInvoice ? (
+        <PDFViewer
+          key={`${viewCompra?.compraId ?? "invoice"}-${debitNoteQrBase64 ? "qr" : "pending"}`}
+          style={{ width: "100%", height: "100vh" }}
+        >
+          <DebitNotePdf
+            invoice={viewInvoice}
+            company={invoicePdfCompany}
+            preGeneratedQrBase64={debitNoteQrBase64}
+          />
+        </PDFViewer>
+      ) : null}
       <HookForm methods={methods} onSubmit={onSubmit}>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="space-y-4">
@@ -1285,9 +1414,19 @@ export default function ServiceInvoiceCreate() {
                     {formatReadonlyMoney(totals.total - montoDetraccion)}{" "}
                   </span>
                 </div>
-                {!canEdit && invoicePdfDocument ? (
-                  <div className="mt-4 flex  items-center gap-2">
-                    {" "}
+                {canUseDocumentActions && invoicePdfDocument ? (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleCreateCreditNote()}
+                      disabled={sending}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Send
+                        className={`h-4 w-4 ${sending ? "animate-spin" : ""}`}
+                      />
+                      {sending ? "Enviando..." : "Crear NC"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => void handleSendEmail()}

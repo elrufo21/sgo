@@ -17,6 +17,17 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 2,
   }).format(Number(value ?? 0));
 
+const normalizeInvoiceEstado = (estado?: string) =>
+  String(estado ?? "")
+    .trim()
+    .toUpperCase();
+
+const isAnnulledInvoice = (row: ServiceInvoiceListItem) =>
+  normalizeInvoiceEstado(row.compra.estado) === "ANULADO";
+
+const annulledRowClassName =
+  "bg-red-50 text-red-800 border-red-200 hover:bg-red-100/80";
+
 export default function ServiceInvoiceList() {
   const { invoices, loading, error, fetchInvoices } = useServiceInvoicesStore();
   const [estado, setEstado] = useState("");
@@ -76,10 +87,26 @@ export default function ServiceInvoiceList() {
           header: "Cliente",
           cell: (info) => info.getValue() || "-",
         }),
-        columnHelper.accessor((row) => row.compra.estado ?? "", {
+        columnHelper.display({
           id: "estado",
           header: "Estado",
-          cell: (info) => info.getValue() || "-",
+          cell: ({ row }) => {
+            const estado = normalizeInvoiceEstado(row.original.compra.estado);
+            if (!estado) return "-";
+
+            const isAnnulled = estado === "ANULADO";
+            const badgeClass = isAnnulled
+              ? "bg-red-100 text-red-700 border-red-200"
+              : "bg-emerald-100 text-emerald-700 border-emerald-200";
+
+            return (
+              <span
+                className={`inline-flex rounded-full border px-2 py-1 text-xs font-semibold ${badgeClass}`}
+              >
+                {estado}
+              </span>
+            );
+          },
         }),
         columnHelper.accessor((row) => row.compra.estadoSunat ?? "", {
           id: "estadoSunat",
@@ -141,6 +168,12 @@ export default function ServiceInvoiceList() {
         searchPlaceholder="Buscar comprobante o servicio..."
         emptyMessage="No hay facturas de servicio."
         initialPageSize={pageSize}
+        rowClassName={(row) =>
+          isAnnulledInvoice(row) ? annulledRowClassName : undefined
+        }
+        tdClassName={(cell) =>
+          isAnnulledInvoice(cell.row.original) ? "text-red-800" : undefined
+        }
         toolbarLeading={undefined}
         toolbarAction={
           <Link

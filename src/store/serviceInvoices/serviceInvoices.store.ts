@@ -10,6 +10,7 @@ import type {
   ServiceInvoiceListItem,
   ServiceInvoicePayloadDetail,
   ServiceInvoiceSendPayload,
+  ServiceInvoiceCreditNotePayload,
 } from "@/types/serviceInvoice";
 
 interface ServiceInvoicesState {
@@ -28,6 +29,9 @@ interface ServiceInvoicesState {
   ) => Promise<ServiceInvoiceCorrelative | null>;
   fetchServiceProducts: (filters?: ServiceProductFilters) => Promise<void>;
   sendInvoice: (payload: ServiceInvoiceSendPayload) => Promise<unknown>;
+  sendCreditNote: (
+    payload: ServiceInvoiceCreditNotePayload,
+  ) => Promise<unknown>;
 }
 
 const safeText = (value: unknown, fallback = "") => {
@@ -205,11 +209,24 @@ const mapApiItem = (item: unknown): ServiceInvoiceListItem => {
         source.estado ??
           source.compraEstado ??
           source.CompraEstado ??
-          source.docuEstado,
+          source.docuEstado ??
+          source.DocuEstado,
       ),
       estadoSunat: safeText(source.estadoSunat ?? source.EstadoSunat),
       codigoSunat: safeText(source.codigoSunat ?? source.CodigoSunat),
       mensajeSunat: safeText(source.mensajeSunat ?? source.MensajeSunat),
+      anuladoPorDocuNumero: safeText(
+        source.anuladoPorDocuNumero ??
+          source.AnuladoPorDocuNumero ??
+          row.anuladoPorDocuNumero ??
+          row.AnuladoPorDocuNumero,
+      ),
+      anuladoPorNroComprobante: safeText(
+        source.anuladoPorNroComprobante ??
+          source.AnuladoPorNroComprobante ??
+          row.anuladoPorNroComprobante ??
+          row.AnuladoPorNroComprobante,
+      ),
       docuHash: safeText(
         source.docuHash ?? source.DocuHash ?? source.hashCpe ?? source.HashCpe,
       ),
@@ -279,6 +296,13 @@ const buildServiceProductsQuery = (filters?: ServiceProductFilters) => {
   const query = params.toString();
   return query ? `?${query}` : "";
 };
+
+const sortInvoicesByIdDesc = (
+  invoices: ServiceInvoiceListItem[],
+): ServiceInvoiceListItem[] =>
+  [...invoices].sort(
+    (left, right) => right.compra.compraId - left.compra.compraId,
+  );
 
 const mapCorrelative = (payload: unknown): ServiceInvoiceCorrelative | null => {
   if (!payload || typeof payload !== "object") return null;
@@ -352,7 +376,11 @@ export const useServiceInvoicesStore = create<ServiceInvoicesState>((set) => ({
       }
 
       const data = parseArrayResponse(response);
-      set({ invoices: data.map(mapApiItem), loading: false, error: null });
+      set({
+        invoices: sortInvoicesByIdDesc(data.map(mapApiItem)),
+        loading: false,
+        error: null,
+      });
     } catch (error) {
       console.error("Error loading service invoices", error);
       set({
@@ -444,6 +472,46 @@ export const useServiceInvoicesStore = create<ServiceInvoicesState>((set) => ({
         url: buildApiUrl("/Nota/factura-servicio/enviar-ose"),
         method: "POST",
         data: payload,
+        config: {
+          headers: {
+            Accept: "*/*",
+            "Content-Type": "application/json",
+          },
+        },
+        fallback: null,
+      });
+
+      if (isAxiosLikeError(response)) {
+        throw response;
+      }
+
+      return response;
+    } finally {
+      set({ sending: false });
+    }
+  },
+
+  sendCreditNote: async (payload) => {
+    set({ sending: true });
+    try {
+      const source = payload as ServiceInvoiceCreditNotePayload & {
+        docuId?: number;
+        docu_id?: number;
+      };
+      const docuIdValue = Number(
+        source.DOCU_ID ?? source.docu_id ?? source.docuId ?? 0,
+      );
+      const { docuId: _docuId, docu_id: _docu_id, ...rest } = source;
+
+      const requestBody: ServiceInvoiceCreditNotePayload = {
+        ...rest,
+        DOCU_ID: docuIdValue,
+      };
+
+      const response = await apiRequest<unknown>({
+        url: buildApiUrl("/factura-servicio/credito/enviar"),
+        method: "POST",
+        data: requestBody,
         config: {
           headers: {
             Accept: "*/*",

@@ -26,6 +26,8 @@ export interface ServiceInvoiceListCompra {
   estadoSunat?: string;
   codigoSunat?: string;
   mensajeSunat?: string;
+  anuladoPorDocuNumero?: string;
+  anuladoPorNroComprobante?: string;
   docuHash?: string;
   formaPago?: string;
   condicion?: string;
@@ -103,6 +105,59 @@ export interface ServiceInvoicePayloadDetail {
   codigo: string;
   codigoSunat: string;
   descripcion: string;
+}
+
+export interface ServiceInvoiceCreditNoteDetail {
+  item: number;
+  cantidad: number;
+  importe: number;
+  precio: number;
+  descripcion: string;
+  codTipoOperacion: "10";
+}
+
+export interface ServiceInvoiceCreditNotePayload {
+  DOCU_ID: number;
+  COD_TIPO_DOCUMENTO: "07";
+  TIPO_PROCESO: number;
+  NRO_DOCUMENTO_EMPRESA: string;
+  TIPO_DOCUMENTO_EMPRESA: "6";
+  RAZON_SOCIAL_EMPRESA: string;
+  CODIGO_UBIGEO_EMPRESA: string;
+  DIRECCION_EMPRESA: string;
+  DEPARTAMENTO_EMPRESA: string;
+  PROVINCIA_EMPRESA: string;
+  DISTRITO_EMPRESA: string;
+  CODIGO_PAIS_EMPRESA: "PE";
+  NRO_COMPROBANTE: string;
+  FECHA_DOCUMENTO: string;
+  COD_MONEDA: "PEN" | "USD";
+  USUARIO_SOL_EMPRESA: string;
+  PASS_SOL_EMPRESA: string;
+  CONTRA_FIRMA: string;
+  RUTA_PFX: string;
+  NRO_DOCUMENTO_CLIENTE: string;
+  TIPO_DOCUMENTO_CLIENTE: "6";
+  RAZON_SOCIAL_CLIENTE: string;
+  COD_UBIGEO_CLIENTE: string;
+  DIRECCION_CLIENTE: string;
+  DEPARTAMENTO_CLIENTE: string;
+  PROVINCIA_CLIENTE: string;
+  DISTRITO_CLIENTE: string;
+  COD_PAIS_CLIENTE: "PE";
+  TIPO_COMPROBANTE_MODIFICA: string;
+  DOCU_CONDICION?: string;
+  NRO_DOCUMENTO_MODIFICA: string;
+  COD_TIPO_MOTIVO: string;
+  DESCRIPCION_MOTIVO: string;
+  SUB_TOTAL?: number;
+  TOTAL_GRAVADAS?: number;
+  TOTAL_IGV?: number;
+  TOTAL_DESCUENTO?: number;
+  POR_IGV?: number;
+  TOTAL?: number;
+  TOTAL_LETRAS?: string;
+  detalle: ServiceInvoiceCreditNoteDetail[];
 }
 
 export interface ServiceInvoiceSendPayload {

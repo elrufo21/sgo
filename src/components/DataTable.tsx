@@ -60,6 +60,7 @@ interface DataTableProps<T extends RowData> {
   footerContent?: ReactNode;
   onFilteredDataChange?: (rows: T[]) => void;
   renderHeaderFilterCell?: (columnId: string) => ReactNode;
+  rowClassName?: string | ((row: T) => string | undefined);
 }
 
 const alignmentClass: Record<"left" | "center" | "right", string> = {
@@ -152,6 +153,7 @@ export default function DataTable<T extends RowData>({
   footerContent,
   onFilteredDataChange,
   renderHeaderFilterCell,
+  rowClassName,
 }: DataTableProps<T>) {
   const location = useLocation();
   const searchScope = useMemo(
@@ -405,11 +407,19 @@ export default function DataTable<T extends RowData>({
             Cargando registros...
           </div>
         ) : visibleRows.length ? (
-          visibleRows.map((row, rowIndex) => (
+          visibleRows.map((row, rowIndex) => {
+            const customRowClass =
+              typeof rowClassName === "function"
+                ? rowClassName(row.original)
+                : rowClassName;
+            const defaultRowClass =
+              rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/55";
+
+            return (
             <article
               key={row.id}
               className={`rounded-xl border border-slate-200 p-3 shadow-sm transition ${
-                rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/55"
+                customRowClass ?? defaultRowClass
               } ${onRowClick ? "cursor-pointer active:bg-rose-50/45" : ""}`}
               onClick={() => onRowClick?.(row.original)}
               onKeyDown={(event) => {
@@ -461,7 +471,8 @@ export default function DataTable<T extends RowData>({
                 })}
               </div>
             </article>
-          ))
+            );
+          })
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
             {emptyMessage}
@@ -534,11 +545,19 @@ export default function DataTable<T extends RowData>({
                 </td>
               </tr>
             ) : visibleRows.length ? (
-              visibleRows.map((row, rowIndex) => (
+              visibleRows.map((row, rowIndex) => {
+                const customRowClass =
+                  typeof rowClassName === "function"
+                    ? rowClassName(row.original)
+                    : rowClassName;
+                const defaultRowClass =
+                  rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/45";
+
+                return (
                 <tr
                   key={row.id}
                   className={`border-b border-slate-200 transition ${
-                    rowIndex % 2 === 0 ? "bg-white" : "bg-slate-50/45"
+                    customRowClass ?? defaultRowClass
                   } ${onRowClick ? "cursor-pointer hover:bg-rose-50/45" : ""}`}
                   onClick={() => onRowClick?.(row.original)}
                   onKeyDown={(event) => {
@@ -577,7 +596,8 @@ export default function DataTable<T extends RowData>({
                     );
                   })}
                 </tr>
-              ))
+                );
+              })
             ) : (
               <tr>
                 <td
