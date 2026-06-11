@@ -2,15 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Download, RefreshCw, Send, Trash2 } from "lucide-react";
-import { PDFViewer, pdf } from "@react-pdf/renderer";
+import { pdf } from "@react-pdf/renderer";
 import { useForm, useWatch } from "react-hook-form";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import { BackArrowButton } from "@/components/common/BackArrowButton";
 import { generateTicketQrBase64 } from "@/components/ticketQr";
-import ServiceInvoicePdf, {
-  ServiceInvoicePdfDocument,
-} from "@/features/serviceInvoices/components/ServiceInvoicePdf";
+import { ServiceInvoicePdfDocument } from "@/features/serviceInvoices/components/ServiceInvoicePdf";
 import { buildDebitNoteQrData } from "@/features/serviceInvoices/components/debitNotePdfHelpers";
 import { HookForm } from "@/components/forms/HookForm";
 import { HookFormAutocomplete } from "@/components/forms/HookFormAutocomplete";
@@ -59,6 +57,8 @@ type ServiceOption = {
   precioConIgv: number;
   data: ServiceProduct;
 };
+
+type ServiceInvoiceTab = "form" | "voucher";
 
 const DEFAULT_PROCESS_TYPE = 3 as const;
 const SERVICE_OPERATION_CODE = "1001" as const;
@@ -258,6 +258,9 @@ export default function ServiceInvoiceCreate() {
   const [serviceInvoiceQrBase64, setServiceInvoiceQrBase64] = useState("");
   const [debitNoteQrBase64, setDebitNoteQrBase64] = useState("");
   const [createdViewMode, setCreatedViewMode] = useState(false);
+  const [activeTab, setActiveTab] = useState<ServiceInvoiceTab>("form");
+  const [voucherPdfUrl, setVoucherPdfUrl] = useState("");
+  const [voucherPdfLoading, setVoucherPdfLoading] = useState(false);
   const isViewMode = Boolean(docuId) || createdViewMode;
   const canEdit = !isViewMode;
   const viewLoading = isViewMode && !viewInvoice;
@@ -602,6 +605,7 @@ export default function ServiceInvoiceCreate() {
   const isAnnulled = isAnnulledInvoice(viewInvoice);
   const canUseDocumentActions =
     isViewMode && Boolean(viewInvoice) && !isAnnulled;
+  const canShowVoucher = isViewMode && Boolean(viewInvoice);
   const invoicePdfCompany = useMemo(
     () => ({
       name: user?.companyName,
@@ -706,7 +710,7 @@ export default function ServiceInvoiceCreate() {
         form.append("cdrUrl", viewInvoice.compra.cdrUrl);
       //"https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante"
       const response = await fetch(
-        "http://localhost:5000/api/v1/Correo/enviar-comprobante",
+        "https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante",
         {
           method: "POST",
           body: form,
@@ -725,17 +729,89 @@ export default function ServiceInvoiceCreate() {
       setSendingEmail(false);
     }
   };
-  const invoicePdfDocument = useMemo(
-    () =>
-      viewInvoice ? (
-        <ServiceInvoicePdf
+  const buildVoucherPdfDocument = useCallback(async () => {
+    if (!viewInvoice) return null;
+
+    if (isAnnulledInvoice(viewInvoice)) {
+      const qrBase64 =
+        debitNoteQrBase64 ||
+        (await generateTicketQrBase64(
+          buildDebitNoteQrData(viewInvoice, invoicePdfCompany),
+        ));
+
+      return (
+        <DebitNotePdf
           invoice={viewInvoice}
           company={invoicePdfCompany}
-          preGeneratedQrBase64={serviceInvoiceQrBase64}
+          preGeneratedQrBase64={qrBase64}
         />
-      ) : null,
-    [invoicePdfCompany, serviceInvoiceQrBase64, viewInvoice],
-  );
+      );
+    }
+
+    const qrBase64 =
+      serviceInvoiceQrBase64 ||
+      (await generateTicketQrBase64(
+        buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
+      ));
+
+    return ServiceInvoicePdfDocument({
+      invoice: viewInvoice,
+      company: invoicePdfCompany,
+      preGeneratedQrBase64: qrBase64,
+    });
+  }, [
+    debitNoteQrBase64,
+    invoicePdfCompany,
+    serviceInvoiceQrBase64,
+    viewInvoice,
+  ]);
+
+  useEffect(() => {
+    if (!canShowVoucher && activeTab === "voucher") {
+      setActiveTab("form");
+    }
+  }, [activeTab, canShowVoucher]);
+
+  useEffect(() => {
+    if (!canShowVoucher) {
+      setVoucherPdfUrl((current) => {
+        if (current) URL.revokeObjectURL(current);
+        return "";
+      });
+      setVoucherPdfLoading(false);
+      return;
+    }
+
+    let active = true;
+    let objectUrl = "";
+
+    setVoucherPdfLoading(true);
+    setVoucherPdfUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
+
+    void buildVoucherPdfDocument()
+      .then((document) => (document ? renderPdfBlob(document) : null))
+      .then((blob) => {
+        if (!active || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setVoucherPdfUrl(objectUrl);
+      })
+      .catch((error) => {
+        console.error("No se pudo generar el comprobante", error);
+        if (active) setVoucherPdfUrl("");
+      })
+      .finally(() => {
+        if (active) setVoucherPdfLoading(false);
+      });
+
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [buildVoucherPdfDocument, canShowVoucher]);
+
   const processTypeValue = useMemo(
     () => resolveProcessTypeValue(config?.processType),
     [config?.processType],
@@ -1079,6 +1155,7 @@ export default function ServiceInvoiceCreate() {
       setViewInvoice(invoiceCreated);
       setCreatedDocuId(docuIdCreado);
       setCreatedViewMode(true);
+      setActiveTab("voucher");
 
       window.history.replaceState(
         null,
@@ -1094,31 +1171,22 @@ export default function ServiceInvoiceCreate() {
   const handleDownloadPdf = useCallback(async () => {
     if (!viewInvoice) return;
 
-    if (isAnnulledInvoice(viewInvoice)) {
-      toast.error("La factura está anulada. No se puede descargar el PDF.");
+    const document = await buildVoucherPdfDocument();
+    if (!document) {
+      toast.error("No se pudo generar el comprobante.");
       return;
     }
 
-    const qrBase64 =
-      serviceInvoiceQrBase64 ||
-      (await generateTicketQrBase64(
-        buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
-      ));
-
     await downloadPdfDocument(
-      ServiceInvoicePdfDocument({
-        invoice: viewInvoice,
-        company: invoicePdfCompany,
-        preGeneratedQrBase64: qrBase64,
-      }),
-      safeText(viewCompra?.nroComprobante, "factura-servicio"),
+      document,
+      isAnnulledInvoice(viewInvoice)
+        ? safeText(
+            viewCompra?.anuladoPorNroComprobante,
+            safeText(viewCompra?.nroComprobante, "nota-credito"),
+          )
+        : safeText(viewCompra?.nroComprobante, "factura-servicio"),
     );
-  }, [
-    invoicePdfCompany,
-    serviceInvoiceQrBase64,
-    viewCompra?.nroComprobante,
-    viewInvoice,
-  ]);
+  }, [buildVoucherPdfDocument, viewCompra, viewInvoice]);
   console.log("viewInvoice", viewInvoice);
   return (
     <div className="space-y-4 p-3 sm:p-5">
@@ -1156,407 +1224,442 @@ export default function ServiceInvoiceCreate() {
           </p>
         </div>
       ) : null}
-      {isViewMode && viewInvoice ? (
-        <PDFViewer
-          key={`${viewCompra?.compraId ?? "invoice"}-${isAnnulled ? "debit-note" : "invoice"}-${
-            isAnnulled
-              ? debitNoteQrBase64
-                ? "qr"
-                : "pending"
-              : serviceInvoiceQrBase64
-                ? "qr"
-                : "pending"
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab("form")}
+          className={`border-b-2 px-4 py-2 text-sm font-semibold ${
+            activeTab === "form"
+              ? "border-[#B23636] text-[#B23636]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
-          style={{ width: "100%", height: "100vh" }}
         >
-          {isAnnulled ? (
-            <DebitNotePdf
-              invoice={viewInvoice}
-              company={invoicePdfCompany}
-              preGeneratedQrBase64={debitNoteQrBase64}
+          Formulario
+        </button>
+        {canShowVoucher ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab("voucher")}
+            className={`border-b-2 px-4 py-2 text-sm font-semibold ${
+              activeTab === "voucher"
+                ? "border-[#B23636] text-[#B23636]"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            Comprobante
+          </button>
+        ) : null}
+      </div>
+
+      {activeTab === "voucher" && canShowVoucher ? (
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                {isAnnulled ? "Nota de credito" : "Factura de servicio"}
+              </h2>
+              <p className="text-sm text-slate-500">
+                {safeText(viewCompra?.nroComprobante, "Comprobante")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleDownloadPdf()}
+              disabled={voucherPdfLoading || !voucherPdfUrl}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Download className="h-4 w-4" />
+              Descargar PDF
+            </button>
+          </div>
+
+          {voucherPdfUrl ? (
+            <iframe
+              key={voucherPdfUrl}
+              title="Comprobante"
+              src={`${voucherPdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+              className="h-[calc(100vh-14rem)] min-h-[36rem] w-full rounded-lg border border-slate-200 bg-white"
             />
           ) : (
-            <ServiceInvoicePdf
-              invoice={viewInvoice}
-              company={invoicePdfCompany}
-              preGeneratedQrBase64={serviceInvoiceQrBase64}
-            />
+            <div className="flex h-[36rem] items-center justify-center rounded-lg border border-slate-200 bg-white text-sm text-slate-500">
+              {voucherPdfLoading
+                ? "Generando comprobante..."
+                : "No se pudo generar el comprobante."}
+            </div>
           )}
-        </PDFViewer>
-      ) : null}
-      <HookForm methods={methods} onSubmit={onSubmit}>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
-          <div className="space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <HookFormSelect<ServiceInvoiceFormValues>
-                  name="formaPago"
-                  label="Forma pago"
-                  options={[
-                    { value: "Credito", label: "Credito" },
-                    { value: "Contado", label: "Contado" },
-                  ]}
-                  disabled={!canEdit}
-                />
-                <HookFormInput<ServiceInvoiceFormValues>
-                  name="nroComprobante"
-                  label="Comprobante"
-                  placeholder="F001-00000013"
-                  rules={{ required: "El comprobante es obligatorio" }}
-                  disabled
-                  endAdornment={
-                    canEdit ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void loadCorrelative(
-                            extractSerieFromComprobante(nroComprobante),
-                          )
-                        }
-                        disabled={correlativeLoading}
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Obtener correlativo"
-                        aria-label="Obtener correlativo"
-                      >
-                        <RefreshCw
-                          className={`h-4 w-4 ${
-                            correlativeLoading ? "animate-spin" : ""
-                          }`}
-                        />
-                      </button>
-                    ) : null
-                  }
-                />
-                <HookFormInput<ServiceInvoiceFormValues>
-                  name="fechaDocumento"
-                  label="Fecha emision"
-                  type="date"
-                  rules={{ required: "La fecha es obligatoria" }}
-                  disabled={!canEdit}
-                />
-                <HookFormInput<ServiceInvoiceFormValues>
-                  name="fechaVto"
-                  label="Fecha vcto"
-                  type="date"
-                  rules={{ required: "La fecha de vencimiento es obligatoria" }}
-                  disabled
-                />
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <HookFormAutocomplete<ServiceInvoiceFormValues, ClientOption>
-                  name="razonSocialCliente"
-                  label="Cliente"
-                  options={clientOptions}
-                  placeholder="Razon social"
-                  syncInputToValue
-                  disabled={!canEdit}
-                  rules={{ required: "La razon social es obligatoria" }}
-                  onOptionSelected={(option) => {
-                    if (!option) return;
-
-                    setValue("nroDocumentoCliente", option.ruc, {
-                      shouldDirty: true,
-                    });
-                    setValue("direccionCliente", option.direccion, {
-                      shouldDirty: true,
-                    });
-                    setValue("clienteCorreo", safeText(option.email), {
-                      shouldDirty: true,
-                    });
-                  }}
-                />
-                <HookFormAutocomplete<ServiceInvoiceFormValues, ClientOption>
-                  name="nroDocumentoCliente"
-                  label="RUC cliente"
-                  options={rucOptions}
-                  placeholder="20522109178"
-                  syncInputToValue
-                  disabled={!canEdit}
-                  rules={{ required: "El RUC es obligatorio" }}
-                  onOptionSelected={(option) => {
-                    if (!option) return;
-                    setValue("razonSocialCliente", option.razon, {
-                      shouldDirty: true,
-                    });
-                    setValue("direccionCliente", option.direccion, {
-                      shouldDirty: true,
-                    });
-                    setValue("clienteCorreo", safeText(option.email), {
-                      shouldDirty: true,
-                    });
-                  }}
-                />
-                <div className="md:col-span-1">
-                  <HookFormInput<ServiceInvoiceFormValues>
-                    name="direccionCliente"
-                    label="Direccion cliente"
-                    rules={{ required: "La direccion es obligatoria" }}
+        </section>
+      ) : (
+        <HookForm methods={methods} onSubmit={onSubmit}>
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_19rem]">
+            <div className="space-y-4">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                  <HookFormSelect<ServiceInvoiceFormValues>
+                    name="formaPago"
+                    label="Forma pago"
+                    options={[
+                      { value: "Credito", label: "Credito" },
+                      { value: "Contado", label: "Contado" },
+                    ]}
                     disabled={!canEdit}
                   />
-                </div>
-                <div className="md:col-span-1">
                   <HookFormInput<ServiceInvoiceFormValues>
-                    name="clienteCorreo"
-                    label="Correo cliente"
+                    name="nroComprobante"
+                    label="Comprobante"
+                    placeholder="F001-00000013"
+                    rules={{ required: "El comprobante es obligatorio" }}
+                    disabled
+                    endAdornment={
+                      canEdit ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void loadCorrelative(
+                              extractSerieFromComprobante(nroComprobante),
+                            )
+                          }
+                          disabled={correlativeLoading}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Obtener correlativo"
+                          aria-label="Obtener correlativo"
+                        >
+                          <RefreshCw
+                            className={`h-4 w-4 ${
+                              correlativeLoading ? "animate-spin" : ""
+                            }`}
+                          />
+                        </button>
+                      ) : null
+                    }
+                  />
+                  <HookFormInput<ServiceInvoiceFormValues>
+                    name="fechaDocumento"
+                    label="Fecha emision"
+                    type="date"
+                    rules={{ required: "La fecha es obligatoria" }}
+                    disabled={!canEdit}
+                  />
+                  <HookFormInput<ServiceInvoiceFormValues>
+                    name="fechaVto"
+                    label="Fecha vcto"
+                    type="date"
+                    rules={{
+                      required: "La fecha de vencimiento es obligatoria",
+                    }}
                     disabled
                   />
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-                  Servicios
-                </h2>
-              </div>
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <HookFormAutocomplete<ServiceInvoiceFormValues, ClientOption>
+                    name="razonSocialCliente"
+                    label="Cliente"
+                    options={clientOptions}
+                    placeholder="Razon social"
+                    syncInputToValue
+                    disabled={!canEdit}
+                    rules={{ required: "La razon social es obligatoria" }}
+                    onOptionSelected={(option) => {
+                      if (!option) return;
 
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[64rem] border-collapse">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold">Servicio</th>
-                      <th className="w-24 px-3 py-2 text-right font-semibold">
-                        Cant.
-                      </th>
-                      <th className="w-32 px-3 py-2 text-right font-semibold">
-                        Precio
-                      </th>
-                      <th className="w-32 px-3 py-2 text-right font-semibold">
-                        Total
-                      </th>
-                      <th className="w-16 px-3 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {details.map((row, index) => {
-                      const cantidad = toNumber(row.cantidad);
-                      const precioConIgv = toNumber(row.precioSinImpuesto);
-                      const total = roundCurrency(cantidad * precioConIgv);
+                      setValue("nroDocumentoCliente", option.ruc, {
+                        shouldDirty: true,
+                      });
+                      setValue("direccionCliente", option.direccion, {
+                        shouldDirty: true,
+                      });
+                      setValue("clienteCorreo", safeText(option.email), {
+                        shouldDirty: true,
+                      });
+                    }}
+                  />
+                  <HookFormAutocomplete<ServiceInvoiceFormValues, ClientOption>
+                    name="nroDocumentoCliente"
+                    label="RUC cliente"
+                    options={rucOptions}
+                    placeholder="20522109178"
+                    syncInputToValue
+                    disabled={!canEdit}
+                    rules={{ required: "El RUC es obligatorio" }}
+                    onOptionSelected={(option) => {
+                      if (!option) return;
+                      setValue("razonSocialCliente", option.razon, {
+                        shouldDirty: true,
+                      });
+                      setValue("direccionCliente", option.direccion, {
+                        shouldDirty: true,
+                      });
+                      setValue("clienteCorreo", safeText(option.email), {
+                        shouldDirty: true,
+                      });
+                    }}
+                  />
+                  <div className="md:col-span-1">
+                    <HookFormInput<ServiceInvoiceFormValues>
+                      name="direccionCliente"
+                      label="Direccion cliente"
+                      rules={{ required: "La direccion es obligatoria" }}
+                      disabled={!canEdit}
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <HookFormInput<ServiceInvoiceFormValues>
+                      name="clienteCorreo"
+                      label="Correo cliente"
+                      disabled
+                    />
+                  </div>
+                </div>
+              </section>
 
-                      return (
-                        <tr key={row.id} className="border-t border-slate-200">
-                          <td className="px-3 py-2">
-                            <Autocomplete<ServiceOption, false, false, true>
-                              freeSolo
-                              disabled={!canEdit}
-                              size="small"
-                              loading={serviceProductsLoading}
-                              options={serviceOptions}
-                              value={
-                                serviceOptions.find(
-                                  (option) => option.value === row.productId,
-                                ) ?? null
-                              }
-                              inputValue={row.descripcion}
-                              getOptionLabel={(option) =>
-                                typeof option === "string"
-                                  ? option
-                                  : option.label
-                              }
-                              isOptionEqualToValue={(option, value) =>
-                                option.value === value.value
-                              }
-                              onChange={(_, option) => {
-                                if (typeof option === "string") {
+              <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                    Servicios
+                  </h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[64rem] border-collapse">
+                    <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 font-semibold">Servicio</th>
+                        <th className="w-24 px-3 py-2 text-right font-semibold">
+                          Cant.
+                        </th>
+                        <th className="w-32 px-3 py-2 text-right font-semibold">
+                          Precio
+                        </th>
+                        <th className="w-32 px-3 py-2 text-right font-semibold">
+                          Total
+                        </th>
+                        <th className="w-16 px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {details.map((row, index) => {
+                        const cantidad = toNumber(row.cantidad);
+                        const precioConIgv = toNumber(row.precioSinImpuesto);
+                        const total = roundCurrency(cantidad * precioConIgv);
+
+                        return (
+                          <tr
+                            key={row.id}
+                            className="border-t border-slate-200"
+                          >
+                            <td className="px-3 py-2">
+                              <Autocomplete<ServiceOption, false, false, true>
+                                freeSolo
+                                disabled={!canEdit}
+                                size="small"
+                                loading={serviceProductsLoading}
+                                options={serviceOptions}
+                                value={
+                                  serviceOptions.find(
+                                    (option) => option.value === row.productId,
+                                  ) ?? null
+                                }
+                                inputValue={row.descripcion}
+                                getOptionLabel={(option) =>
+                                  typeof option === "string"
+                                    ? option
+                                    : option.label
+                                }
+                                isOptionEqualToValue={(option, value) =>
+                                  option.value === value.value
+                                }
+                                onChange={(_, option) => {
+                                  if (typeof option === "string") {
+                                    updateDetail(row.id, {
+                                      productId: null,
+                                      descripcion: option.toUpperCase(),
+                                    });
+                                    return;
+                                  }
+                                  selectService(row.id, option);
+                                }}
+                                onInputChange={(_, value, reason) => {
+                                  if (reason === "reset") return;
                                   updateDetail(row.id, {
                                     productId: null,
-                                    descripcion: option.toUpperCase(),
+                                    descripcion: value.toUpperCase(),
                                   });
-                                  return;
+                                }}
+                                renderInput={(params) => (
+                                  <TextField
+                                    {...params}
+                                    placeholder={
+                                      serviceProductsLoading
+                                        ? "Cargando servicios..."
+                                        : "Seleccionar servicio"
+                                    }
+                                    size="small"
+                                    sx={{
+                                      "& .MuiOutlinedInput-root": {
+                                        borderRadius: "0.45rem",
+                                        backgroundColor: "#fff",
+                                        "& fieldset": {
+                                          borderColor: "#cbd5e1",
+                                        },
+                                        "&.Mui-focused fieldset": {
+                                          borderColor: "#B23636",
+                                          boxShadow:
+                                            "0 0 0 2px rgba(178,54,54,0.18)",
+                                        },
+                                      },
+                                      "& .MuiOutlinedInput-input": {
+                                        fontSize: "0.875rem",
+                                        py: 0.75,
+                                      },
+                                    }}
+                                  />
+                                )}
+                              />
+                            </td>
+
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={row.cantidad}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateDetail(row.id, {
+                                    cantidad: event.target.value,
+                                  })
                                 }
-                                selectService(row.id, option);
-                              }}
-                              onInputChange={(_, value, reason) => {
-                                if (reason === "reset") return;
-                                updateDetail(row.id, {
-                                  productId: null,
-                                  descripcion: value.toUpperCase(),
-                                });
-                              }}
-                              renderInput={(params) => (
-                                <TextField
-                                  {...params}
-                                  placeholder={
-                                    serviceProductsLoading
-                                      ? "Cargando servicios..."
-                                      : "Seleccionar servicio"
-                                  }
-                                  size="small"
-                                  sx={{
-                                    "& .MuiOutlinedInput-root": {
-                                      borderRadius: "0.45rem",
-                                      backgroundColor: "#fff",
-                                      "& fieldset": {
-                                        borderColor: "#cbd5e1",
-                                      },
-                                      "&.Mui-focused fieldset": {
-                                        borderColor: "#B23636",
-                                        boxShadow:
-                                          "0 0 0 2px rgba(178,54,54,0.18)",
-                                      },
-                                    },
-                                    "& .MuiOutlinedInput-input": {
-                                      fontSize: "0.875rem",
-                                      py: 0.75,
-                                    },
-                                  }}
-                                />
-                              )}
-                            />
-                          </td>
+                                className="h-9 w-full rounded-md border border-slate-300 px-2 text-right text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            </td>
 
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={row.cantidad}
-                              disabled={!canEdit}
-                              onChange={(event) =>
-                                updateDetail(row.id, {
-                                  cantidad: event.target.value,
-                                })
-                              }
-                              className="h-9 w-full rounded-md border border-slate-300 px-2 text-right text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </td>
+                            <td className="px-3 py-2">
+                              <input
+                                type="number"
+                                ref={index === 0 ? precioRef : undefined}
+                                min="0"
+                                step="0.01"
+                                value={row.precioSinImpuesto}
+                                disabled={!canEdit}
+                                onChange={(event) =>
+                                  updateDetail(row.id, {
+                                    precioSinImpuesto: event.target.value,
+                                  })
+                                }
+                                className="h-9 w-full rounded-md border border-slate-300 px-2 text-right text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            </td>
+                            <td className="px-3 py-2 text-right text-sm font-semibold text-slate-800">
+                              {formatReadonlyMoney(total)}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => removeDetail(row.id)}
+                                disabled={!canEdit || details.length === 1}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45"
+                                title="Eliminar"
+                                aria-label="Eliminar"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
 
-                          <td className="px-3 py-2">
-                            <input
-                              type="number"
-                              ref={index === 0 ? precioRef : undefined}
-                              min="0"
-                              step="0.01"
-                              value={row.precioSinImpuesto}
-                              disabled={!canEdit}
-                              onChange={(event) =>
-                                updateDetail(row.id, {
-                                  precioSinImpuesto: event.target.value,
-                                })
-                              }
-                              className="h-9 w-full rounded-md border border-slate-300 px-2 text-right text-sm outline-none focus:border-[#B23636] focus:ring-2 focus:ring-[#B23636]/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right text-sm font-semibold text-slate-800">
-                            {formatReadonlyMoney(total)}
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              onClick={() => removeDetail(row.id)}
-                              disabled={!canEdit || details.length === 1}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-45"
-                              title="Eliminar"
-                              aria-label="Eliminar"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          </div>
-
-          <aside className="space-y-4">
-            <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
-                Totales
-              </h2>
-              <div className="mt-3 space-y-2 text-sm">
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">Gravada</span>
-                  <span className="font-semibold">
-                    {formatReadonlyMoney(totals.subTotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3">
-                  <span className="text-slate-500">IGV 18%</span>
-                  <span className="font-semibold">
-                    {formatReadonlyMoney(totals.igv)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3 border-t border-slate-200 pt-2 text-base">
-                  <span className="font-semibold text-slate-700">Total</span>
-                  <span className="font-bold text-slate-900">
-                    {formatReadonlyMoney(totals.total)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs text-slate-500">
-                  <span>Detraccion</span>
-                  <span>{formatReadonlyMoney(montoDetraccion)}</span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs text-slate-500">
-                  <span>Cuenta</span>
-                  <span>{DETRACTION_ACCOUNT}</span>
-                </div>
-                <div className="flex justify-between gap-3 text-xs text-slate-500">
-                  <span>M.Pendiente:</span>
-                  <span>
-                    {formatReadonlyMoney(totals.total - montoDetraccion)}{" "}
-                  </span>
-                </div>
-                {canUseDocumentActions && invoicePdfDocument ? (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => void handleCreateCreditNote()}
-                      disabled={sending}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Send
-                        className={`h-4 w-4 ${sending ? "animate-spin" : ""}`}
-                      />
-                      {sending ? "Enviando..." : "Crear NC"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleSendEmail()}
-                      disabled={sendingEmail}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Send
-                        className={`h-4 w-4 ${sendingEmail ? "animate-spin" : ""}`}
-                      />
-                      {sendingEmail ? "Enviando..." : "Enviar Correo"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleDownloadPdf()}
-                      className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      <Download className="h-4 w-4" />
-                      Descargar PDF
-                    </button>
+            <aside className="space-y-4">
+              <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-600">
+                  Totales
+                </h2>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500">Gravada</span>
+                    <span className="font-semibold">
+                      {formatReadonlyMoney(totals.subTotal)}
+                    </span>
                   </div>
-                ) : null}
-              </div>
-            </section>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-slate-500">IGV 18%</span>
+                    <span className="font-semibold">
+                      {formatReadonlyMoney(totals.igv)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3 border-t border-slate-200 pt-2 text-base">
+                    <span className="font-semibold text-slate-700">Total</span>
+                    <span className="font-bold text-slate-900">
+                      {formatReadonlyMoney(totals.total)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-xs text-slate-500">
+                    <span>Detraccion</span>
+                    <span>{formatReadonlyMoney(montoDetraccion)}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-xs text-slate-500">
+                    <span>Cuenta</span>
+                    <span>{DETRACTION_ACCOUNT}</span>
+                  </div>
+                  <div className="flex justify-between gap-3 text-xs text-slate-500">
+                    <span>M.Pendiente:</span>
+                    <span>
+                      {formatReadonlyMoney(totals.total - montoDetraccion)}{" "}
+                    </span>
+                  </div>
+                  {canUseDocumentActions ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateCreditNote()}
+                        disabled={sending}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Send
+                          className={`h-4 w-4 ${sending ? "animate-spin" : ""}`}
+                        />
+                        {sending ? "Enviando..." : "Crear NC"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSendEmail()}
+                        disabled={sendingEmail}
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Send
+                          className={`h-4 w-4 ${sendingEmail ? "animate-spin" : ""}`}
+                        />
+                        {sendingEmail ? "Enviando..." : "Enviar Correo"}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              </section>
 
-            {canEdit ? (
-              <button
-                type="submit"
-                disabled={sending}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#B23636] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#96312a] disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {sending ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                {sending ? "Creando factura..." : "Enviar"}
-              </button>
-            ) : null}
-          </aside>
-        </div>
-      </HookForm>
+              {canEdit ? (
+                <button
+                  type="submit"
+                  disabled={sending}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#B23636] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#96312a] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {sending ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  {sending ? "Creando factura..." : "Enviar"}
+                </button>
+              ) : null}
+            </aside>
+          </div>
+        </HookForm>
+      )}
     </div>
   );
 }
