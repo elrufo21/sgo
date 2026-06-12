@@ -17,7 +17,6 @@ import { useServiceInvoicesStore } from "@/store/serviceInvoices/serviceInvoices
 import type { ServiceInvoiceListItem } from "@/types/serviceInvoice";
 
 const columnHelper = createColumnHelper<ServiceInvoiceListItem>();
-const SERVICE_INVOICES_RANGE_STORAGE_KEY = "sgo.serviceInvoices.range";
 
 const formatMoney = (value: number) =>
   new Intl.NumberFormat("es-PE", {
@@ -38,32 +37,17 @@ const annulledRowClassName =
 
 export default function ServiceInvoiceList() {
   const { invoices, loading, error, fetchInvoices } = useServiceInvoicesStore();
-  const initialDate = useMemo(() => getLocalDateISO(), []);
   const initialRange = useMemo(() => {
-    if (typeof window === "undefined") {
-      return { from: initialDate, to: initialDate };
-    }
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
-    try {
-      const raw = window.sessionStorage.getItem(
-        SERVICE_INVOICES_RANGE_STORAGE_KEY,
-      );
-      if (!raw) return { from: initialDate, to: initialDate };
-      const parsed = JSON.parse(raw) as {
-        from?: unknown;
-        to?: unknown;
-      } | null;
-      const from = String(parsed?.from ?? "").trim();
-      const to = String(parsed?.to ?? "").trim();
-      if (!from || !to || from > to) {
-        return { from: initialDate, to: initialDate };
-      }
-      return { from, to };
-    } catch {
-      return { from: initialDate, to: initialDate };
-    }
-  }, [initialDate]);
-  const [estado, setEstado] = useState("");
+    return {
+      from: getLocalDateISO(firstDay),
+      to: getLocalDateISO(lastDay),
+    };
+  }, []);
+  const [estado] = useState("");
   const [fechaInicio, setFechaInicio] = useState(initialRange.from);
   const [fechaFin, setFechaFin] = useState(initialRange.to);
   const fechaInicioRef = useRef(fechaInicio);
@@ -122,17 +106,6 @@ export default function ServiceInvoiceList() {
   useEffect(() => {
     requestInvoicesByRange(fechaInicioRef.current, fechaFinRef.current);
   }, [requestInvoicesByRange]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const from = String(fechaInicio ?? "").trim();
-    const to = String(fechaFin ?? "").trim();
-    if (!from || !to || from > to) return;
-    window.sessionStorage.setItem(
-      SERVICE_INVOICES_RANGE_STORAGE_KEY,
-      JSON.stringify({ from, to }),
-    );
-  }, [fechaFin, fechaInicio]);
 
   const handleSearch = useCallback(() => {
     requestInvoicesByRange(fechaInicio, fechaFin, estado);

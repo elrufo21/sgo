@@ -274,9 +274,7 @@ const POSPage = () => {
         cancelText: "Cancelar",
         onConfirm: () => {
           addProduct(product, 1);
-          toast.success(`${product.nombre} agregado al carrito`, {
-            duration: 1200,
-          });
+
           focusSearchInput();
         },
       });
@@ -284,9 +282,7 @@ const POSPage = () => {
     }
 
     addProduct(product, 1);
-    toast.success(`${product.nombre} agregado al carrito`, {
-      duration: 1200,
-    });
+
     focusSearchInput();
   };
 

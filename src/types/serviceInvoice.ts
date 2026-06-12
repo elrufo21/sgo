@@ -10,6 +10,7 @@ export interface ServiceInvoiceListCompra {
   nroComprobante?: string;
   fechaEmision: string;
   fechaVto?: string;
+  fechaVencimiento?: string;
   fechaRegistro?: string;
   clienteId?: number;
   clienteRazon?: string;

@@ -180,6 +180,14 @@ const mapApiItem = (item: unknown): ServiceInvoiceListItem => {
           source.fechaVenc ??
           source.FechaVenc,
       ),
+      fechaVencimiento: normalizeDateOnly(
+        source.fechaVencimiento ??
+          source.FechaVencimiento ??
+          source.fechaVto ??
+          source.FechaVto ??
+          source.fechaVenc ??
+          source.FechaVenc,
+      ),
       fechaRegistro: safeText(
         source.fechaRegistro ??
           source.FechaRegistro ??

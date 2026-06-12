@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Download, RefreshCw, Send, Trash2 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
@@ -23,6 +23,7 @@ import {
   roundUnitValue,
 } from "@/shared/helpers/saleMonetary";
 import { useAuthStore } from "@/store/auth/auth.store";
+import { useDialogStore } from "@/store/app/dialog.store";
 import { useBillingConfigStore } from "@/store/configuration/billingConfig.store";
 import { useClientsStore } from "@/store/customers/customers.store";
 import {
@@ -235,6 +236,7 @@ export default function ServiceInvoiceCreate() {
   const [focusPrecio, setFocusPrecio] = useState(false);
   const precioRef = useRef<HTMLInputElement>(null);
   const user = useAuthStore((state) => state.user);
+  const openDialog = useDialogStore((state) => state.openDialog);
   const { config, fetchConfig } = useBillingConfigStore();
   const { clients, fetchClients } = useClientsStore();
   const {
@@ -264,6 +266,35 @@ export default function ServiceInvoiceCreate() {
   const isViewMode = Boolean(docuId) || createdViewMode;
   const canEdit = !isViewMode;
   const viewLoading = isViewMode && !viewInvoice;
+
+  const confirmWithAppDialog = useCallback(
+    ({
+      title,
+      content,
+      confirmText,
+      cancelText = "Cancelar",
+    }: {
+      title: string;
+      content: ReactNode;
+      confirmText: string;
+      cancelText?: string;
+    }) =>
+      new Promise<boolean>((resolve) => {
+        openDialog({
+          title,
+          content,
+          confirmText,
+          cancelText,
+          onConfirm: () => {
+            resolve(true);
+          },
+          onCancel: () => {
+            resolve(false);
+          },
+        });
+      }),
+    [openDialog],
+  );
 
   useEffect(() => {
     void fetchClients("ACTIVO");
@@ -459,9 +490,16 @@ export default function ServiceInvoiceCreate() {
       setValue("fechaDocumento", safeText(compra.fechaEmision), {
         shouldDirty: false,
       });
-      setValue("fechaVto", safeText(compra.fechaVto, compra.fechaEmision), {
-        shouldDirty: false,
-      });
+      setValue(
+        "fechaVto",
+        safeText(
+          compra.fechaVencimiento,
+          safeText(compra.fechaVto, compra.fechaEmision),
+        ),
+        {
+          shouldDirty: false,
+        },
+      );
       setValue(
         "formaPago",
         safeText(compra.formaPago, "Credito") === "Contado"
@@ -1045,6 +1083,13 @@ export default function ServiceInvoiceCreate() {
       return;
     }
 
+    const confirmed = await confirmWithAppDialog({
+      title: "Anular factura",
+      content: <p>¿Está seguro que desea anular la factura?</p>,
+      confirmText: "Anular",
+    });
+    if (!confirmed) return;
+
     const values = methods.getValues();
     const payload = buildCreditNotePayload(values);
 
@@ -1092,6 +1137,7 @@ export default function ServiceInvoiceCreate() {
   }, [
     applyViewInvoice,
     buildCreditNotePayload,
+    confirmWithAppDialog,
     fetchInvoiceById,
     methods,
     resolveRecordDocuId,
@@ -1211,6 +1257,13 @@ export default function ServiceInvoiceCreate() {
             </p>
           </div>
         </div>
+        <button
+          type="button"
+          onClick={() => navigate("/service-invoices")}
+          className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Volver
+        </button>
       </div>
 
       {isAnnulled ? (
@@ -1619,12 +1672,14 @@ export default function ServiceInvoiceCreate() {
                         type="button"
                         onClick={() => void handleCreateCreditNote()}
                         disabled={sending}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-red-700 bg-red-600 px-3 text-sm font-semibold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <Send
-                          className={`h-4 w-4 ${sending ? "animate-spin" : ""}`}
-                        />
-                        {sending ? "Enviando..." : "Crear NC"}
+                        {sending ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        {sending ? "Anulando..." : "ANULAR"}
                       </button>
                       <button
                         type="button"
