@@ -238,9 +238,10 @@ export default function ServiceInvoiceCreate() {
   const user = useAuthStore((state) => state.user);
   const openDialog = useDialogStore((state) => state.openDialog);
   const { config, fetchConfig } = useBillingConfigStore();
-  const { clients, fetchClients } = useClientsStore();
+  const { clients, loading: clientsLoading, fetchClients } = useClientsStore();
   const {
     sendInvoice,
+    registerAcceptedInvoice,
     sendCreditNote,
     fetchInvoiceById,
     fetchCorrelative,
@@ -915,6 +916,7 @@ export default function ServiceInvoiceCreate() {
         FECHA_VTO: values.fechaVto,
         COD_MONEDA: values.codMoneda,
         FORMA_PAGO: values.formaPago,
+        USUARIO: safeText(user?.displayName, safeText(user?.username, "USUARIO")),
         NRO_DOCUMENTO_EMPRESA: safeText(user?.companyRuc, "10464869978"),
         TIPO_DOCUMENTO_EMPRESA: "6",
         RAZON_SOCIAL_EMPRESA: razonSocial,
@@ -1172,7 +1174,8 @@ export default function ServiceInvoiceCreate() {
     }
 
     try {
-      const response = await sendInvoice(buildPayload(values));
+      const payload = buildPayload(values);
+      const response = await sendInvoice(payload);
       const message = resolveResponseMessage(response);
       const accepted = resolveAccepted(response);
 
@@ -1185,7 +1188,7 @@ export default function ServiceInvoiceCreate() {
 
       toast.success(message || "Factura de servicio enviada y aceptada.");
 
-      const docuIdCreado = resolveResponseNumber(
+      let docuIdCreado = resolveResponseNumber(
         response,
         "docu_id",
         "docuId",
@@ -1193,8 +1196,16 @@ export default function ServiceInvoiceCreate() {
       );
 
       if (!docuIdCreado) {
-        toast.error("La factura se creó, pero no se pudo obtener el ID.");
-        return;
+        const registerResponse = await registerAcceptedInvoice(
+          payload,
+          response,
+        );
+        docuIdCreado = resolveResponseNumber(
+          registerResponse,
+          "docu_id",
+          "docuId",
+          "DocuId",
+        );
       }
 
       const invoiceCreated = await fetchInvoiceById(docuIdCreado);
@@ -1448,6 +1459,8 @@ export default function ServiceInvoiceCreate() {
                     options={clientOptions}
                     placeholder="Razon social"
                     syncInputToValue
+                    loading={clientsLoading}
+                    loadingText="Cargando clientes..."
                     disabled={!canEdit}
                     rules={{ required: "La razon social es obligatoria" }}
                     onOptionSelected={(option) => {
@@ -1470,6 +1483,8 @@ export default function ServiceInvoiceCreate() {
                     options={rucOptions}
                     placeholder="20522109178"
                     syncInputToValue
+                    loading={clientsLoading}
+                    loadingText="Cargando clientes..."
                     disabled={!canEdit}
                     rules={{ required: "El RUC es obligatorio" }}
                     onOptionSelected={(option) => {

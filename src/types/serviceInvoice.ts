@@ -170,6 +170,7 @@ export interface ServiceInvoiceSendPayload {
   FECHA_VTO: string;
   COD_MONEDA: "PEN" | "USD";
   FORMA_PAGO: "Contado" | "Credito";
+  USUARIO: string;
   NRO_DOCUMENTO_EMPRESA: string;
   TIPO_DOCUMENTO_EMPRESA: "6";
   RAZON_SOCIAL_EMPRESA: string;

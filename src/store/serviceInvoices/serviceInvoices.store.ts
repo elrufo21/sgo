@@ -29,6 +29,10 @@ interface ServiceInvoicesState {
   ) => Promise<ServiceInvoiceCorrelative | null>;
   fetchServiceProducts: (filters?: ServiceProductFilters) => Promise<void>;
   sendInvoice: (payload: ServiceInvoiceSendPayload) => Promise<unknown>;
+  registerAcceptedInvoice: (
+    payload: ServiceInvoiceSendPayload,
+    response: unknown,
+  ) => Promise<unknown>;
   sendCreditNote: (
     payload: ServiceInvoiceCreditNotePayload,
   ) => Promise<unknown>;
@@ -257,6 +261,9 @@ const isAxiosLikeError = (value: unknown) =>
     "isAxiosError" in (value as Record<string, unknown>),
   );
 
+const toRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+
 const buildQuery = (filters?: ServiceInvoiceFilters) => {
   const params = new URLSearchParams();
   const estado = safeText(filters?.estado);
@@ -329,6 +336,39 @@ const mapCorrelative = (payload: unknown): ServiceInvoiceCorrelative | null => {
     ultimoNumero: safeText(row.ultimoNumero ?? row.UltimoNumero),
     numero: safeText(row.numero ?? row.Numero),
     nroComprobante,
+  };
+};
+
+const padInvoiceNumber = (value: number) => String(value).padStart(8, "0");
+
+const resolveNextAvailableCorrelative = (
+  correlative: ServiceInvoiceCorrelative,
+  invoices: ServiceInvoiceListItem[],
+): ServiceInvoiceCorrelative => {
+  const serie = safeText(correlative.serie).toUpperCase();
+  const currentNumber = safeNumber(correlative.numero);
+  if (!serie || currentNumber <= 0) return correlative;
+
+  const maxUsed = invoices.reduce((max, item) => {
+    const compra = item.compra;
+    const itemSerie = safeText(
+      compra.serie || safeText(compra.nroComprobante).split("-")[0],
+    ).toUpperCase();
+    const itemNumero = safeNumber(
+      compra.numero || safeText(compra.nroComprobante).split("-")[1],
+    );
+
+    return itemSerie === serie && itemNumero > max ? itemNumero : max;
+  }, 0);
+
+  if (currentNumber > maxUsed) return correlative;
+
+  const nextNumber = padInvoiceNumber(maxUsed + 1);
+  return {
+    ...correlative,
+    ultimoNumero: padInvoiceNumber(maxUsed),
+    numero: nextNumber,
+    nroComprobante: `${serie}-${nextNumber}`,
   };
 };
 
@@ -435,7 +475,24 @@ export const useServiceInvoicesStore = create<ServiceInvoicesState>((set) => ({
 
       if (isAxiosLikeError(response)) return null;
 
-      return mapCorrelative(response);
+      const correlative = mapCorrelative(response);
+      if (!correlative) return null;
+
+      const invoicesResponse = await apiRequest<unknown>({
+        url: buildApiUrl(
+          `/Nota/facturas-servicio?page=1&pageSize=200&companiaId=${companiaId}`,
+        ),
+        method: "GET",
+        config: { timeout: 15000 },
+        fallback: [],
+      });
+
+      if (isAxiosLikeError(invoicesResponse)) return correlative;
+
+      return resolveNextAvailableCorrelative(
+        correlative,
+        parseArrayResponse(invoicesResponse).map(mapApiItem),
+      );
     } catch (error) {
       console.error("Error loading service invoice correlative", error);
       return null;
@@ -499,6 +556,39 @@ export const useServiceInvoicesStore = create<ServiceInvoicesState>((set) => ({
     }
   },
 
+  registerAcceptedInvoice: async (payload, response) => {
+    const record = toRecord(response);
+    const requestBody = {
+      ...payload,
+      COD_SUNAT: safeText(record.cod_sunat ?? record.COD_SUNAT),
+      MSJ_SUNAT: safeText(record.msj_sunat ?? record.MSJ_SUNAT),
+      HASH_CPE: safeText(record.hash_cpe ?? record.HASH_CPE),
+      HASH_CDR: safeText(record.hash_cdr ?? record.HASH_CDR),
+      DOCU_XML_URL: safeText(record.xml_url ?? record.DOCU_XML_URL),
+      DOCU_CDR_URL: safeText(record.cdr_url ?? record.DOCU_CDR_URL),
+      DOCU_PDF_URL: safeText(record.pdf_url ?? record.DOCU_PDF_URL),
+    };
+
+    const registerResponse = await apiRequest<unknown>({
+      url: buildApiUrl("/Nota/factura-servicio/registrar-bd"),
+      method: "POST",
+      data: requestBody,
+      config: {
+        headers: {
+          Accept: "*/*",
+          "Content-Type": "application/json",
+        },
+      },
+      fallback: null,
+    });
+
+    if (isAxiosLikeError(registerResponse)) {
+      throw registerResponse;
+    }
+
+    return registerResponse;
+  },
+
   sendCreditNote: async (payload) => {
     set({ sending: true });
     try {
@@ -509,7 +599,9 @@ export const useServiceInvoicesStore = create<ServiceInvoicesState>((set) => ({
       const docuIdValue = Number(
         source.DOCU_ID ?? source.docu_id ?? source.docuId ?? 0,
       );
-      const { docuId: _docuId, docu_id: _docu_id, ...rest } = source;
+      const rest = { ...source };
+      delete rest.docuId;
+      delete rest.docu_id;
 
       const requestBody: ServiceInvoiceCreditNotePayload = {
         ...rest,
