@@ -94,11 +94,6 @@ const formatMoney = (value: number) =>
     maximumFractionDigits: 2,
   });
 
-const formatInteger = (value: number) =>
-  Math.trunc(value).toLocaleString("en-US", {
-    maximumFractionDigits: 0,
-  });
-
 const pad2 = (value: number) => String(value).padStart(2, "0");
 
 const toLocalIsoDate = (date: Date) =>
@@ -566,9 +561,6 @@ export default function PdtCompanyPage() {
   >({});
 
   const [loading, setLoading] = useState(false);
-  const [salesSource, setSalesSource] = useState<SourceType>(null);
-  const [purchaseSource, setPurchaseSource] =
-    useState<string>("Sin fuente activa");
   const [purchaseUnavailable, setPurchaseUnavailable] = useState(false);
 
   const setSalesFilterValue = useCallback(
@@ -720,8 +712,14 @@ export default function PdtCompanyPage() {
 
   const fetchPurchaseDocuments = useCallback(
     async (range: { fechaInicio: string; fechaFin: string }) => {
+      const query = new URLSearchParams({
+        fechaInicio: range.fechaInicio,
+        fechaFin: range.fechaFin,
+        pageSize: "1000",
+      });
+
       const response = await apiRequest<unknown>({
-        url: buildApiUrl("/Compra/list"),
+        url: `${buildApiUrl("/Compra/list")}?${query.toString()}`,
         method: "GET",
         fallback: [],
       });
@@ -740,6 +738,8 @@ export default function PdtCompanyPage() {
           if (!row) return null;
 
           const fecha = pickFirstText(row, [
+            "compraComputo",
+            "CompraComputo",
             "compraEmision",
             "CompraEmision",
             "fechaEmision",
@@ -852,10 +852,7 @@ export default function PdtCompanyPage() {
         ]);
 
         setSalesRows(salesResult.rows);
-        setSalesSource(salesResult.source);
-
         setPurchaseRows(purchaseResult.rows);
-        setPurchaseSource(purchaseResult.source);
         setPurchaseUnavailable(purchaseResult.unavailable);
 
         if (notifyEmpty && salesResult.rows.length === 0) {
@@ -1186,8 +1183,6 @@ export default function PdtCompanyPage() {
   }, [
     activeTab,
     exportFileBaseName,
-    fechaFin,
-    fechaInicio,
     filteredPurchaseRows,
     filteredSalesRows,
     purchaseTotals.baseImp,
@@ -1328,13 +1323,6 @@ export default function PdtCompanyPage() {
     ],
     [],
   );
-
-  const salesSourceLabel =
-    salesSource === "GET"
-      ? "GET /Nota/ld-documentos"
-      : salesSource === "POST_LEGACY"
-        ? "POST legacy /Nota/ld-documentos"
-        : "Sin fuente activa";
 
   return (
     <div className="space-y-4 p-3 sm:p-4">

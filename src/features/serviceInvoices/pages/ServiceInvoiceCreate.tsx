@@ -690,11 +690,19 @@ export default function ServiceInvoiceCreate() {
       active = false;
     };
   }, [invoicePdfCompany, isViewMode, viewInvoice]);
-  const handleSendEmail = async () => {
-    if (!viewInvoice || sendingEmail) return;
+  const sendInvoiceEmail = async (
+    invoice: ServiceInvoiceListItem,
+    correoCliente: string,
+  ) => {
+    if (sendingEmail) return;
 
-    if (isAnnulledInvoice(viewInvoice)) {
+    if (isAnnulledInvoice(invoice)) {
       toast.error("La factura está anulada. No se puede enviar por correo.");
+      return;
+    }
+
+    if (!correoCliente) {
+      toast.error("El cliente no tiene correo registrado.");
       return;
     }
 
@@ -704,10 +712,10 @@ export default function ServiceInvoiceCreate() {
       const qrBase64 =
         serviceInvoiceQrBase64 ||
         (await generateTicketQrBase64(
-          buildServiceInvoiceQrData(viewInvoice, invoicePdfCompany),
+          buildServiceInvoiceQrData(invoice, invoicePdfCompany),
         ));
       const pdfDocument = ServiceInvoicePdfDocument({
-        invoice: viewInvoice,
+        invoice,
         company: invoicePdfCompany,
         preGeneratedQrBase64: qrBase64,
       });
@@ -715,7 +723,7 @@ export default function ServiceInvoiceCreate() {
 
       const pdfFile = new File(
         [blob],
-        `${viewInvoice.compra.nroComprobante}.pdf`,
+        `${invoice.compra.nroComprobante}.pdf`,
         {
           type: "application/pdf",
         },
@@ -723,15 +731,8 @@ export default function ServiceInvoiceCreate() {
 
       const form = new FormData();
 
-      const correoCliente = methods.getValues("clienteCorreo");
-
-      if (!correoCliente) {
-        toast.error("El cliente no tiene correo registrado.");
-        return;
-      }
-
       form.append("para", correoCliente);
-      form.append("asunto", `Factura ${viewInvoice.compra.nroComprobante}`);
+      form.append("asunto", `Factura ${invoice.compra.nroComprobante}`);
 
       form.append("cuerpo", "<p>Adjuntamos su comprobante electrónico.</p>");
 
@@ -739,13 +740,13 @@ export default function ServiceInvoiceCreate() {
 
       form.append("pdf", pdfFile);
       form.append("rucEmisor", invoicePdfCompany.ruc || "15390049339");
-      form.append("nroComprobante", viewInvoice.compra.numero);
+      form.append("nroComprobante", invoice.compra.numero);
 
-      if (viewInvoice.compra.xmlUrl)
-        form.append("xmlUrl", viewInvoice.compra.xmlUrl);
+      if (invoice.compra.xmlUrl)
+        form.append("xmlUrl", invoice.compra.xmlUrl);
 
-      if (viewInvoice.compra.cdrUrl)
-        form.append("cdrUrl", viewInvoice.compra.cdrUrl);
+      if (invoice.compra.cdrUrl)
+        form.append("cdrUrl", invoice.compra.cdrUrl);
       //"https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante"
       const response = await fetch(
         "https://www.api-sgo.somee.com/api/v1/Correo/enviar-comprobante",
@@ -766,6 +767,11 @@ export default function ServiceInvoiceCreate() {
     } finally {
       setSendingEmail(false);
     }
+  };
+
+  const handleSendEmail = async () => {
+    if (!viewInvoice) return;
+    await sendInvoiceEmail(viewInvoice, methods.getValues("clienteCorreo"));
   };
   const buildVoucherPdfDocument = useCallback(async () => {
     if (!viewInvoice) return null;
@@ -1198,7 +1204,7 @@ export default function ServiceInvoiceCreate() {
         return;
       }
 
-      setViewInvoice(invoiceCreated);
+      applyViewInvoice(invoiceCreated, docuIdCreado);
       setCreatedDocuId(docuIdCreado);
       setCreatedViewMode(true);
       setActiveTab("voucher");
@@ -1208,6 +1214,36 @@ export default function ServiceInvoiceCreate() {
         "",
         `/service-invoices/${docuIdCreado}`,
       );
+
+      const correoCliente =
+        safeText(values.clienteCorreo) ||
+        safeText(
+          clients.find(
+            (client) =>
+              safeText(client.ruc) === safeText(values.nroDocumentoCliente),
+          )?.email,
+        );
+
+      if (correoCliente) {
+        const confirmed = await confirmWithAppDialog({
+          title: "Enviar la factura al correo",
+          content: (
+            <div className="space-y-3 text-sm text-slate-700">
+              <p className="font-semibold">
+                Se encontro registrado el correo del cliente.
+              </p>
+              <p className="font-bold text-blue-700">{correoCliente}</p>
+              <p className="font-semibold">Desea enviar al correo?</p>
+            </div>
+          ),
+          confirmText: "Aceptar",
+          cancelText: "Ignorar",
+        });
+
+        if (confirmed) {
+          await sendInvoiceEmail(invoiceCreated, correoCliente);
+        }
+      }
     } catch (error) {
       console.error("No se pudo enviar la factura de servicio", error);
       toast.error("No se pudo enviar la factura de servicio.");
