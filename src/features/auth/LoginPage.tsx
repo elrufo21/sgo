@@ -269,9 +269,9 @@ export function LoginPage() {
                 render={({ field, fieldState }) => (
                   <TextField
                     fullWidth
-                    type="text"
+                    type={showPassword ? "text" : "password"}
                     placeholder="Contraseña"
-                    autoComplete="one-time-code"
+                    autoComplete="current-password"
                     value={field.value ?? ""}
                     onChange={(event) => field.onChange(event.target.value)}
                     onBlur={field.onBlur}
@@ -308,13 +308,11 @@ export function LoginPage() {
                       ),
                     }}
                     inputProps={{
-                      autoComplete: "one-time-code",
+                      autoComplete: "current-password",
                       autoCorrect: "off",
                       autoCapitalize: "off",
                       spellCheck: false,
-                      ...(showPassword
-                        ? {}
-                        : { style: { WebkitTextSecurity: "disc" } }),
+                      "data-no-history-guard": "true",
                       "data-lpignore": "true",
                       "data-1p-ignore": "true",
                       "data-bwignore": "true",
