@@ -45,7 +45,7 @@ function VistaPreviaListaPrecios({ lista }: { lista: ListaPreciosPdf }) {
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
         Vigencia: <strong>{lista.vigenteDesde ?? "No indicada"}</strong>. Se encontraron{" "}
-        <strong> {lista.productos.length}</strong> productos. Distribuidor se guardará como costo y menudeo como precio de venta; categoría, contenido, SV y PV solo se muestran.
+        <strong> {lista.productos.length}</strong> productos. El precio de distribuidor se guardará como costo y precio de venta; menudeo, categoría, contenido, SV y PV solo se muestran.
       </p>
       <div className="max-h-[60vh] overflow-auto rounded-lg border border-slate-200">
         <table className="min-w-full text-left text-sm">
