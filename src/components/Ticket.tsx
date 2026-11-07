@@ -10,6 +10,7 @@ import {
 import React, { useEffect, useMemo, useState } from "react";
 import type { PosCartItem, PosTotals } from "@/types/pos";
 import { generateTicketQrBase64 } from "@/components/ticketQr";
+import { formatAmount } from "@/shared/helpers/formatAmount";
 
 type TicketDocumentProps = {
   clientName?: string;
@@ -630,8 +631,8 @@ const TicketDocument = ({
             <Text style={styles.colDesc}>
               {`${formatUnitPrefix(item.unitMeasure)}${item.description}`}
             </Text>
-            <Text style={styles.colPUni}>{item.unitPrice.toFixed(2)}</Text>
-            <Text style={styles.colImporte}>{item.total.toFixed(2)}</Text>
+            <Text style={styles.colPUni}>{formatAmount(item.unitPrice)}</Text>
+            <Text style={styles.colImporte}>{formatAmount(item.total)}</Text>
           </View>
         ))}
 
@@ -645,7 +646,7 @@ const TicketDocument = ({
               <Text style={styles.summaryLabel}>OP.GRAVADA :</Text>
               <Text style={styles.summaryCurrency}>S/</Text>
               <Text style={styles.summaryAmount}>
-                {ticketData.operacionGravada.toFixed(2)}
+                {formatAmount(ticketData.operacionGravada)}
               </Text>
             </View>
             {ticketData.showDiscount && (
@@ -653,7 +654,7 @@ const TicketDocument = ({
                 <Text style={styles.summaryLabel}>DESCUENTO :</Text>
                 <Text style={styles.summaryCurrency}>S/</Text>
                 <Text style={styles.summaryAmount}>
-                  {ticketData.descuento.toFixed(2)}
+                  {formatAmount(ticketData.descuento)}
                 </Text>
               </View>
             )}
@@ -661,14 +662,14 @@ const TicketDocument = ({
               <Text style={styles.summaryLabel}>SUBTOTAL :</Text>
               <Text style={styles.summaryCurrency}>S/</Text>
               <Text style={styles.summaryAmount}>
-                {ticketData.subtotal.toFixed(2)}
+                {formatAmount(ticketData.subtotal)}
               </Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>I.G.V. :</Text>
               <Text style={styles.summaryCurrency}>S/</Text>
               <Text style={styles.summaryAmount}>
-                {ticketData.igv.toFixed(2)}
+                {formatAmount(ticketData.igv)}
               </Text>
             </View>
           </>
@@ -677,7 +678,7 @@ const TicketDocument = ({
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>TOTAL :</Text>
           <Text style={styles.totalCurrency}>S/</Text>
-          <Text style={styles.totalAmount}>{ticketData.total.toFixed(2)}</Text>
+          <Text style={styles.totalAmount}>{formatAmount(ticketData.total)}</Text>
         </View>
 
         <View style={styles.footer}>

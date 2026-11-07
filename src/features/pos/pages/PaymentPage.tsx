@@ -18,6 +18,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { usePosStore, selectTotals } from "@/store/pos/pos.store";
 import { toast } from "@/shared/ui/toast";
 import { getLocalDateISO } from "@/shared/helpers/localDate";
+import { formatAmount } from "@/shared/helpers/formatAmount";
 import TicketDocument from "@/components/Ticket";
 import { generateTicketQrBase64 } from "@/components/ticketQr";
 import { apiRequest } from "@/shared/helpers/apiRequest";
@@ -4876,7 +4877,7 @@ const PaymentPage = () => {
                     </div>
                   ) : (
                     <p className="mt-1 text-base font-semibold text-slate-800">
-                      S/ {displayLine.unitPriceWithIgv.toFixed(2)}
+                      S/ {formatAmount(displayLine.unitPriceWithIgv)}
                     </p>
                   )}
                 </div>
@@ -4891,7 +4892,7 @@ const PaymentPage = () => {
                         isZeroOrNegative ? "text-red-600" : "text-slate-900"
                       }`}
                     >
-                      S/ {displayLine.totalWithIgv.toFixed(2)}
+                      S/ {formatAmount(displayLine.totalWithIgv)}
                     </p>
                   </div>
                 </div>
@@ -5016,7 +5017,7 @@ const PaymentPage = () => {
                       </div>
                     ) : (
                       <span className="inline-block pt-1 text-xl leading-none text-slate-900">
-                        {displayLine.unitPriceWithIgv.toFixed(2)}
+                        {formatAmount(displayLine.unitPriceWithIgv)}
                       </span>
                     )}
                   </div>
@@ -5028,7 +5029,7 @@ const PaymentPage = () => {
                           isZeroOrNegative ? "text-red-600" : "text-slate-900"
                         }`}
                       >
-                        {displayLine.totalWithIgv.toFixed(2)}
+                        {formatAmount(displayLine.totalWithIgv)}
                       </p>
                       <button
                         type="button"
@@ -5203,7 +5204,7 @@ const PaymentPage = () => {
               Total
             </p>
             <p className="text-sm font-semibold text-slate-800">
-              S/ {totalAPagar.toFixed(2)}
+              S/ {formatAmount(totalAPagar)}
             </p>
           </div>
         </div>
@@ -5441,7 +5442,7 @@ const PaymentPage = () => {
         <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
           <div className="flex justify-between text-sm text-gray-700">
             <span>Op. gravada</span>
-            <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
+            <span className="font-semibold">S/ {formatAmount(gravada)}</span>
           </div>
 
           {applyDiscount && (
@@ -5466,7 +5467,7 @@ const PaymentPage = () => {
                         return "El descuento no puede ser negativo";
                       return (
                         numeric <= maxDiscount ||
-                        `No puede superar S/ ${maxDiscount.toFixed(2)}`
+                        `No puede superar S/ ${formatAmount(maxDiscount)}`
                       );
                     },
                   }}
@@ -5493,15 +5494,15 @@ const PaymentPage = () => {
           )}
           <div className="flex justify-between text-sm text-gray-700">
             <span>Sub total</span>
-            <span className="font-semibold">S/ {gravada.toFixed(2)}</span>
+            <span className="font-semibold">S/ {formatAmount(gravada)}</span>
           </div>
           <div className="flex justify-between text-sm text-gray-700">
             <span>IGV (18%)</span>
-            <span className="font-semibold">S/ {igvAmount.toFixed(2)}</span>
+            <span className="font-semibold">S/ {formatAmount(igvAmount)}</span>
           </div>
           <div className="flex justify-between text-base font-bold text-slate-800">
             <span>Total pago</span>
-            <span>S/ {totalAPagar.toFixed(2)}</span>
+            <span>S/ {formatAmount(totalAPagar)}</span>
           </div>
         </div>
         {!formLocked && (
